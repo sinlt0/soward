@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: soward-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /health
+    envVars:
+      - key: SOWARD_TOKEN
+        sync: false
+      - key: SOWARD_MONGO_URI
+        sync: false
+      - key: SOWARD_MONGO_DB
+        sync: false
+      - key: SOWARD_LAVALINK_HOST
+        sync: false
+      - key: SOWARD_LAVALINK_PORT
+        sync: false
+      - key: SOWARD_LAVALINK_PASSWORD
+        sync: false
+      - key: SOWARD_LAVALINK_SECURE
+        sync: false
+      - key: SOWARD_YOUTUBE_API_KEY
+        sync: false
+      - key: SOWARD_TWITCH_CLIENT_ID
+        sync: false
+      - key: SOWARD_TWITCH_CLIENT_SECRET
+        sync: false
+      - key: SOWARD_DEV_LOG_COMMANDS_WEBHOOK
+        sync: false
+      - key: SOWARD_DEV_LOG_LIFECYCLE_WEBHOOK
+        sync: false
+      - key: SOWARD_DEV_LOG_ERRORS_WEBHOOK
+        sync: false
+      - key: SOWARD_DEV_LOG_GUILDS_WEBHOOK
+        sync: false
+      - key: SOWARD_DEV_STATS_WEBHOOK
+        sync: false
+      - key: PORT
+        value: 8080

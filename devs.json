@@ -1,0 +1,17 @@
+{
+  "owner_ids": [
+    1181137505505001544,
+    1514711695816261751
+  ],
+  "dev_ids": [
+    1181137505505001544,
+    1514711695816261751
+  ],
+  "dev_role_ids": [],
+  "_comment": {
+    "owner_ids": "Full bot ownership — can generate premium keys, reload cogs, shutdown bot.",
+    "dev_ids": "Developer-level access — same as owner for most privileged commands.",
+    "dev_role_ids": "Discord role IDs that grant developer-level access within any guild. Leave empty if unused.",
+    "note": "Add additional Discord user IDs (integers) to the arrays above. Do not add quotes around them."
+  }
+}

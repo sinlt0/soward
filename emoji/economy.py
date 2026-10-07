@@ -1,0 +1,16 @@
+emojis = {
+    "coin": "<a:coin:1532436121714299132>",
+    "wallet": "<:Wallet:1532436525613056061>",
+    "bank": "<:bank:1532444703872782506>",
+    "daily": "<a:red_calendar:1532721597377417287>",
+    "work": "<:allWorkersUnite:1532445125064659124>",
+    "gamble": "<:Gamble:1532716959152603256>",
+    "leaderboard": "<:red_trophy:1532717749988757555>",
+    "xp": "<a:u_levelup_red:1532717565875323023>",
+    "level_up": "<:levelling:1532439249100734465>",
+    "trophy": "<:red_trophy:1532717749988757555>",
+    "gift": "<:GO_RedGiveaway:1532441586464587817>",
+    "giveaway": "<:GO_RedGiveaway:1532441586464587817>",
+    "poll": "<a:DC_Poll:1532718244040020068>",
+    "ticket": "<:RedTicket:1532439371276353718>",
+}

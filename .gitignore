@@ -1,0 +1,72 @@
+# ── Secrets ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ── Python ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.installed.cfg
+*.egg
+pip-wheel-metadata/
+
+# ── Virtual environments ────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Runtime data ────────────────────────────────────────
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+logs/
+
+# ── Lavalink (run it separately) ────────────────────────
+lavalink/
+Lavalink.jar
+application.yml
+plugins/
+
+# ── Archives & backups ──────────────────────────────────
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.bak
+*.orig
+
+# ── Tooling / tests ─────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ── IDE / OS ────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Hosting ─────────────────────────────────────────────
+.render/

@@ -1,0 +1,16 @@
+emojis = {
+    "play": "<a:musics:1503125643271995392>",
+    "pause": "<a:red_pause:1532746972832862460>",
+    "skip": "<:Skip_red:1532747187279102002>",
+    "stop": "<:icon_music_stopped:1532747684438610043>",
+    "queue": "<a:queuend:1532747775442419813>",
+    "volume": "<:red_volume:1532747949451509834>",
+    "loop": "<a:loopi:1532748104183316711>",
+    "shuffle": "<:shuffle:1532748259981004841>",
+    "nowplaying": "<a:nowplaying:1532748459960958988>",
+    "music_note": "<:Red_Musicnote:1532748634637078610>",
+    "prev": "<:previous_red:1532748842129162291>",
+    "vol_up": "<:red_volume:1532747949451509834>",
+    "vol_down": "<:red_volume:1532747949451509834>",
+    "disc": "<a:musics:1503125643271995392>",
+}

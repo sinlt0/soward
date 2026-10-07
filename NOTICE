@@ -1,0 +1,46 @@
+Soward
+Copyright 2026 Sinlt (辛特) and the Soward Team
+
+This product includes software originally developed as part of the
+"Soward" project (modular Discord moderation, security, music and
+community bot).
+
+Original repository: https://github.com/sinlt0/soward
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+A copy of the License is included in the LICENSE file at the root
+of this repository, and is also available at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+-------------------------------------------------------------------------------
+ATTRIBUTION REQUIREMENT
+-------------------------------------------------------------------------------
+
+If you fork, clone, redistribute, or build upon this project, in whole or
+in part, you MUST:
+
+  1. Keep this NOTICE file and the LICENSE file intact in your copy or
+     Derivative Work, as required by Apache License 2.0, Section 4.
+
+  2. Retain a visible attribution to the original author in your project's
+     README, documentation, or "About" page. Acceptable wording:
+
+         "Built upon Soward by Sinlt (https://github.com/sinlt0/soward)"
+
+  3. Carry this same attribution requirement forward to anyone you
+     distribute the software (or a Derivative Work of it) to.
+
+You are free to modify, extend, rebrand, and re-theme the project for your
+own server, product, or service. You may NOT:
+
+  - Remove or alter this NOTICE file or the LICENSE file.
+  - Claim that you independently wrote the original codebase from scratch,
+    or otherwise misrepresent the origin of this software.
+  - Use the "Soward" name, or Sinlt's name, to imply endorsement of your
+    fork without permission.
+
+No attribution is required inside the running bot's Discord output or on a
+public-facing website built from this project. The requirement above applies
+at the repository / project level (README, docs, LICENSE/NOTICE files).
