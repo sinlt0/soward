@@ -152,6 +152,84 @@ async def init(bot_loop: asyncio.AbstractEventLoop) -> None:
     except Exception:
         pass
 
+    try:
+        await _sqlite_conn.execute("ALTER TABLE tickets ADD COLUMN panel_id TEXT")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE tickets ADD COLUMN number INTEGER NOT NULL DEFAULT 0")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE tickets ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE tickets ADD COLUMN subject TEXT")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE tickets ADD COLUMN last_activity REAL")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE tickets ADD COLUMN close_reason TEXT")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE tickets ADD COLUMN closed_by INTEGER")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE tickets ADD COLUMN answers TEXT")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE ticket_panels ADD COLUMN category_ids TEXT NOT NULL DEFAULT '[]'")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE ticket_panels ADD COLUMN questions TEXT NOT NULL DEFAULT '[]'")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE ticket_panels ADD COLUMN transcript_channel_id INTEGER")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE ticket_panels ADD COLUMN one_per_user INTEGER NOT NULL DEFAULT 1")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    await _sqlite_conn.execute(
+        "UPDATE ticket_panels SET category_ids = '[' || category_id || ']' "
+        "WHERE category_id IS NOT NULL AND category_ids = '[]'"
+    )
+    await _sqlite_conn.commit()
+
     log.info("SQLite ready at %s", config.SQLITE_PATH)
 
     if _mongo_available:
@@ -203,7 +281,7 @@ async def _bootstrap_sqlite() -> None:
             ns TEXT NOT NULL,
             key TEXT NOT NULL,
             value TEXT NOT NULL,
-            updated_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            updated_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (ns, key)
         )""",
         """CREATE TABLE IF NOT EXISTS guilds (
@@ -222,7 +300,7 @@ async def _bootstrap_sqlite() -> None:
             used_by INTEGER,
             used_at REAL,
             created_by INTEGER NOT NULL,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS warn_cases (
             case_id TEXT PRIMARY KEY,
@@ -230,7 +308,7 @@ async def _bootstrap_sqlite() -> None:
             user_id INTEGER NOT NULL,
             moderator_id INTEGER NOT NULL,
             reason TEXT,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS mod_cases (
             case_id TEXT PRIMARY KEY,
@@ -240,7 +318,7 @@ async def _bootstrap_sqlite() -> None:
             moderator_id INTEGER NOT NULL,
             reason TEXT,
             duration INTEGER,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS fakeperm_grants (
             guild_id INTEGER NOT NULL,
@@ -248,7 +326,7 @@ async def _bootstrap_sqlite() -> None:
             target_type TEXT NOT NULL,
             node TEXT NOT NULL,
             granted_by INTEGER NOT NULL,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, target_id, target_type, node)
         )""",
         """CREATE TABLE IF NOT EXISTS temp_bans (
@@ -265,7 +343,7 @@ async def _bootstrap_sqlite() -> None:
             user_id INTEGER NOT NULL,
             moderator_id INTEGER NOT NULL,
             note TEXT NOT NULL,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS xp (
             guild_id INTEGER NOT NULL,
@@ -287,7 +365,7 @@ async def _bootstrap_sqlite() -> None:
             numeric_id INTEGER NOT NULL,
             data TEXT NOT NULL,
             created_by INTEGER NOT NULL,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, trigger)
         )""",
         """CREATE TABLE IF NOT EXISTS custom_command_groups (
@@ -303,8 +381,40 @@ async def _bootstrap_sqlite() -> None:
             owner_id INTEGER NOT NULL,
             claimed_by INTEGER,
             status TEXT NOT NULL DEFAULT 'open',
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
-            closed_at REAL
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
+            closed_at REAL,
+            panel_id TEXT,
+            number INTEGER NOT NULL DEFAULT 0,
+            priority TEXT NOT NULL DEFAULT 'normal',
+            subject TEXT,
+            last_activity REAL,
+            close_reason TEXT,
+            closed_by INTEGER,
+            answers TEXT
+        )""",
+        """CREATE TABLE IF NOT EXISTS ticket_panels (
+            panel_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            channel_id INTEGER,
+            message_id INTEGER,
+            category_id INTEGER,
+            category_ids TEXT NOT NULL DEFAULT '[]',
+            staff_role_ids TEXT NOT NULL DEFAULT '[]',
+            questions TEXT NOT NULL DEFAULT '[]',
+            transcript_channel_id INTEGER,
+            one_per_user INTEGER NOT NULL DEFAULT 1,
+            button_label TEXT NOT NULL DEFAULT 'Open a Ticket',
+            welcome_text TEXT,
+            ask_subject INTEGER NOT NULL DEFAULT 1,
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
+        )""",
+        """CREATE TABLE IF NOT EXISTS ticket_settings (
+            guild_id INTEGER PRIMARY KEY,
+            log_channel_id INTEGER,
+            max_open INTEGER NOT NULL DEFAULT 3,
+            auto_close_hours INTEGER NOT NULL DEFAULT 0,
+            counter INTEGER NOT NULL DEFAULT 0
         )""",
         """CREATE TABLE IF NOT EXISTS giveaways (
             giveaway_id TEXT PRIMARY KEY,
@@ -347,7 +457,7 @@ async def _bootstrap_sqlite() -> None:
             guild_id INTEGER NOT NULL,
             target_id INTEGER NOT NULL,
             added_by INTEGER,
-            added_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            added_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, target_id)
         )""",
         """CREATE TABLE IF NOT EXISTS panic_mode_state (
@@ -361,7 +471,7 @@ async def _bootstrap_sqlite() -> None:
             guild_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             offense_count INTEGER NOT NULL DEFAULT 0,
-            last_offense_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            last_offense_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, user_id)
         )""",
         """CREATE TABLE IF NOT EXISTS antinuke_action_punishments (
@@ -375,13 +485,13 @@ async def _bootstrap_sqlite() -> None:
             user_id INTEGER NOT NULL,
             tier TEXT NOT NULL,
             granted_by INTEGER NOT NULL,
-            granted_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            granted_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, user_id)
         )""",
         """CREATE TABLE IF NOT EXISTS pending_verification (
             guild_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
-            joined_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            joined_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, user_id)
         )""",
         """CREATE TABLE IF NOT EXISTS dev_stats_state (
@@ -404,14 +514,14 @@ async def _bootstrap_sqlite() -> None:
         """CREATE TABLE IF NOT EXISTS anime_daily_history (
             guild_id INTEGER NOT NULL,
             media_id INTEGER NOT NULL,
-            posted_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            posted_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, media_id, posted_at)
         )""",
         """CREATE TABLE IF NOT EXISTS member_afk (
             guild_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             message TEXT,
-            set_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            set_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             original_nick TEXT,
             auto_return_at REAL,
             PRIMARY KEY (guild_id, user_id)
@@ -419,7 +529,7 @@ async def _bootstrap_sqlite() -> None:
         """CREATE TABLE IF NOT EXISTS global_afk (
             user_id INTEGER PRIMARY KEY,
             message TEXT,
-            set_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            set_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             auto_return_at REAL
         )""",
         """CREATE TABLE IF NOT EXISTS global_afk_mention_log (
@@ -428,7 +538,7 @@ async def _bootstrap_sqlite() -> None:
             guild_id INTEGER NOT NULL,
             channel_id INTEGER NOT NULL,
             content_preview TEXT,
-            mentioned_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            mentioned_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS afk_mention_log (
             guild_id INTEGER NOT NULL,
@@ -436,7 +546,7 @@ async def _bootstrap_sqlite() -> None:
             mentioner_id INTEGER NOT NULL,
             channel_id INTEGER NOT NULL,
             content_preview TEXT,
-            mentioned_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            mentioned_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS reaction_role_panels (
             panel_id TEXT PRIMARY KEY,
@@ -453,7 +563,7 @@ async def _bootstrap_sqlite() -> None:
             blacklist_role_id INTEGER,
             locked INTEGER NOT NULL DEFAULT 0,
             created_by INTEGER NOT NULL,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS reaction_role_bindings (
             panel_id TEXT NOT NULL,
@@ -482,8 +592,8 @@ async def _bootstrap_sqlite() -> None:
             card_accent_color TEXT,
             join_role_delay_seconds INTEGER NOT NULL DEFAULT 0,
             delete_after_seconds INTEGER,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
-            updated_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
+            updated_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, trigger_type)
         )""",
         """CREATE TABLE IF NOT EXISTS quarantine (
@@ -492,7 +602,7 @@ async def _bootstrap_sqlite() -> None:
             reason TEXT,
             saved_roles TEXT NOT NULL DEFAULT '[]',
             quarantined_by INTEGER,
-            quarantined_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            quarantined_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             released_at REAL,
             PRIMARY KEY (guild_id, user_id)
         )""",
@@ -503,7 +613,7 @@ async def _bootstrap_sqlite() -> None:
             action TEXT NOT NULL,
             detail TEXT,
             punishment TEXT,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS antiraid_state (
             guild_id INTEGER PRIMARY KEY,
@@ -525,21 +635,21 @@ async def _bootstrap_sqlite() -> None:
             guild_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             heat REAL NOT NULL DEFAULT 0,
-            last_updated REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            last_updated REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             mute_multiplier INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (guild_id, user_id)
         )""",
         """CREATE TABLE IF NOT EXISTS global_no_prefix (
             user_id INTEGER PRIMARY KEY,
             added_by INTEGER NOT NULL,
-            added_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            added_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS user_playlists (
             playlist_id TEXT PRIMARY KEY,
             user_id INTEGER NOT NULL,
             name TEXT NOT NULL,
             tracks TEXT NOT NULL DEFAULT '[]',
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS vc247_state (
             guild_id INTEGER PRIMARY KEY,
@@ -579,7 +689,7 @@ async def _bootstrap_sqlite() -> None:
             target_type TEXT NOT NULL,
             reason TEXT,
             blacklisted_by INTEGER,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (target_id, target_type)
         )""",
         """CREATE TABLE IF NOT EXISTS alert_subscriptions (
@@ -594,7 +704,7 @@ async def _bootstrap_sqlite() -> None:
             live_enabled INTEGER NOT NULL DEFAULT 1,
             upload_enabled INTEGER NOT NULL DEFAULT 1,
             created_by INTEGER NOT NULL,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec'))
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
         )""",
         """CREATE TABLE IF NOT EXISTS alert_state (
             platform TEXT NOT NULL,
@@ -602,13 +712,13 @@ async def _bootstrap_sqlite() -> None:
             last_video_id TEXT,
             last_live_stream_id TEXT,
             is_live INTEGER NOT NULL DEFAULT 0,
-            updated_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            updated_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (platform, target_id)
         )""",
         """CREATE TABLE IF NOT EXISTS alert_sent_log (
             subscription_id TEXT NOT NULL,
             content_id TEXT NOT NULL,
-            sent_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            sent_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (subscription_id, content_id)
         )""",
         """CREATE TABLE IF NOT EXISTS guild_leveling_config (
@@ -695,8 +805,8 @@ async def _bootstrap_sqlite() -> None:
             thumbnail_url TEXT,
             use_timestamp INTEGER NOT NULL DEFAULT 0,
             created_by INTEGER NOT NULL,
-            created_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
-            updated_at REAL NOT NULL DEFAULT (unixepoch('now','subsec')),
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
+            updated_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, name)
         )""",
         """CREATE TABLE IF NOT EXISTS embed_template_fields (
@@ -707,6 +817,19 @@ async def _bootstrap_sqlite() -> None:
             field_value TEXT NOT NULL,
             inline INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (guild_id, embed_name, position)
+        )""",
+        """CREATE TABLE IF NOT EXISTS nsfw_config (
+            guild_id INTEGER PRIMARY KEY,
+            role_id INTEGER NOT NULL,
+            updated_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
+        )""",
+        """CREATE TABLE IF NOT EXISTS nsfw_channels (
+            guild_id INTEGER NOT NULL,
+            channel_id INTEGER NOT NULL,
+            snapshot TEXT,
+            added_by INTEGER,
+            added_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
+            PRIMARY KEY (guild_id, channel_id)
         )""",
         """CREATE TABLE IF NOT EXISTS polls (
             poll_id TEXT PRIMARY KEY,

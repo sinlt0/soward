@@ -201,6 +201,8 @@ LOG_EVENTS: list[str] = [
     "antiraid_raid_mode",
     "verification_action",
     "autorole_action",
+    "nsfw_action",
+    "ticket_action",
 ]
 
 LOG_CATEGORY_NAME: str = "soward-logs"
@@ -236,7 +238,7 @@ LOG_CATEGORIES: dict[str, dict] = {
     "server": {
         "label": "Server Changes",
         "channel_name": "server-logs",
-        "events": ["role_change", "role_create", "role_delete", "channel_change", "channel_create", "channel_delete"],
+        "events": ["role_change", "role_create", "role_delete", "channel_change", "channel_create", "channel_delete", "nsfw_action", "ticket_action"],
     },
 }
 
@@ -271,6 +273,10 @@ LAVALINK_NODES: list[dict] = _parse_lavalink_nodes()
 SPOTIFY_SEARCH_CONFIGURED: bool = os.getenv("SOWARD_SPOTIFY_CLIENT_ID", "") != "" and os.getenv("SOWARD_SPOTIFY_CLIENT_SECRET", "") != ""
 
 TICKET_TRANSCRIPT_FORMAT: str = "html"
+TICKET_MAX_OPEN_LIMIT: int = 25
+TICKET_TRANSCRIPT_MESSAGE_LIMIT: int = 1500
+TICKET_AUTOCLOSE_CHECK_MINUTES: int = 10
+TICKET_PRIORITIES: tuple = ("low", "normal", "high", "urgent")
 GIVEAWAY_CHECK_INTERVAL: int = 10
 
 HELP_HIDDEN_CATEGORIES: set[str] = {
@@ -292,3 +298,14 @@ GREETING_CARD_LAYOUTS: tuple = ("classic", "left", "right", "banner")
 GREETING_DEFAULT_CARD_LAYOUT: str = "classic"
 GREETING_MAX_JOIN_ROLE_DELAY_SECONDS: int = 3600
 BOOST_LEVEL_THRESHOLDS: dict = {1: 2, 2: 7, 3: 14}
+
+NSFW_MAX_CHANNELS: int = 25
+
+TICKET_LIMITS: dict = {
+    "free": {"panels": 3, "staff_roles": 10, "categories": 5, "questions": 5, "active": 25},
+    "premium": {"panels": 10, "staff_roles": 20, "categories": 10, "questions": 10, "active": 250},
+}
+TICKET_MODAL_PAGE_SIZE: int = 5
+TICKET_FORM_SESSION_TTL: int = 600
+TICKET_CATEGORY_CHANNEL_CAP: int = 50
+TICKET_LIST_LIMIT: int = 15

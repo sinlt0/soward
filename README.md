@@ -24,7 +24,10 @@ Built by **Sinlt (辛特)** and the **Soward Team**.
 | **Moderation** | ban, kick, mute, warn, purge, tempban, softban, lockdown and slowmode, with a full case history |
 | **Logging** | Moderation, security, member, message and server logs routed to dedicated channels |
 | **Music** | Queue, filters, autoplay and 24/7 lofi radio stations through Lavalink v4 |
+| **Tickets** | Multi-panel support tickets with button panels, intake forms, multiple staff roles and categories per panel, claim/priority/add/remove tools, per-member and per-panel limits, inactivity auto-close, ticket stats, and HTML transcripts. Free servers get 3 panels and 10 staff roles per panel; Premium gets 10 and 20 |
+| **NSFW channels** | Role-gated instead of Discord's one-click age prompt: `nsfw role`, `nsfw addchannel`, `nsfw removechannel`, `nsfw viewchannels`, `nsfw sync`. Original channel permissions are saved and restored on removal |
 | **Community** | Leveling and XP, giveaways, reaction roles, greetings with generated image cards, AFK, quotes, ship, truth or dare, anime lookup |
+| **NSFW channels** | Role-gated NSFW channels instead of Discord's one-click age gate: register channels, lock them to a role, restore original permissions on removal |
 | **Custom commands** | Per-server commands with triggers, conditionals, role and channel restrictions, and action tags |
 | **Alerts** | YouTube upload/live and Twitch stream notifications |
 | **Premium** | Server-wide flag that unlocks no-prefix mode, redeemed with generated keys |
@@ -115,10 +118,11 @@ unaffected.
 
 ## Custom emoji
 
-`emoji/*.py` ships with placeholder IDs such as `<:play:1000000000000002001>`.
-Upload your own emoji and replace the placeholders, or they won't render. All
-bot output goes through `utils/emoji_manager.py`; no default Unicode emoji are
-used.
+The emoji in `emoji/*.py` point at custom emoji hosted on the author's servers,
+so they will **not render for you** (and some files, such as `social.py` and
+`anime.py`, still contain placeholder IDs like `<:play:1000000000000002001>`).
+Upload your own emoji to a server the bot can see and replace the IDs. All bot
+output goes through `utils/emoji_manager.py`; no default Unicode emoji are used.
 
 ## Deploying
 

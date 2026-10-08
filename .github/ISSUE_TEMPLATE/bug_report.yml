@@ -1,0 +1,31 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Expected vs. actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command or cog involved
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Redact tokens, URIs and IDs
+      render: shell
+  - type: input
+    id: env
+    attributes:
+      label: Python and discord.py versions

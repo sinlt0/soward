@@ -10,6 +10,7 @@ CATEGORY_DESCRIPTIONS = {
     "Moderation": "Ban, kick, mute, warn, purge, and case logging.",
     "Config": "Server setup and protection systems.",
     "Engagement": "Giveaways, alerts, and other ways to engage your members.",
+    "Tickets": "Support ticket panels, claiming, transcripts, and staff tools.",
     "Music": "Voice channel music playback and queueing.",
     "Utility": "Server and user information commands.",
     "Premium": "Premium activation and no-prefix settings.",

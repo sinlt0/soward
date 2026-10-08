@@ -272,6 +272,16 @@ class Logging(commands.Cog):
             actor_id = kwargs.get("actor_id")
             label = {"role_create": "Role created", "role_delete": "Role deleted", "role_change": "Role updated"}[action]
             body = f"## {e('info')} {label} · {ts}\n**Role:** `@{role_name}`" + (f"\n**By:** <@{actor_id}>" if actor_id else "")
+        elif action == "nsfw_action":
+            color = NEUTRAL
+            user_id = kwargs.get("user_id")
+            detail = kwargs.get("detail", "")
+            body = f"## {e('lock')} NSFW · {ts}\n" + (f"**By:** <@{user_id}>\n\n" if user_id else "") + detail
+        elif action == "ticket_action":
+            color = NEUTRAL
+            user_id = kwargs.get("user_id")
+            detail = kwargs.get("detail", "")
+            body = f"## {e('ticket')} Ticket · {ts}\n" + (f"**By:** <@{user_id}>\n\n" if user_id else "") + detail
         elif action == "verification_action":
             color = SUCCESS
             user_id = kwargs.get("user_id")

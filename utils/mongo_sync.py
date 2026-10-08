@@ -21,6 +21,8 @@ TABLE_KEYS: dict[str, list[str]] = {
     "custom_commands": ["guild_id", "trigger"],
     "custom_command_groups": ["guild_id", "name"],
     "tickets": ["ticket_id"],
+    "ticket_panels": ["panel_id"],
+    "ticket_settings": ["guild_id"],
     "giveaways": ["giveaway_id"],
     "giveaway_entries": ["giveaway_id", "user_id"],
     "giveaway_bonus_roles": ["giveaway_id", "role_id"],
@@ -66,6 +68,8 @@ TABLE_KEYS: dict[str, list[str]] = {
     "embed_templates": ["guild_id", "name"],
     "embed_template_fields": ["guild_id", "embed_name", "position"],
     "polls": ["poll_id"],
+    "nsfw_config": ["guild_id"],
+    "nsfw_channels": ["guild_id", "channel_id"],
 }
 
 ROWID_TABLES: list[str] = ["raid_join_log", "afk_mention_log", "global_afk_mention_log"]
