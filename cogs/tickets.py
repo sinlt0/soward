@@ -260,7 +260,8 @@ async def open_ticket(interaction: discord.Interaction, panel_id: str, subject: 
         view=build_control_view(
             number=number, owner=member, staff_mentions=mentions, subject=subject,
             welcome=panel.get("welcome_text"), answers=answers,
-        )
+        ),
+        allowed_mentions=discord.AllowedMentions(users=[member], roles=staff_roles, everyone=False),
     )
     await interaction.followup.send(
         view=success_layout(f"{e('check')} Ticket opened", f"Your ticket is ready: {channel.mention}"), ephemeral=True
