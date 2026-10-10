@@ -13,7 +13,9 @@ from discord.ext import commands
 
 import config
 from utils import blacklist, db, emoji_manager, loader, prefix as prefix_utils
-from web import server as web_server
+import secrets
+
+from utils import dashboard_proc, ipc_server
 
 BASE_DIR = Path(__file__).parent
 
@@ -183,18 +185,32 @@ async def main():
     bot = SowardBot()
 
     async with bot:
-        port = int(os.getenv("PORT", "8080"))
-        try:
-            await web_server.start_web_server(bot, port=port)
-            log.info("Web server listening on port %d", port)
-        except OSError as ex:
-            log.warning("Could not start web server on port %d: %s", port, ex)
+        secret = secrets.token_urlsafe(32)
+        ipc_runner = None
+        dashboard = None
+        if config.DASHBOARD_ADDON_ENABLED:
+            try:
+                ipc_runner = await ipc_server.start_ipc(bot, secret)
+                dashboard = dashboard_proc.DashboardProcess(
+                    secret, config.DASHBOARD_PORT, ipc_server.socket_path(), ipc_server.uses_unix_socket(),
+                    int(os.getenv("SOWARD_IPC_PORT", config.DASHBOARD_IPC_FALLBACK_PORT)),
+                )
+                await dashboard.start()
+            except OSError as ex:
+                log.warning("Could not start the dashboard: %s", ex)
+        else:
+            log.info("Dashboard addon is disabled in addons.py.")
 
         try:
             await bot.start(config.BOT_TOKEN)
         except discord.LoginFailure:
             log.critical("Login failed — the bot token is invalid or has been reset. Cannot start.")
             sys.exit(1)
+        finally:
+            if dashboard is not None:
+                await dashboard.stop()
+            if ipc_runner is not None:
+                await ipc_runner.cleanup()
 
 if __name__ == "__main__":
     try:

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Documentation · {{ bot_name }}{% endblock %}
+{% block content %}
+<div class="wrap pagehead">
+  <h1>Documentation</h1>
+  <p>Guides for setting up and running {{ bot_name }} in your server.</p>
+</div>
+<div class="wrap" style="padding-bottom:48px">
+  <div class="docgrid">
+    {% for d in docs %}
+    <a href="{{ url_for('doc_page', slug=d.slug) }}">
+      <h3>{{ d.title }}</h3>
+      <p>{{ d.description }}</p>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

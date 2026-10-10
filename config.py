@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -6,6 +7,29 @@ BASE_DIR = Path(__file__).parent
 
 with open(BASE_DIR / "devs.json", "r") as _f:
     _devs_data = json.load(_f)
+
+def _load_addons() -> dict:
+    try:
+        import addons
+    except ImportError:
+        return {}
+    except Exception:
+        logging.getLogger("soward.config").error("addons.py could not be loaded, using defaults.", exc_info=True)
+        return {}
+    return {k: v for k, v in vars(addons).items() if not k.startswith("_") and isinstance(v, dict)}
+
+
+ADDONS: dict = _load_addons()
+_DASH_ADDON: dict = ADDONS.get("dash") if isinstance(ADDONS.get("dash"), dict) else {}
+
+
+def _addon_port(value, fallback: int) -> int:
+    try:
+        port = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return port if 1 <= port <= 65535 else fallback
+
 
 BOT_TOKEN: str = os.getenv("SOWARD_TOKEN", "")
 MONGODB_URI: str = os.getenv("SOWARD_MONGO_URI", "mongodb://localhost:27017")
@@ -16,7 +40,7 @@ SQLITE_PATH: str = str(DATA_DIR / "soward.db")
 
 DEFAULT_PREFIX: str = "!"
 BOT_NAME: str = "Soward"
-BOT_VERSION: str = "1.0.0"
+BOT_VERSION: str = "3.0.0"
 DEVELOPER_USER_ID: int = 1181137505505001544
 
 OWNER_IDS: list[int] = _devs_data.get("owner_ids", [DEVELOPER_USER_ID])
@@ -309,3 +333,14 @@ TICKET_MODAL_PAGE_SIZE: int = 5
 TICKET_FORM_SESSION_TTL: int = 600
 TICKET_CATEGORY_CHANNEL_CAP: int = 50
 TICKET_LIST_LIMIT: int = 15
+
+DASHBOARD_ENABLED_DEFAULT: bool = True
+DASHBOARD_IPC_SOCKET: str = "data/soward-ipc.sock"
+DASHBOARD_IPC_FALLBACK_PORT: int = 8765
+DASHBOARD_SESSION_DAYS: int = 7
+DASHBOARD_AUDIT_PAGE_SIZE: int = 25
+DASHBOARD_LIST_LIMIT: int = 25
+DASHBOARD_RESTART_DELAY_SECONDS: int = 5
+DASHBOARD_URL: str = os.getenv("SOWARD_DASHBOARD_URL", "").rstrip("/")
+DASHBOARD_ADDON_ENABLED: bool = bool(_DASH_ADDON.get("dashboard", True))
+DASHBOARD_PORT: int = _addon_port(_DASH_ADDON.get("dashboard_port"), _addon_port(os.getenv("PORT"), 8080))

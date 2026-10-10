@@ -23,6 +23,7 @@ TABLE_KEYS: dict[str, list[str]] = {
     "tickets": ["ticket_id"],
     "ticket_panels": ["panel_id"],
     "ticket_settings": ["guild_id"],
+    "dashboard_audit": ["entry_id"],
     "giveaways": ["giveaway_id"],
     "giveaway_entries": ["giveaway_id", "user_id"],
     "giveaway_bonus_roles": ["giveaway_id", "role_id"],

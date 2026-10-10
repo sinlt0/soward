@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · {{ bot_name }}{% endblock %}
+{% block content %}
+<div class="wrap pagehead">
+  <h1>{{ title }}</h1>
+  {% if updated %}<p class="legal-updated">Last updated {{ updated }}</p>{% endif %}
+</div>
+<div class="wrap" style="padding-bottom:48px"><article class="prose">{{ html }}</article></div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Commands · {{ bot_name }}{% endblock %}
+{% block content %}
+<div class="wrap pagehead">
+  <h1>Commands</h1>
+  <p>{{ total }} commands across {{ categories|length }} categories. Everything is prefix based, so replace the example prefix with your server's.</p>
+  <div class="search" style="margin-top:22px;max-width:560px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="cmd-search" type="search" placeholder="Search commands" autocomplete="off" aria-label="Search commands">
+    <kbd>/</kbd>
+  </div>
+</div>
+<div class="wrap">
+  {% if categories %}
+  <div class="cmdpage">
+    <nav class="cmdnav" id="cmdnav" aria-label="Categories">
+      {% for c in categories %}
+      <a href="#cat-{{ c.name | lower | replace(' ', '-') }}" data-cat="cat-{{ c.name | lower | replace(' ', '-') }}"><span>{{ c.name }}</span><small>{{ c.commands|length }}</small></a>
+      {% endfor %}
+    </nav>
+    <div id="cmdlist">
+      {% for c in categories %}
+      <section class="cmdcat" id="cat-{{ c.name | lower | replace(' ', '-') }}">
+        <header>
+          <h2>{{ c.name }}</h2>
+          {% if c.description %}<p>{{ c.description }}</p>{% endif %}
+        </header>
+        {% for cmd in c.commands %}
+        <details class="cmd" data-search="{{ (cmd.name ~ ' ' ~ cmd.help ~ ' ' ~ cmd.aliases|join(' '))|lower }}">
+          <summary>
+            <code class="cmd__name">{{ cmd.name }}</code>
+            <span class="cmd__help">{{ cmd.help.splitlines()[0] if cmd.help else "No description." }}</span>
+            <span class="cmd__chev" aria-hidden="true">&rsaquo;</span>
+          </summary>
+          <div class="cmd__body">
+            <div class="cmd__usage"><code>{{ cmd.usage }}</code></div>
+            <div class="cmd__meta">
+              {% if cmd.aliases %}<span>Aliases: {% for a in cmd.aliases %}<code>{{ a }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}
+              {% if cmd.permissions %}<span>Needs: {% for p in cmd.permissions %}<span class="tag">{{ p }}</span> {% endfor %}</span>{% endif %}
+              <span>Module: {{ cmd.module }}</span>
+            </div>
+          </div>
+        </details>
+        {% endfor %}
+      </section>
+      {% endfor %}
+      <div class="empty" id="cmd-empty" hidden><strong>No commands match</strong>Try a different word or clear the search.</div>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty" style="margin-bottom:48px"><strong>Commands are loading</strong>The bot is starting up. Refresh in a moment.</div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/commands.js') }}" defer></script>{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Audit log · {{ g.name }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dash.css') }}">{% endblock %}
+{% block content %}
+<div class="dashbar">
+  <div class="wrap dashbar__inner">
+    <div class="dashbar__icon"{% if g.icon %} style="background-image:url('{{ g.icon }}')"{% endif %}>{% if not g.icon %}{{ g.name[:1] | upper }}{% endif %}</div>
+    <div><h1>Audit log</h1><div class="dashbar__meta">{{ g.name }}</div></div>
+    <div class="dashbar__links"><a class="btn btn--ghost btn--sm" href="{{ url_for('server_page', gid=g.id) }}">Back to server</a></div>
+  </div>
+</div>
+<div class="wrap dpage">
+  <section class="panel">
+    <div class="panel__head"><h2>Recent dashboard changes</h2><p>Every change made from the web dashboard is recorded here.</p></div>
+    {% if entries %}
+    <ul class="audit">
+      {% for e in entries %}
+      <li><span class="audit__who">{{ e.user }}</span><span class="audit__what"><span class="tag">{{ e.module }}</span> {{ e.summary }}</span><span class="audit__when">{{ e.at | ago }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty" style="margin:22px">No changes yet.</div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

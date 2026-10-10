@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Changelog · {{ bot_name }}{% endblock %}
+{% block content %}
+<div class="wrap pagehead">
+  <h1>Changelog</h1>
+  <p>What changed in each release.</p>
+</div>
+<div class="wrap" style="padding-bottom:48px">
+  <div class="timeline">
+    {% for e in entries %}
+    <section class="release">
+      <div><div class="release__ver">v{{ e.version }}</div><div class="release__date">{{ e.date }}</div></div>
+      <div>
+        <h2>{{ e.title }}</h2>
+        <ul>{% for item in e["items"] %}<li>{{ item }}</li>{% endfor %}</ul>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

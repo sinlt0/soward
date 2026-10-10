@@ -18,7 +18,7 @@ cogs/          one file per feature, auto-loaded
 events/        cross-system listeners, auto-loaded
 utils/         shared helpers (db, security, components, ...)
 emoji/         emoji dictionaries merged by EmojiManager
-web/           aiohttp status page and /health
+dashboard/     Flask site and web dashboard (separate process)
 ```
 
 Dropping a file into `cogs/` or `events/` is enough to register it.

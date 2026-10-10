@@ -416,6 +416,15 @@ async def _bootstrap_sqlite() -> None:
             auto_close_hours INTEGER NOT NULL DEFAULT 0,
             counter INTEGER NOT NULL DEFAULT 0
         )""",
+        """CREATE TABLE IF NOT EXISTS dashboard_audit (
+            entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            user_name TEXT,
+            module TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0)
+        )""",
         """CREATE TABLE IF NOT EXISTS giveaways (
             giveaway_id TEXT PRIMARY KEY,
             guild_id INTEGER NOT NULL,

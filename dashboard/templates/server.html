@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}{{ g.name }} · {{ bot_name }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dash.css') }}">{% endblock %}
+{% block content %}
+<div class="dashbar">
+  <div class="wrap dashbar__inner">
+    <div class="dashbar__icon"{% if g.icon %} style="background-image:url('{{ g.icon }}')"{% endif %}>{% if not g.icon %}{{ g.name[:1] | upper }}{% endif %}</div>
+    <div>
+      <h1>{{ g.name }}</h1>
+      <div class="dashbar__meta">{{ "{:,}".format(g.member_count) }} members · {% if g.premium %}<span class="badge badge--premium">Premium</span>{% else %}<span class="badge">Free plan</span>{% endif %}</div>
+    </div>
+    <div class="dashbar__links">
+      <a class="btn btn--ghost btn--sm" href="{{ url_for('servers') }}">All servers</a>
+      <a class="btn btn--ghost btn--sm" href="{{ url_for('audit_page', gid=g.id) }}">Audit log</a>
+    </div>
+  </div>
+</div>
+<div class="wrap dpage" data-gid="{{ g.id }}" id="dash">
+  <section class="panel" aria-labelledby="srv-settings">
+    <div class="panel__head"><h2 id="srv-settings">Server settings</h2><p>Core options that apply to the whole bot in this server.</p></div>
+    <div class="setting">
+      <div><div class="setting__label">Prefix</div><div class="setting__help">The character or word members type before a command. 1 to 5 characters, no spaces.</div></div>
+      <div class="setting__control">
+        <input class="input input--prefix" id="prefix" type="text" maxlength="5" value="{{ g.prefix }}" spellcheck="false" autocomplete="off" aria-label="Prefix">
+        <button class="btn btn--primary btn--sm" type="button" id="prefix-save">Save</button>
+      </div>
+    </div>
+    <div class="setting">
+      <div><div class="setting__label">No-prefix mode {% if not g.premium %}<span class="badge badge--premium">Premium</span>{% endif %}</div><div class="setting__help">Let members run commands without typing the prefix.</div></div>
+      <div class="setting__control"><label class="switch"><input type="checkbox" data-setting="server_np"{% if g.server_np %} checked{% endif %}{% if not g.premium %} disabled{% endif %}><span class="switch__track"></span><span class="sr">No-prefix mode</span></label></div>
+    </div>
+    <div class="setting">
+      <div><div class="setting__label">Dashboard access</div><div class="setting__help">Turn this off to block web changes for this server. You can turn it back on with the dashboard command in Discord.</div></div>
+      <div class="setting__control"><label class="switch"><input type="checkbox" data-setting="dashboard_enabled"{% if g.dashboard_enabled %} checked{% endif %}><span class="switch__track"></span><span class="sr">Dashboard access</span></label></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="mods-title">
+    <div class="finder">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input id="mod-search" type="search" placeholder="Search modules" autocomplete="off" aria-label="Search modules">
+        <kbd>/</kbd>
+      </div>
+      <div class="chips" id="chips">
+        <button class="chip" type="button" data-cat="" aria-pressed="true">All</button>
+        {% for grp in grouped %}<button class="chip" type="button" data-cat="{{ grp.name }}" aria-pressed="false">{{ grp.name }}</button>{% endfor %}
+      </div>
+    </div>
+    <h2 id="mods-title" class="sr">Modules</h2>
+    {% for grp in grouped %}
+    <div class="modgroup" data-group="{{ grp.name }}" style="margin-top:22px">
+      <h2>{{ grp.name }}</h2>
+      <div class="modgrid">
+        {% for m in grp.modules %}
+        <article class="mod" data-key="{{ m.key }}" data-search="{{ (m.name ~ ' ' ~ m.description ~ ' ' ~ grp.name ~ ' ' ~ m.commands)|lower }}">
+          <div class="mod__top"><span class="mod__icon">{{ icon(m.icon) }}</span><div class="mod__name">{{ m.name }}</div></div>
+          <p class="mod__desc">{{ m.description }}</p>
+          <div class="mod__foot">
+            <div class="mod__state">
+              {% if m.toggleable %}
+              <label class="switch"><input type="checkbox" data-module="{{ m.key }}"{% if m.enabled %} checked{% endif %}><span class="switch__track"></span><span class="sr">Toggle {{ m.name }}</span></label>
+              <span data-state-for="{{ m.key }}">{{ "On" if m.enabled else "Off" }}</span>
+              {% else %}<span>Always on</span>{% endif %}
+            </div>
+            {% if m.configurable %}<a class="btn btn--ghost btn--sm" href="{{ url_for('module_page', gid=g.id, key=m.key) }}">Configure</a>{% endif %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    <div class="empty" id="mod-empty" hidden style="margin-top:22px"><strong>No modules match</strong>Try another search or pick All.</div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/dash.js') }}" defer></script>{% endblock %}

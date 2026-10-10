@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Your servers · {{ bot_name }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dash.css') }}">{% endblock %}
+{% block content %}
+<div class="wrap pagehead">
+  <h1>Choose a server</h1>
+  <p>Servers where you have Manage Server. Pick one that already has {{ bot_name }}, or add the bot to another.</p>
+</div>
+<div class="wrap" style="padding-bottom:56px">
+  {% if not global_enabled %}<div class="note" style="margin-bottom:18px">The dashboard is switched off by the bot team right now. You can browse this list, but settings are locked until it is back on.</div>{% endif %}
+  {% if servers %}
+  <div class="servers">
+    {% for s in servers %}
+    <div class="srv">
+      <div class="srv__icon"{% if s.icon %} style="background-image:url('{{ s.icon }}')"{% endif %}>{% if not s.icon %}{{ s.name[:1] | upper }}{% endif %}</div>
+      <div class="srv__body">
+        <div class="srv__name">{{ s.name }}</div>
+        <div class="srv__meta">{% if s.installed %}{{ "{:,}".format(s.members) }} members{% else %}Bot not added{% endif %}</div>
+      </div>
+      {% if s.installed %}
+      <a class="btn btn--primary btn--sm" href="{{ url_for('server_page', gid=s.id) }}">Manage</a>
+      {% else %}
+      <a class="btn btn--ghost btn--sm" href="{{ invite_url }}&guild_id={{ s.id }}&disable_guild_select=true">Add</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty"><strong>No manageable servers</strong>You need the Manage Server permission in at least one server.</div>
+  {% endif %}
+</div>
+{% endblock %}

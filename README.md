@@ -23,11 +23,11 @@ Built by **Sinlt (辛特)** and the **Soward Team**.
 | **Security stack** | AntiNuke (per-action thresholds and quarantine), AntiRaid (join-velocity detection, raid mode), heat-based AutoMod, Verification gate (button, captcha, manual) and AutoRole, all coordinated through a shared incident state (normal, elevated, lockdown) |
 | **Moderation** | ban, kick, mute, warn, purge, tempban, softban, lockdown and slowmode, with a full case history |
 | **Logging** | Moderation, security, member, message and server logs routed to dedicated channels |
+| **Web dashboard** | Python/Flask site with Discord sign-in, a Dyno-style server page (prefix and core settings, searchable module grid with on/off switches, per-module forms), audit log, categorised command list, docs, changelog, terms and privacy. Talks to the bot over a private Unix socket. Switch it on or off per server with `dashboard on/off` |
 | **Music** | Queue, filters, autoplay and 24/7 lofi radio stations through Lavalink v4 |
 | **Tickets** | Multi-panel support tickets with button panels, intake forms, multiple staff roles and categories per panel, claim/priority/add/remove tools, per-member and per-panel limits, inactivity auto-close, ticket stats, and HTML transcripts. Free servers get 3 panels and 10 staff roles per panel; Premium gets 10 and 20 |
 | **NSFW channels** | Role-gated instead of Discord's one-click age prompt: `nsfw role`, `nsfw addchannel`, `nsfw removechannel`, `nsfw viewchannels`, `nsfw sync`. Original channel permissions are saved and restored on removal |
 | **Community** | Leveling and XP, giveaways, reaction roles, greetings with generated image cards, AFK, quotes, ship, truth or dare, anime lookup |
-| **NSFW channels** | Role-gated NSFW channels instead of Discord's one-click age gate: register channels, lock them to a role, restore original permissions on removal |
 | **Custom commands** | Per-server commands with triggers, conditionals, role and channel restrictions, and action tags |
 | **Alerts** | YouTube upload/live and Twitch stream notifications |
 | **Premium** | Server-wide flag that unlocks no-prefix mode, redeemed with generated keys |
@@ -82,6 +82,10 @@ Manage Roles, Manage Channels, Ban/Kick Members and Moderate Members.
 | `SOWARD_LAVALINK_NODES` | No | JSON list of nodes, overrides the four above |
 | `SOWARD_SPOTIFY_CLIENT_ID` / `_SECRET` | No | Enables Spotify search |
 | `SOWARD_YOUTUBE_API_KEY`, `SOWARD_TWITCH_CLIENT_ID` / `_SECRET` | No | Alerts cog |
+| `SOWARD_CLIENT_ID` / `SOWARD_CLIENT_SECRET` | For dashboard sign-in | Discord OAuth2 credentials |
+| `SOWARD_DASHBOARD_URL` | For dashboard sign-in | Public site URL, no trailing slash |
+| `SOWARD_SESSION_SECRET` | Recommended | Signs dashboard session cookies |
+| `SOWARD_SUPPORT_URL` | No | Support server link shown on the site |
 | `SOWARD_DEV_LOG_*_WEBHOOK`, `SOWARD_DEV_STATS_WEBHOOK` | No | Developer-only logging webhooks |
 
 See [`.env.example`](./.env.example) for the full template.
@@ -124,12 +128,53 @@ so they will **not render for you** (and some files, such as `social.py` and
 Upload your own emoji to a server the bot can see and replace the IDs. All bot
 output goes through `utils/emoji_manager.py`; no default Unicode emoji are used.
 
+## Web dashboard
+
+The dashboard is an addon controlled from [`addons.py`](./addons.py) in the project root:
+
+```python
+dash = {
+    "dashboard": True,
+    "dashboard_port": 8080,
+}
+```
+
+Set `dashboard` to `False` to skip starting the web server entirely, and
+`dashboard_port` to change the port. If the port is missing or invalid, `$PORT`
+is used, then `8080`. Hosts that assign a port (Render) need `dashboard_port`
+to match it. More addon toggles can be added as new dicts after `dash`.
+
+`python main.py` starts the bot and, beside it, the Flask site on `$PORT`
+(default `8080`). The two processes talk over a Unix socket at
+`data/soward-ipc.sock` (a loopback port is used on Windows), protected by a
+secret generated on every boot.
+
+1. In the Discord Developer Portal open your application, go to **OAuth2** and
+   add `<SOWARD_DASHBOARD_URL>/callback` as a redirect.
+2. Set `SOWARD_CLIENT_ID`, `SOWARD_CLIENT_SECRET`, `SOWARD_DASHBOARD_URL` and
+   `SOWARD_SESSION_SECRET`.
+3. Open the site, sign in and pick a server.
+
+Anyone with Manage Server (or Administrator) in a server where the bot is
+present can manage it. Permissions are checked on the bot side for every
+request. Control access from Discord:
+
+| Command | Who | Effect |
+|---|---|---|
+| `dashboard` | anyone | Show whether web access is on |
+| `dashboard on` / `off` | Manage Server | Allow or block the dashboard for this server |
+| `dashboard global on` / `off` | bot owners | Switch the dashboard on or off everywhere |
+
+The legal pages under `dashboard/content/legal/` are starting templates. Have
+them reviewed before you rely on them.
+
 ## Deploying
 
-A [`render.yaml`](./render.yaml) blueprint is included. The bot serves a status
-page and a `/health` endpoint on `$PORT` (default `8080`). Any host that can run
-`python main.py` and keep a process alive works. Persist the `data/` directory
-or use MongoDB so state survives restarts.
+A [`render.yaml`](./render.yaml) blueprint is included. The site serves a
+`/health` endpoint on `$PORT`. Any host that can run `python main.py` and keep a
+process alive works. Persist the `data/` directory or use MongoDB so state
+survives restarts. Free Render instances sleep when idle, which also pauses the
+bot.
 
 ## Project structure
 
@@ -140,7 +185,7 @@ cogs/          one file per feature, auto-loaded
 events/        cross-system listeners, auto-loaded
 utils/         shared helpers (db, security, components, ...)
 emoji/         emoji dictionaries merged by EmojiManager
-web/           aiohttp status page and /health
+dashboard/     Flask site and web dashboard (separate process)
 assets/        fonts for generated cards
 ```
 

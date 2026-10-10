@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · {{ bot_name }}{% endblock %}
+{% block content %}
+<div class="wrap errorbox">
+  <div class="errorbox__code">{{ status }}</div>
+  <h1>{{ title }}</h1>
+  <p>{{ message }}</p>
+  {% if action %}<a class="btn btn--primary" href="{{ action[1] }}">{{ action[0] }}</a>{% endif %}
+</div>
+{% endblock %}

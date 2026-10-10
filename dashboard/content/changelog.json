@@ -1,0 +1,18 @@
+[
+  {
+    "version": "3.0.0",
+    "title": "Web dashboard, new site and tickets overhaul",
+    "date": "2026-10-10",
+    "items": [
+      "Added a web dashboard with Discord sign-in, per-server settings, module search and on/off switches",
+      "Dashboard can be switched on or off per server with the dashboard command, and globally by owners",
+      "Added an audit log of every change made from the dashboard",
+      "Rebuilt the website with a categorised command list, docs, changelog, team, terms and privacy pages",
+      "Tickets now support multiple panels (3 free, 10 premium) and multiple staff roles (10 free, 20 premium)",
+      "Added ticket forms, priorities, claiming, subjects, per-panel transcripts, auto-close and statistics",
+      "Added NSFW role-gated channels",
+      "Ticket welcome messages now ping the opener and staff roles",
+      "Fixed a database default that failed on older SQLite versions"
+    ]
+  }
+]

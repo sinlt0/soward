@@ -1,0 +1,98 @@
+{% from "partials/icons.html" import icon %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ bot_name }}{% endblock %}</title>
+<meta name="description" content="{% block description %}{{ bot_name }} is a prefix-first Discord bot for security, moderation, tickets, leveling and more, with a web dashboard.{% endblock %}">
+<meta name="theme-color" content="#0c0e14">
+{% if bot_avatar %}<link rel="icon" href="{{ bot_avatar }}">{% endif %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body{% if csrf_token %} data-csrf="{{ csrf_token }}"{% endif %}>
+<header class="topbar">
+  <div class="wrap topbar__inner">
+    <a class="brand" href="{{ url_for('home') }}">
+      {% if bot_avatar %}<img class="brand__mark" src="{{ bot_avatar }}" alt="" width="30" height="30">{% else %}<span class="brand__mark"></span>{% endif %}
+      {{ bot_name }}
+    </a>
+    <nav class="topbar__links" aria-label="Main">
+      {% for label, endpoint in nav %}
+      <a href="{{ url_for(endpoint) }}"{% if request.endpoint == endpoint %} aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+      {% if support_url %}<a href="{{ url_for('support') }}">Support</a>{% endif %}
+    </nav>
+    <div class="topbar__actions">
+      {% if user %}
+      <a class="avatar-chip" href="{{ url_for('servers') }}"><img src="{{ user.avatar }}" alt="" width="26" height="26">{{ user.name }}</a>
+      <a class="btn btn--ghost btn--sm" href="{{ url_for('logout') }}">Sign out</a>
+      {% else %}
+      <a class="btn btn--ghost btn--sm" href="{{ url_for('login') }}">Dashboard</a>
+      <a class="btn btn--primary btn--sm" href="{{ url_for('invite') }}">Add to server</a>
+      {% endif %}
+    </div>
+    <details class="menu">
+      <summary>Menu</summary>
+      <div class="menu__panel">
+        {% for label, endpoint in nav %}<a href="{{ url_for(endpoint) }}">{{ label }}</a>{% endfor %}
+        <a href="{{ url_for('servers') }}">Dashboard</a>
+        <a href="{{ url_for('invite') }}">Add to server</a>
+        {% if user %}<a href="{{ url_for('logout') }}">Sign out</a>{% endif %}
+      </div>
+    </details>
+  </div>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer__grid">
+      <div>
+        <a class="brand" href="{{ url_for('home') }}">{{ bot_name }}</a>
+        <p>Security, moderation, tickets and community tools for Discord servers, managed from chat or the web.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="{{ url_for('commands_page') }}">Commands</a></li>
+          <li><a href="{{ url_for('servers') }}">Dashboard</a></li>
+          <li><a href="{{ url_for('changelog_page') }}">Changelog</a></li>
+          <li><a href="{{ url_for('invite') }}">Add to server</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="{{ url_for('docs_index') }}">Documentation</a></li>
+          <li><a href="{{ url_for('doc_page', slug='getting-started') }}">Getting started</a></li>
+          <li><a href="{{ url_for('doc_page', slug='security') }}">Security guide</a></li>
+          {% if support_url %}<li><a href="{{ url_for('support') }}">Support server</a></li>{% endif %}
+        </ul>
+      </div>
+      <div>
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="{{ url_for('terms_page') }}">Terms of Service</a></li>
+          <li><a href="{{ url_for('privacy_page') }}">Privacy Policy</a></li>
+          <li><a href="{{ url_for('credits_page') }}">Credits</a></li>
+          <li><a href="{{ url_for('team_page') }}">Team</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer__legal">
+      <span>&copy; {{ year }} {{ bot_name }}. Not affiliated with Discord Inc.</span>
+      <span>v{{ bot_version }}</span>
+    </div>
+  </div>
+</footer>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<script src="{{ url_for('static', filename='js/site.js') }}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

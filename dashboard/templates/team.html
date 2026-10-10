@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Team · {{ bot_name }}{% endblock %}
+{% block content %}
+<div class="wrap pagehead">
+  <h1>The team</h1>
+  <p>The people who build and run {{ bot_name }}.</p>
+</div>
+<div class="wrap" style="padding-bottom:48px">
+  {% if team %}
+  <div class="people">
+    {% for p in team %}
+    <div class="person">
+      {% if p.avatar %}<img src="{{ p.avatar }}" alt="" loading="lazy">{% else %}<span class="person__blank"></span>{% endif %}
+      <div><strong>{{ p.name }}</strong><div><span class="tag">{{ p.role }}</span></div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty"><strong>Team list unavailable</strong>The bot is not reachable right now. Try again shortly.</div>
+  {% endif %}
+</div>
+{% endblock %}

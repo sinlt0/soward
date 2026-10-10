@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block content %}
+<section class="hero">
+  <div class="wrap hero__grid">
+    <div>
+      <h1>Run your server from chat or the web.</h1>
+      <p class="hero__lead">{{ bot_name }} covers security, moderation, tickets, leveling and community tools with fast prefix commands, plus a dashboard to switch modules on and tune them without typing a thing.</p>
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="{{ url_for('invite') }}">Add to Discord</a>
+        <a class="btn btn--ghost" href="{{ url_for('servers') }}">Open dashboard</a>
+        <a class="btn btn--ghost" href="{{ url_for('commands_page') }}">Browse commands</a>
+      </div>
+      <div class="pulse" aria-label="Live statistics">
+        <div class="pulse__item">
+          <div class="pulse__value"><span class="dot{% if not status.ready %} dot--wait{% endif %}"></span>{{ "Online" if status.ready else "Starting" }}</div>
+          <div class="pulse__label">Status</div>
+        </div>
+        <div class="pulse__item"><div class="pulse__value">{{ "{:,}".format(status.guilds) }}</div><div class="pulse__label">Servers</div></div>
+        <div class="pulse__item"><div class="pulse__value">{{ "{:,}".format(status.users) }}</div><div class="pulse__label">Members</div></div>
+        <div class="pulse__item"><div class="pulse__value">{{ status.commands }}</div><div class="pulse__label">Commands</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="dc" id="demo">
+        <div class="dc__head">#support <span>Try the ticket flow</span></div>
+        <div class="dc__feed" id="demo-feed" aria-live="polite">
+          <div class="dc__msg">
+            <div class="dc__pfp"{% if bot_avatar %} style="background-image:url('{{ bot_avatar }}')"{% endif %}></div>
+            <div>
+              <div class="dc__name">{{ bot_name }}<span class="dc__tag">APP</span></div>
+              <div class="dc__card">
+                <div class="dc__title">Need help?</div>
+                <div class="dc__text">Press the button to open a private ticket. Our staff will be with you shortly.</div>
+                <div class="dc__sep"></div>
+                <div class="dc__row"><button class="dc__btn dc__btn--green" type="button" id="demo-open">Open a ticket</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dc__hint">Interactive preview. Nothing is sent anywhere.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block block--tight">
+  <div class="wrap">
+    <div class="block__head">
+      <h2>Every command, sorted by what it does.</h2>
+      <p>Pick a category to see what is inside. The full list with usage and permissions lives on the commands page.</p>
+    </div>
+    {% if showcase %}
+    <div class="explorer" id="explorer">
+      <div class="explorer__tabs" role="tablist">
+        {% for c in showcase %}
+        <button class="explorer__tab" role="tab" type="button" data-tab="{{ loop.index0 }}" aria-selected="{{ 'true' if loop.first else 'false' }}">
+          <span>{{ c.name }}</span><span class="explorer__count">{{ c.total }}</span>
+        </button>
+        {% endfor %}
+      </div>
+      <div>
+        {% for c in showcase %}
+        <div class="explorer__pane" role="tabpanel" data-pane="{{ loop.index0 }}" data-active="{{ 'true' if loop.first else 'false' }}">
+          <h3>{{ c.name }}</h3>
+          {% if c.description %}<p>{{ c.description }}</p>{% endif %}
+          <ul class="cmdlist">
+            {% for cmd in c.commands %}
+            <li><code>{{ cmd.usage }}</code><span>{{ cmd.help.splitlines()[0] if cmd.help else "" }}</span></li>
+            {% endfor %}
+          </ul>
+          <a class="more" href="{{ url_for('commands_page') }}#cat-{{ c.name | lower | replace(' ', '-') }}">See all {{ c.total }} in {{ c.name }}</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="empty"><strong>Commands are loading</strong>The bot is starting up. Refresh in a moment.</div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap split">
+    <div>
+      <h2>A dashboard that stays out of your way.</h2>
+      <p>Sign in with Discord, pick a server, search for a module and flip it on. Change the prefix, wire up log channels, set ticket staff roles and tune AutoMod from one page, with every change written to an audit trail.</p>
+      <div class="hero__actions"><a class="btn btn--primary" href="{{ url_for('servers') }}">Open dashboard</a></div>
+    </div>
+    <div class="mini" id="mini">
+      <div class="mini__row"><span class="mini__icon">{{ icon('shield') }}</span><div><div class="mini__name">AutoMod</div><div class="mini__desc">Words, invites and links</div></div><label class="switch"><input type="checkbox" checked><span class="switch__track"></span><span class="sr">Toggle AutoMod</span></label></div>
+      <div class="mini__row"><span class="mini__icon">{{ icon('ticket') }}</span><div><div class="mini__name">Tickets</div><div class="mini__desc">Panels, forms, transcripts</div></div><label class="switch"><input type="checkbox" checked><span class="switch__track"></span><span class="sr">Toggle Tickets</span></label></div>
+      <div class="mini__row"><span class="mini__icon">{{ icon('chart') }}</span><div><div class="mini__name">Leveling</div><div class="mini__desc">XP, levels, role rewards</div></div><label class="switch"><input type="checkbox"><span class="switch__track"></span><span class="sr">Toggle Leveling</span></label></div>
+      <div class="mini__row"><span class="mini__icon">{{ icon('radar') }}</span><div><div class="mini__name">AntiRaid</div><div class="mini__desc">Join floods and new accounts</div></div><label class="switch"><input type="checkbox" checked><span class="switch__track"></span><span class="sr">Toggle AntiRaid</span></label></div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <div class="block__head"><h2>Up and running in three steps.</h2></div>
+    <ol class="steps">
+      <li><div><h3>Add {{ bot_name }}</h3><p>Invite the bot and give it the permissions it asks for. Moderation and tickets need Manage Roles, Manage Channels and Ban Members.</p></div></li>
+      <li><div><h3>Run the setup commands</h3><p>Use the prefix commands for tickets, logging and verification, or skip straight to the dashboard and do it with forms.</p></div></li>
+      <li><div><h3>Tune it from the dashboard</h3><p>Sign in, choose your server and switch modules on. Turn web access off any time with the dashboard command in Discord.</p></div></li>
+    </ol>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/home.js') }}" defer></script>{% endblock %}

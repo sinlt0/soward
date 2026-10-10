@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}{{ m.name }} · {{ g.name }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dash.css') }}">{% endblock %}
+
+{% macro field(f, m) %}
+{% set wide = f.kind in ("lines", "textarea", "roles") %}
+<div class="setting{% if wide %} setting--stack{% endif %}">
+  <div>
+    <label class="setting__label" for="f-{{ f.key }}">{{ f.label }}</label>
+    {% if f.help %}<div class="setting__help">{{ f.help }}</div>{% endif %}
+  </div>
+  <div class="setting__control">
+    {% if f.kind == "bool" %}
+    <label class="switch"><input type="checkbox" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="bool"{% if f.value %} checked{% endif %}><span class="switch__track"></span></label>
+    {% elif f.kind == "int" %}
+    <input class="input input--short" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="int" type="number" step="any"{% if f.min is not none %} min="{{ f.min }}"{% endif %}{% if f.max is not none %} max="{{ f.max }}"{% endif %} value="{{ f.value }}">
+    {% elif f.kind == "select" %}
+    <select class="select" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="select">
+      {% for o in f.options %}<option value="{{ o.value }}"{% if o.value == f.value | string %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+    </select>
+    {% elif f.kind == "channel" %}
+    <select class="select" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="channel">
+      <option value="">None</option>
+      {% for c in m.channels %}<option value="{{ c.id }}"{% if c.id == f.value %} selected{% endif %}>#{{ c.name }}{% if c.parent %} · {{ c.parent }}{% endif %}</option>{% endfor %}
+    </select>
+    {% elif f.kind == "role" %}
+    <select class="select" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="role">
+      <option value="">None</option>
+      {% for r in m.roles %}<option value="{{ r.id }}"{% if r.id == f.value %} selected{% endif %}>@{{ r.name }}</option>{% endfor %}
+    </select>
+    {% elif f.kind == "roles" %}
+    <div class="rolebox" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="roles">
+      {% for r in m.roles %}
+      <label><input type="checkbox" value="{{ r.id }}"{% if r.id in f.value %} checked{% endif %}><i{% if r.color %} style="background:{{ r.color }}"{% endif %}></i>{{ r.name }}</label>
+      {% endfor %}
+    </div>
+    {% elif f.kind == "lines" %}
+    <textarea class="textarea" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="lines" placeholder="{{ f.placeholder }}">{{ f.value | join("\n") }}</textarea>
+    {% else %}
+    <textarea class="textarea" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="textarea"{% if f.maxlen %} maxlength="{{ f.maxlen }}"{% endif %} placeholder="{{ f.placeholder }}">{{ f.value or "" }}</textarea>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="wrap dpage" data-gid="{{ g.id }}" data-key="{{ m.key }}" id="dash" style="padding-top:28px">
+  <div>
+    <a class="back" href="{{ url_for('server_page', gid=g.id) }}">&larr; {{ g.name }}</a>
+    <div class="modhead">
+      <span class="mod__icon">{{ icon(m.icon) }}</span>
+      <div><h1>{{ m.name }}</h1><p>{{ m.description }}</p></div>
+      {% if m.toggleable %}
+      <div class="modhead__switch">
+        <span id="mod-state">{{ "Enabled" if m.enabled else "Disabled" }}</span>
+        <label class="switch"><input type="checkbox" id="mod-toggle"{% if m.enabled %} checked{% endif %}><span class="switch__track"></span><span class="sr">Toggle {{ m.name }}</span></label>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% if m.note %}<div class="note">{{ m.note }}</div>{% endif %}
+
+  {% for title, fields in groups.items() %}
+  <section class="panel">
+    {% if title %}<div class="group-title">{{ title }}</div>{% endif %}
+    {% for f in fields %}{{ field(f, m) }}{% endfor %}
+  </section>
+  {% endfor %}
+
+  {% for table in m.extras %}
+  <section class="panel">
+    <div class="panel__head"><h2>{{ table.title }}</h2></div>
+    <div class="tablewrap">
+      <table class="table">
+        <thead><tr>{% for c in table.columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in table.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+          {% else %}<tr><td class="muted" colspan="{{ table.columns|length }}">{{ table.empty or "Nothing here yet." }}</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+
+  {% if m.commands %}<p class="setting__help">Related commands live in the <a href="{{ url_for('commands_page') }}" style="color:var(--violet)">{{ m.commands }}</a> category.</p>{% endif %}
+
+  {% if m.fields %}
+  <div class="savebar" id="savebar" hidden>
+    <div class="savebar__inner"><span>You have unsaved changes.</span><div><button class="btn btn--ghost btn--sm" type="button" id="discard">Discard</button> <button class="btn btn--primary btn--sm" type="button" id="save">Save changes</button></div></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/dash.js') }}" defer></script>{% endblock %}

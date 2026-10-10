@@ -37,5 +37,15 @@ services:
         sync: false
       - key: SOWARD_DEV_STATS_WEBHOOK
         sync: false
+      - key: SOWARD_CLIENT_ID
+        sync: false
+      - key: SOWARD_CLIENT_SECRET
+        sync: false
+      - key: SOWARD_DASHBOARD_URL
+        sync: false
+      - key: SOWARD_SESSION_SECRET
+        generateValue: true
+      - key: SOWARD_SUPPORT_URL
+        sync: false
       - key: PORT
         value: 8080
