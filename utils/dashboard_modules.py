@@ -7,6 +7,7 @@ import discord
 
 import config
 from utils import db, greeting_config, guild_settings, tickets as ticket_utils, xp_engine
+from utils.dash import ACTIONS, ActionContext, SECTIONS, collect_sections
 
 _LEVEL_COLUMNS = {
     "enabled", "xp_min", "xp_max", "text_cooldown_seconds", "voice_enabled", "voice_xp_per_minute",
@@ -161,46 +162,6 @@ def _greeting_fields() -> list:
     return out
 
 
-async def _tickets_extra(guild: discord.Guild) -> list:
-    panels = await ticket_utils.list_panels(guild.id)
-    limit = await ticket_utils.limit_for(guild.id, "panels")
-    rows = []
-    for p in panels:
-        channel = guild.get_channel(p["channel_id"]) if p["channel_id"] else None
-        rows.append([
-            p["name"],
-            f"#{channel.name}" if channel else "Not posted",
-            str(len(ticket_utils.parse_ids(p["staff_role_ids"]))),
-            str(len(ticket_utils.parse_list(p["questions"]))),
-        ])
-    open_now = await ticket_utils.active_count(guild.id)
-    active_limit = await ticket_utils.limit_for(guild.id, "active")
-    return [
-        {"title": f"Panels ({len(panels)}/{limit})", "columns": ["Panel", "Posted in", "Staff roles", "Questions"], "rows": rows,
-         "empty": "No panels yet. Create one with the ticket panel create command."},
-        {"title": "Usage", "columns": ["Open tickets", "Server limit"], "rows": [[str(open_now), str(active_limit)]], "empty": ""},
-    ]
-
-
-async def _logging_extra(guild: discord.Guild) -> list:
-    rows = await db.raw_fetch("SELECT category, channel_id FROM log_channels WHERE guild_id=?", (guild.id,))
-    out = []
-    for r in rows:
-        channel = guild.get_channel(r["channel_id"]) if r["channel_id"] else None
-        label = config.LOG_CATEGORIES.get(r["category"], {}).get("label", r["category"])
-        out.append([label, f"#{channel.name}" if channel else "Missing channel"])
-    return [{"title": "Log channels", "columns": ["Category", "Channel"], "rows": out,
-             "empty": "Logging is not set up yet. Run the logs setup command in Discord."}]
-
-
-async def _nsfw_extra(guild: discord.Guild) -> list:
-    role_row = await db.raw_fetchone("SELECT role_id FROM nsfw_config WHERE guild_id=?", (guild.id,))
-    channels = await db.raw_fetch("SELECT channel_id FROM nsfw_channels WHERE guild_id=?", (guild.id,))
-    role = guild.get_role(role_row["role_id"]) if role_row else None
-    rows = [["NSFW role", f"@{role.name}" if role else "Not set"], ["Registered channels", str(len(channels))]]
-    return [{"title": "Status", "columns": ["Setting", "Value"], "rows": rows, "empty": ""}]
-
-
 MODULES: list[Module] = [
     Module("automod", "AutoMod", "Filter banned words, invites and unwanted links automatically.", "Security", "shield",
            toggle=GS("automod_enabled", False), commands="AutoMod", fields=[
@@ -244,9 +205,9 @@ MODULES: list[Module] = [
                _roles("on_verify", "Roles after verifying", GS("autorole_on_verify", [])),
            ]),
     Module("moderation", "Moderation", "Ban, kick, mute, warn and purge with a full case history.", "Moderation", "gavel",
-           commands="Moderation", note="Moderation runs from commands. Use the command list to see everything available."),
+           commands="Moderation", note="Take moderation actions below. Purge, lockdown and slowmode need a channel context and stay as commands."),
     Module("logging", "Logging", "Send moderation, security, member and message logs to dedicated channels.", "Moderation", "scroll",
-           commands="Logging", note="Log channels are created with webhooks by the bot. Set them up with the logs commands.", extra=_logging_extra),
+           commands="Logging"),
     Module("leveling", "Leveling", "Reward activity in text and voice with XP, levels and role rewards.", "Community", "chart",
            toggle=LevelCol("enabled"), commands="Leveling", fields=[
                _int("xp_min", "XP per message (min)", LevelCol("xp_min"), 1, 500, group="Text XP"),
@@ -270,15 +231,15 @@ MODULES: list[Module] = [
                _channel("log_channel", "Log channel", TicketCol("log_channel_id"), help="Where ticket logs and transcripts are sent."),
                _int("max_open", "Open tickets per member", TicketCol("max_open"), 1, config.TICKET_MAX_OPEN_LIMIT),
                _int("auto_close", "Close inactive tickets after (hours, 0 is off)", TicketCol("auto_close_hours"), 0, 720),
-           ], extra=_tickets_extra),
+           ]),
     Module("giveaways", "Giveaways", "Run giveaways with role and account age requirements.", "Community", "gift", commands="Giveaways",
-           note="Giveaways are created from commands so each one can be configured on the spot."),
+           note="Start, edit, end, cancel and reroll giveaways below."),
     Module("reaction_roles", "Reaction Roles", "Let members pick their own roles from buttons and menus.", "Community", "mouse", commands="ReactionRoles",
-           note="Reaction role panels are built from commands."),
+           note="Create panels, add roles and post them to a channel."),
     Module("custom_commands", "Custom Commands", "Build your own commands with triggers, conditions and actions.", "Community", "terminal", commands="CustomCommands",
-           note="Custom commands are built from commands."),
+           note="Create and edit text commands. Intervals, reactions and role restrictions are set with the cc commands."),
     Module("alerts", "Alerts", "Post YouTube uploads, streams and Twitch go-lives.", "Community", "bell", commands="Alerts",
-           note="Alerts are subscribed to from commands."),
+           note="Subscribe to YouTube and Twitch channels and choose where alerts post."),
     Module("music", "Music", "Play music and 24/7 lofi radio in voice channels.", "Fun", "music", commands="Music", fields=[
         _select("source", "Default search source", GS("music_source", "youtube"),
                 [("youtube", "YouTube"), ("soundcloud", "SoundCloud"), ("spotify", "Spotify")]),
@@ -287,8 +248,7 @@ MODULES: list[Module] = [
            note="Fun commands need no setup."),
     Module("utility", "Utility", "Server info, AFK status, embeds and bot customization.", "Utility", "wrench", commands="Utility",
            note="Utility commands need no setup."),
-    Module("nsfw", "NSFW Channels", "Lock NSFW channels to a role instead of a one-click age gate.", "Utility", "eye", commands="NSFW",
-           note="NSFW channels change channel permissions, so they are managed from commands.", extra=_nsfw_extra),
+    Module("nsfw", "NSFW Channels", "Lock NSFW channels to a role instead of a one-click age gate.", "Utility", "eye", commands="NSFW"),
 ]
 
 MODULE_INDEX: dict[str, Module] = {m.key: m for m in MODULES}
@@ -326,7 +286,7 @@ async def module_summary(guild: discord.Guild) -> list[dict]:
         out.append({
             "key": m.key, "name": m.name, "description": m.description, "category": m.category, "icon": m.icon,
             "toggleable": m.toggle is not None, "enabled": await module_enabled(guild, m),
-            "configurable": bool(m.fields), "commands": m.commands,
+            "configurable": bool(m.fields) or m.key in SECTIONS, "commands": m.commands,
         })
     return out
 
@@ -340,7 +300,8 @@ def guild_choices(guild: discord.Guild) -> dict:
         {"id": str(r.id), "name": r.name, "color": f"#{r.color.value:06x}" if r.color.value else ""}
         for r in sorted(guild.roles, key=lambda r: -r.position) if not r.is_default()
     ]
-    return {"channels": channels, "roles": roles}
+    categories = [{"id": str(c.id), "name": c.name} for c in sorted(guild.categories, key=lambda c: c.position)]
+    return {"channels": channels, "roles": roles, "categories": categories}
 
 
 async def module_detail(guild: discord.Guild, module: Module) -> dict:
@@ -361,6 +322,7 @@ async def module_detail(guild: discord.Guild, module: Module) -> dict:
         "key": module.key, "name": module.name, "description": module.description, "category": module.category,
         "icon": module.icon, "toggleable": module.toggle is not None, "enabled": await module_enabled(guild, module),
         "note": module.note, "commands": module.commands, "fields": fields, "extras": extras,
+        "sections": await collect_sections(guild, module.key),
     }
 
 
@@ -479,3 +441,10 @@ async def set_toggle(guild: discord.Guild, module: Module, enabled: bool) -> boo
         return False
     await module.toggle.set(guild.id, enabled)
     return True
+
+
+async def run_action(ctx: ActionContext, module: Module, payload: dict) -> list[str]:
+    handler = ACTIONS.get((module.key, str(payload.get("action", ""))))
+    if handler is None:
+        raise ValueError("Unknown action.")
+    return await handler(ctx, payload)

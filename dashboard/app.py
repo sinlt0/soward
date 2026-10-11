@@ -466,6 +466,23 @@ def create_app() -> Flask:
             abort(404)
         return jsonify(ipc.post(f"/guild/{gid}/module/{key}/toggle", request.get_json(silent=True) or {}, current_user()["id"]))
 
+    @app.route("/api/g/<gid>/m/<key>/action", methods=["POST"])
+    @csrf_required
+    @bot_call
+    def api_module_action(gid: str, key: str):
+        if not gid.isdigit() or not re.fullmatch(r"[a-z_]+", key):
+            abort(404)
+        return jsonify(ipc.post(f"/guild/{gid}/module/{key}/action", request.get_json(silent=True) or {}, current_user()["id"]))
+
+    @app.route("/api/g/<gid>/m/<key>/sections")
+    @login_required
+    @bot_call
+    def api_module_sections(gid: str, key: str):
+        if not gid.isdigit() or not re.fullmatch(r"[a-z_]+", key):
+            abort(404)
+        detail = ipc.get(f"/guild/{gid}/module/{key}", current_user()["id"])
+        return jsonify(sections=detail.get("sections", []))
+
     @app.template_filter("ago")
     def ago(ts) -> str:
         delta = max(0, int(time.time() - float(ts)))

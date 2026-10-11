@@ -83,6 +83,9 @@
   </section>
   {% endfor %}
 
+  <div id="sections"></div>
+  <script type="application/json" id="module-data">{{ {"sections": m.sections|default([]), "channels": m.channels|default([]), "roles": m.roles|default([]), "categories": m.categories|default([])} | tojson }}</script>
+
   {% if m.commands %}<p class="setting__help">Related commands live in the <a href="{{ url_for('commands_page') }}" style="color:var(--violet)">{{ m.commands }}</a> category.</p>{% endif %}
 
   {% if m.fields %}
@@ -92,4 +95,4 @@
   {% endif %}
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/dash.js') }}" defer></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/dash.js') }}" defer></script><script src="{{ url_for('static', filename='js/sections.js') }}" defer></script>{% endblock %}

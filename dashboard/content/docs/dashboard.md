@@ -24,6 +24,25 @@ Configure opens a form for that module. Make your changes and a bar appears at t
 
 Every change is recorded in the **Audit log** on the server page.
 
+## Create, edit and delete
+
+Many modules show tables with buttons instead of only switches. Use them to do from the web what you would do with commands:
+
+| Module | What you can manage |
+| --- | --- |
+| Tickets | Create, edit, post and delete panels, change ticket priority, close tickets |
+| Leveling | Level rewards, no-XP channels and roles, XP multipliers, set or reset member XP |
+| Giveaways | Start, edit, end, cancel and reroll |
+| Reaction roles | Create, edit, post and delete panels, add or remove bindings |
+| Custom commands | Create, edit, enable or disable, delete |
+| Alerts | Add, edit and remove |
+| Moderation | Warn, mute, unmute, kick, ban, unban, delete warnings, browse cases |
+| Security | NSFW, logging, anti-nuke, anti-raid, automod and verification settings |
+
+Each button opens a form. Mistakes such as a missing channel or a role above the bot show as a message in the form so you can fix them and try again. Role hierarchy rules are the same as in Discord, so you cannot act on someone with an equal or higher role.
+
+Some things still need commands, such as purge, lockdown, slowmode and extra custom command options.
+
 ## Turn the dashboard on or off from Discord
 
 Server managers can control web access from chat:

@@ -7,6 +7,7 @@
       "Added a web dashboard with Discord sign-in, per-server settings, module search and on/off switches",
       "Dashboard can be switched on or off per server with the dashboard command, and globally by owners",
       "Added an audit log of every change made from the dashboard",
+      "Dashboard can now create, edit, post and delete things, not just change settings: ticket panels, giveaways, reaction roles, custom commands, alerts, leveling rewards and multipliers, and moderation actions (warn, mute, kick, ban, unban)",
       "Rebuilt the website with a categorised command list, docs, changelog, team, terms and privacy pages",
       "Tickets now support multiple panels (3 free, 10 premium) and multiple staff roles (10 free, 20 premium)",
       "Added ticket forms, priorities, claiming, subjects, per-panel transcripts, auto-close and statistics",

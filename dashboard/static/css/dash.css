@@ -102,3 +102,19 @@
   .audit__when { text-align: left; }
   .dashbar__links { margin-left: 0; width: 100%; }
 }
+
+.panel__head--row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.panel__tools, .rowtools { display: flex; gap: 8px; flex-wrap: wrap; }
+.rowtools { justify-content: flex-end; }
+td.rowtools { display: table-cell; text-align: right; white-space: nowrap; }
+td.rowtools .btn { margin-left: 6px; }
+.empty--inset { margin: 18px 22px; }
+.dlg { background: var(--panel); color: var(--text); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 0; width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+.dlg::backdrop { background: rgba(5, 6, 10, 0.7); }
+.dlg__form { padding: 22px; display: grid; gap: 16px; }
+.dlg__form h2 { font-size: 22px; }
+.dlg__field { display: grid; gap: 6px; }
+.dlg__field .textarea, .dlg__field .select, .dlg__field .input { width: 100%; }
+.dlg__bar { display: flex; justify-content: flex-end; gap: 10px; }
+.dlg__error { border: 1px solid rgba(239, 90, 111, 0.4); background: rgba(239, 90, 111, 0.1); color: #ffb3bf; border-radius: var(--radius-sm); padding: 10px 12px; font-size: 14.5px; }
+.dlg__error[hidden] { display: none; }

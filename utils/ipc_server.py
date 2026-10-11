@@ -11,6 +11,7 @@ from discord.ext import commands
 
 import config
 from utils import db, dashboard_modules as dm, guild_settings, prefix as prefix_utils
+from utils.dash import ActionContext
 
 log = logging.getLogger("soward.ipc")
 
@@ -305,6 +306,18 @@ async def module_toggle(request: web.Request) -> web.Response:
     return web.json_response({"enabled": enabled, "changed": changed})
 
 
+async def module_action(request: web.Request) -> web.Response:
+    guild, uid, name = await _authorize(request)
+    module = _module(request)
+    body = await request.json()
+    ctx = ActionContext(bot=_bot(request), guild=guild, user_id=uid, user_name=name)
+    changes = await dm.run_action(ctx, module, body)
+    if changes:
+        await record_audit(guild.id, uid, name, module.key, "; ".join(changes))
+    detail = await dm.module_detail(guild, module)
+    return web.json_response({"changes": changes, "sections": detail["sections"]})
+
+
 async def audit_list(request: web.Request) -> web.Response:
     guild, _, _ = await _authorize(request)
     rows = await db.raw_fetch(
@@ -331,6 +344,7 @@ def build_app(bot: commands.Bot, secret: str) -> web.Application:
     app.router.add_get("/guild/{gid}/module/{key}", module_get)
     app.router.add_post("/guild/{gid}/module/{key}", module_save)
     app.router.add_post("/guild/{gid}/module/{key}/toggle", module_toggle)
+    app.router.add_post("/guild/{gid}/module/{key}/action", module_action)
     app.router.add_get("/guild/{gid}/audit", audit_list)
     return app
 
