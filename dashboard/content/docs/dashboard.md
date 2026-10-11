@@ -36,12 +36,15 @@ Many modules show tables with buttons instead of only switches. Use them to do f
 | Reaction roles | Create, edit, post and delete panels, add or remove bindings |
 | Custom commands | Create, edit, enable or disable, delete |
 | Alerts | Add, edit and remove |
+| Embeds | Create, edit, copy, rename, send and delete reusable embeds |
+| Greetings | Pick a saved embed for the welcome, leave, boost and ban messages |
+| Music | Start and stop 24/7 lofi radio, switch stations, 24/7 voice mode, add or remove custom stations |
 | Moderation | Warn, mute, unmute, kick, ban, unban, delete warnings, browse cases |
 | Security | NSFW, logging, anti-nuke, anti-raid, automod and verification settings |
 
 Each button opens a form. Mistakes such as a missing channel or a role above the bot show as a message in the form so you can fix them and try again. Role hierarchy rules are the same as in Discord, so you cannot act on someone with an equal or higher role.
 
-Some things still need commands, such as purge, lockdown, slowmode and extra custom command options.
+Some things still need commands, such as purge, lockdown, slowmode, playing songs and extra custom command options.
 
 ## Turn the dashboard on or off from Discord
 

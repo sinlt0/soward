@@ -6,7 +6,7 @@ from typing import Any, Awaitable, Callable, Optional
 import discord
 
 import config
-from utils import db, greeting_config, guild_settings, tickets as ticket_utils, xp_engine
+from utils import db, embed_templates, greeting_config, guild_settings, tickets as ticket_utils, xp_engine
 from utils.dash import ACTIONS, ActionContext, SECTIONS, collect_sections
 
 _LEVEL_COLUMNS = {
@@ -15,7 +15,7 @@ _LEVEL_COLUMNS = {
     "announce_channel_id", "weekly_reset_enabled", "monthly_reset_enabled",
 }
 _TICKET_COLUMNS = {"log_channel_id", "max_open", "auto_close_hours"}
-_GREETING_COLUMNS = {"enabled", "channel_id", "message_text", "send_as_dm", "use_card"}
+_GREETING_COLUMNS = {"enabled", "channel_id", "message_text", "embed_name", "send_as_dm", "use_card"}
 
 
 class GS:
@@ -157,6 +157,8 @@ def _greeting_fields() -> list:
         out.append(_channel(f"{trigger}_channel", "Channel", GreetCol(trigger, "channel_id"), group=group))
         out.append(_text(f"{trigger}_message", "Message", GreetCol(trigger, "message_text"),
                          help="Supports the same placeholders as the greet commands.", maxlen=1500, group=group))
+        out.append(Field(f"{trigger}_embed", "Embed", "embed", GreetCol(trigger, "embed_name"),
+                         help="Attach a saved embed. Create and edit embeds on the Embeds page.", group=group))
         out.append(_bool(f"{trigger}_card", "Send an image card", GreetCol(trigger, "use_card"), group=group))
         out.append(_bool(f"{trigger}_dm", "Send as a direct message", GreetCol(trigger, "send_as_dm"), group=group))
     return out
@@ -240,13 +242,16 @@ MODULES: list[Module] = [
            note="Create and edit text commands. Intervals, reactions and role restrictions are set with the cc commands."),
     Module("alerts", "Alerts", "Post YouTube uploads, streams and Twitch go-lives.", "Community", "bell", commands="Alerts",
            note="Subscribe to YouTube and Twitch channels and choose where alerts post."),
-    Module("music", "Music", "Play music and 24/7 lofi radio in voice channels.", "Fun", "music", commands="Music", fields=[
+    Module("music", "Music", "Play music and 24/7 lofi radio in voice channels.", "Fun", "music", commands="Music",
+           note="Start 24/7 lofi radio, keep the bot in a voice channel around the clock and manage custom stations.", fields=[
         _select("source", "Default search source", GS("music_source", "youtube"),
                 [("youtube", "YouTube"), ("soundcloud", "SoundCloud"), ("spotify", "Spotify")]),
     ]),
     Module("fun", "Fun", "Ship, quotes, truth or dare, anime lookups and social commands.", "Fun", "spark", commands="Fun",
            note="Fun commands need no setup."),
-    Module("utility", "Utility", "Server info, AFK status, embeds and bot customization.", "Utility", "wrench", commands="Utility",
+    Module("embeds", "Embeds", "Build reusable embeds and send them anywhere, or attach them to greetings.", "Utility", "spark", commands="Embeds",
+           note="Create, edit, copy, rename, send and delete embeds."),
+    Module("utility", "Utility", "Server info, AFK status and bot customization.", "Utility", "wrench", commands="Utility",
            note="Utility commands need no setup."),
     Module("nsfw", "NSFW Channels", "Lock NSFW channels to a role instead of a one-click age gate.", "Utility", "eye", commands="NSFW"),
 ]
@@ -272,6 +277,11 @@ def _display(fld: Field, raw: Any) -> Any:
     if fld.kind == "select":
         return raw
     return raw or ""
+
+
+async def embed_options(guild_id: int) -> list:
+    found = await embed_templates.list_templates(guild_id)
+    return [{"value": "", "label": "No embed"}] + [{"value": t["name"], "label": t["name"]} for t in found]
 
 
 async def module_enabled(guild: discord.Guild, module: Module) -> Optional[bool]:
@@ -301,7 +311,11 @@ def guild_choices(guild: discord.Guild) -> dict:
         for r in sorted(guild.roles, key=lambda r: -r.position) if not r.is_default()
     ]
     categories = [{"id": str(c.id), "name": c.name} for c in sorted(guild.categories, key=lambda c: c.position)]
-    return {"channels": channels, "roles": roles, "categories": categories}
+    voices = [
+        {"id": str(c.id), "name": c.name, "parent": c.category.name if c.category else ""}
+        for c in sorted([*guild.voice_channels, *guild.stage_channels], key=lambda c: (c.category.position if c.category else -1, c.position))
+    ]
+    return {"channels": channels, "roles": roles, "categories": categories, "voices": voices}
 
 
 async def module_detail(guild: discord.Guild, module: Module) -> dict:
@@ -312,9 +326,10 @@ async def module_detail(guild: discord.Guild, module: Module) -> dict:
             value = str(value)
         if f.kind == "roles":
             value = [str(v) for v in value]
+        options = await embed_options(guild.id) if f.kind == "embed" else [{"value": str(v), "label": l} for v, l in f.options]
         fields.append({
             "key": f.key, "label": f.label, "kind": f.kind, "help": f.help, "min": f.min, "max": f.max,
-            "options": [{"value": str(v), "label": l} for v, l in f.options], "group": f.group,
+            "options": options, "group": f.group,
             "placeholder": f.placeholder, "maxlen": f.maxlen, "value": value,
         })
     extras = await module.extra(guild) if module.extra else []
@@ -402,10 +417,20 @@ def _describe(fld: Field, value: Any) -> str:
 async def apply_module(guild: discord.Guild, module: Module, values: dict) -> list[str]:
     by_key = {f.key: f for f in module.fields}
     staged = {}
+    saved_embeds = None
     for key, raw in values.items():
         fld = by_key.get(key)
         if fld is None:
             raise ValueError("Unknown setting.")
+        if fld.kind == "embed":
+            name = str(raw or "").strip().lower()
+            if name:
+                if saved_embeds is None:
+                    saved_embeds = {t["name"] for t in await embed_templates.list_templates(guild.id)}
+                if name not in saved_embeds:
+                    raise ValueError(f"{fld.label}: no embed named {name}.")
+            staged[key] = name or None
+            continue
         staged[key] = _coerce(guild, fld, raw)
 
     if module.key == "leveling":

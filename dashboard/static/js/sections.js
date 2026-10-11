@@ -118,6 +118,10 @@
       node = select(data.channels.map(function (c) { return { value: c.id, label: "#" + c.name }; }), value, true);
       return { root: node, read: function () { return node.value; } };
     }
+    if (kind === "voice") {
+      node = select((data.voices || []).map(function (c) { return { value: c.id, label: c.name }; }), value, true);
+      return { root: node, read: function () { return node.value; } };
+    }
     if (kind === "role") {
       node = select(data.roles.map(function (r) { return { value: r.id, label: "@" + r.name }; }), value, true);
       return { root: node, read: function () { return node.value; } };

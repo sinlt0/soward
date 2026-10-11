@@ -15,8 +15,8 @@
     <label class="switch"><input type="checkbox" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="bool"{% if f.value %} checked{% endif %}><span class="switch__track"></span></label>
     {% elif f.kind == "int" %}
     <input class="input input--short" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="int" type="number" step="any"{% if f.min is not none %} min="{{ f.min }}"{% endif %}{% if f.max is not none %} max="{{ f.max }}"{% endif %} value="{{ f.value }}">
-    {% elif f.kind == "select" %}
-    <select class="select" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="select">
+    {% elif f.kind == "select" or f.kind == "embed" %}
+    <select class="select" id="f-{{ f.key }}" data-field="{{ f.key }}" data-kind="{{ f.kind }}">
       {% for o in f.options %}<option value="{{ o.value }}"{% if o.value == f.value | string %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
     </select>
     {% elif f.kind == "channel" %}
@@ -84,7 +84,7 @@
   {% endfor %}
 
   <div id="sections"></div>
-  <script type="application/json" id="module-data">{{ {"sections": m.sections|default([]), "channels": m.channels|default([]), "roles": m.roles|default([]), "categories": m.categories|default([])} | tojson }}</script>
+  <script type="application/json" id="module-data">{{ {"sections": m.sections|default([]), "channels": m.channels|default([]), "roles": m.roles|default([]), "categories": m.categories|default([]), "voices": m.voices|default([])} | tojson }}</script>
 
   {% if m.commands %}<p class="setting__help">Related commands live in the <a href="{{ url_for('commands_page') }}" style="color:var(--violet)">{{ m.commands }}</a> category.</p>{% endif %}
 
