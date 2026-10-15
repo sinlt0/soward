@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/icons.html" import icon %}
+{% from "partials/dash_side.html" import side %}
 {% block title %}{{ m.name }} · {{ g.name }}{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dash.css') }}">{% endblock %}
 
@@ -45,7 +46,9 @@
 {% endmacro %}
 
 {% block content %}
-<div class="wrap dpage" data-gid="{{ g.id }}" data-key="{{ m.key }}" id="dash" style="padding-top:28px">
+<div class="wrap dlayout">
+  {{ side(g, grouped, m.key) }}
+  <div class="dmain" data-gid="{{ g.id }}" data-key="{{ m.key }}" id="dash">
   <div>
     <a class="back" href="{{ url_for('server_page', gid=g.id) }}">&larr; {{ g.name }}</a>
     <div class="modhead">
@@ -61,6 +64,9 @@
   </div>
   {% if m.note %}<div class="note">{{ m.note }}</div>{% endif %}
 
+  <div class="tabs" id="tabs" role="tablist" hidden></div>
+
+  {% if m.fields or m.extras %}<div class="pane" data-pane="settings" data-title="Settings">
   {% for title, fields in groups.items() %}
   <section class="panel">
     {% if title %}<div class="group-title">{{ title }}</div>{% endif %}
@@ -83,6 +89,8 @@
   </section>
   {% endfor %}
 
+  </div>{% endif %}
+
   <div id="sections"></div>
   <script type="application/json" id="module-data">{{ {"sections": m.sections|default([]), "channels": m.channels|default([]), "roles": m.roles|default([]), "categories": m.categories|default([]), "voices": m.voices|default([])} | tojson }}</script>
 
@@ -93,6 +101,7 @@
     <div class="savebar__inner"><span>You have unsaved changes.</span><div><button class="btn btn--ghost btn--sm" type="button" id="discard">Discard</button> <button class="btn btn--primary btn--sm" type="button" id="save">Save changes</button></div></div>
   </div>
   {% endif %}
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/dash.js') }}" defer></script><script src="{{ url_for('static', filename='js/sections.js') }}" defer></script>{% endblock %}

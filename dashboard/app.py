@@ -75,14 +75,35 @@ def _load_docs() -> list[dict]:
             "title": meta.get("title", path.stem.replace("-", " ").title()),
             "description": meta.get("description", ""),
             "order": int(meta.get("order", 99)),
+            "group": meta.get("group", "Guides"),
             "body": body,
         })
     return sorted(docs, key=lambda d: d["order"])
 
 
+DOC_GROUP_ORDER = ["Setup", "Moderation", "Security", "Community", "Fun", "Utility"]
+
+
+def _group_docs(docs: list[dict]) -> list[dict]:
+    grouped: dict[str, list[dict]] = {}
+    for d in docs:
+        grouped.setdefault(d["group"], []).append(d)
+    names = sorted(grouped, key=lambda n: DOC_GROUP_ORDER.index(n) if n in DOC_GROUP_ORDER else len(DOC_GROUP_ORDER))
+    return [{"name": n, "docs": grouped[n]} for n in names]
+
+
 def _load_changelog() -> list[dict]:
     with open(CONTENT / "changelog.json", "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def _group_modules(overview: dict) -> list[dict]:
+    grouped = []
+    for category in overview["categories"]:
+        mods = [m for m in overview["modules"] if m["category"] == category]
+        if mods:
+            grouped.append({"name": category, "modules": mods})
+    return grouped
 
 
 def _sign(value: str, secret: str) -> str:
@@ -257,7 +278,8 @@ def create_app() -> Flask:
 
     @app.route("/docs")
     def docs_index():
-        return render_template("docs_index.html", docs=_cached("docs", 60, _load_docs))
+        docs = _cached("docs", 60, _load_docs)
+        return render_template("docs_index.html", docs=docs, groups=_group_docs(docs))
 
     @app.route("/docs/<slug>")
     def doc_page(slug: str):
@@ -265,7 +287,12 @@ def create_app() -> Flask:
         doc = next((d for d in docs if d["slug"] == slug), None)
         if doc is None:
             abort(404)
-        return render_template("doc.html", docs=docs, doc=doc, html=_render_markdown(doc["body"]))
+        ordered = [d for grp in _group_docs(docs) for d in grp["docs"]]
+        at = ordered.index(doc)
+        return render_template(
+            "doc.html", docs=docs, groups=_group_docs(docs), doc=doc, html=_render_markdown(doc["body"]),
+            prev_doc=ordered[at - 1] if at > 0 else None, next_doc=ordered[at + 1] if at + 1 < len(ordered) else None,
+        )
 
     @app.route("/changelog")
     def changelog_page():
@@ -410,12 +437,7 @@ def create_app() -> Flask:
             abort(404)
         user = current_user()
         overview = ipc.get(f"/guild/{gid}", user["id"])
-        grouped = []
-        for category in overview["categories"]:
-            mods = [m for m in overview["modules"] if m["category"] == category]
-            if mods:
-                grouped.append({"name": category, "modules": mods})
-        return render_template("server.html", g=overview, grouped=grouped)
+        return render_template("server.html", g=overview, grouped=_group_modules(overview))
 
     @app.route("/dashboard/<gid>/m/<key>")
     @login_required
@@ -429,7 +451,7 @@ def create_app() -> Flask:
         groups: dict[str, list] = {}
         for f in module["fields"]:
             groups.setdefault(f["group"], []).append(f)
-        return render_template("module.html", g=overview, m=module, groups=groups)
+        return render_template("module.html", g=overview, m=module, groups=groups, grouped=_group_modules(overview))
 
     @app.route("/dashboard/<gid>/audit")
     @login_required
@@ -440,7 +462,7 @@ def create_app() -> Flask:
         user = current_user()
         overview = ipc.get(f"/guild/{gid}", user["id"])
         entries = ipc.get(f"/guild/{gid}/audit", user["id"])["entries"]
-        return render_template("audit.html", g=overview, entries=entries)
+        return render_template("audit.html", g=overview, entries=entries, grouped=_group_modules(overview))
 
     @app.route("/api/g/<gid>/settings", methods=["POST"])
     @csrf_required

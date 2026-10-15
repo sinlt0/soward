@@ -7,7 +7,7 @@
 <title>{% block title %}{{ bot_name }}{% endblock %}</title>
 <meta name="description" content="{% block description %}{{ bot_name }} is a prefix-first Discord bot for security, moderation, tickets, leveling and more, with a web dashboard.{% endblock %}">
 <meta name="theme-color" content="#0c0e14">
-{% if bot_avatar %}<link rel="icon" href="{{ bot_avatar }}">{% endif %}
+{% if bot_avatar %}<link rel="icon" href="{{ bot_avatar }}">{% else %}<link rel="icon" href="data:,">{% endif %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">

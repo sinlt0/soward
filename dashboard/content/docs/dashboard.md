@@ -2,6 +2,7 @@
 title: Using the dashboard
 description: Sign in, pick a server, and manage modules from the web.
 order: 2
+group: Setup
 ---
 
 ## Sign in
@@ -23,6 +24,14 @@ Each server has a page with three parts:
 Configure opens a form for that module. Make your changes and a bar appears at the bottom. Press **Save changes** to apply them or **Discard** to go back. Changes take effect immediately in Discord.
 
 Every change is recorded in the **Audit log** on the server page.
+
+## Finding your way around
+
+- **Sidebar.** Every server page has a sidebar with Overview, the Audit log and every module. A green dot means the module is on. On a phone it collapses into a Navigate menu.
+- **Module filters.** On the Overview, combine the search box, category chips and the Any, On, Off and Pinned buttons.
+- **Pins.** Press the star on a module card to pin it, then use the Pinned filter. Pins are saved in your browser for each server.
+- **Tabs.** Modules with lists, such as tickets or giveaways, show a tab for Settings and one for each list, with a count. Links keep the tab, so you can bookmark them.
+- **Lists.** Lists with more than a few rows get a filter box, and you can click a column heading to sort.
 
 ## Create, edit and delete
 

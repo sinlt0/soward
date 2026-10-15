@@ -3,16 +3,32 @@
 {% block content %}
 <div class="wrap pagehead">
   <h1>Documentation</h1>
-  <p>Guides for setting up and running {{ bot_name }} in your server.</p>
-</div>
-<div class="wrap" style="padding-bottom:48px">
-  <div class="docgrid">
-    {% for d in docs %}
-    <a href="{{ url_for('doc_page', slug=d.slug) }}">
-      <h3>{{ d.title }}</h3>
-      <p>{{ d.description }}</p>
-    </a>
-    {% endfor %}
+  <p>Guides for every system in {{ bot_name }}: what it does, how to set it up, every command and what the dashboard can manage.</p>
+  <div class="search" style="margin-top:22px;max-width:560px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="doc-search" type="search" placeholder="Search guides" autocomplete="off" aria-label="Search guides">
+    <kbd>/</kbd>
+  </div>
+  <div class="chips" id="doc-chips">
+    <button class="chip" type="button" data-group="" aria-pressed="true">All</button>
+    {% for grp in groups %}<button class="chip" type="button" data-group="{{ grp.name }}" aria-pressed="false">{{ grp.name }}</button>{% endfor %}
   </div>
 </div>
+<div class="wrap" style="padding-bottom:48px">
+  {% for grp in groups %}
+  <section class="docgroup" data-group="{{ grp.name }}">
+    <h2>{{ grp.name }}</h2>
+    <div class="docgrid">
+      {% for d in grp.docs %}
+      <a href="{{ url_for('doc_page', slug=d.slug) }}" data-search="{{ (d.title ~ ' ' ~ d.description ~ ' ' ~ grp.name)|lower }}">
+        <h3>{{ d.title }}</h3>
+        <p>{{ d.description }}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+  <div class="empty" id="doc-empty" hidden><strong>No guides match</strong>Try another word or pick All.</div>
+</div>
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/docs.js') }}" defer></script>{% endblock %}

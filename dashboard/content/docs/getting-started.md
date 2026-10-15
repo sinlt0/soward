@@ -2,6 +2,7 @@
 title: Getting started
 description: Add the bot, learn the prefix, and run your first setup commands.
 order: 1
+group: Setup
 ---
 
 ## Add the bot
@@ -26,7 +27,11 @@ You can also change it from the dashboard under **Server settings**.
 2. Run `!logging setup` to create a log category with a channel per event group.
 3. Run `!automod enable` and add a few banned words with `!automod banword <word>`.
 4. Run `!ticket panel create` to build your first support panel.
-5. Open the dashboard and look through the module list.
+5. Open the dashboard and look through the module list. Most systems can be created, edited and deleted there, not just switched on.
+
+## Find what you need
+
+The documentation is grouped by area: Setup, Moderation, Security, Community, Fun and Utility. The [commands page](/commands) lists every command by category.
 
 ## Getting help
 

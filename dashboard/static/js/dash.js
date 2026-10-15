@@ -27,6 +27,64 @@
     window.toast(err && err.message ? err.message : "Something went wrong.", true);
   }
 
+  var store = {
+    get: function (name, fallback) {
+      try {
+        var raw = window.localStorage.getItem(name);
+        return raw === null ? fallback : JSON.parse(raw);
+      } catch (e) {
+        return fallback;
+      }
+    },
+    set: function (name, value) {
+      try {
+        window.localStorage.setItem(name, JSON.stringify(value));
+      } catch (e) {
+        return;
+      }
+    },
+  };
+
+  var sideToggle = document.getElementById("dside-toggle");
+  var sideBox = document.getElementById("dside");
+  if (sideToggle && sideBox) {
+    sideToggle.addEventListener("click", function () {
+      var open = sideBox.getAttribute("data-open") === "true";
+      sideBox.setAttribute("data-open", open ? "false" : "true");
+      sideToggle.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  }
+
+  var sideFilter = document.getElementById("side-filter");
+  if (sideFilter) {
+    sideFilter.addEventListener("input", function () {
+      var q = sideFilter.value.trim().toLowerCase();
+      document.querySelectorAll(".dside__group").forEach(function (group) {
+        var shown = 0;
+        group.querySelectorAll("a").forEach(function (a) {
+          var match = !q || a.getAttribute("data-name").indexOf(q) !== -1;
+          a.hidden = !match;
+          if (match) shown += 1;
+        });
+        group.hidden = shown === 0;
+      });
+    });
+  }
+
+  function syncModuleState(key, enabled) {
+    document.querySelectorAll('[data-dot-for="' + key + '"]').forEach(function (dot) {
+      dot.className = "dot-s " + (enabled ? "is-on" : "is-off");
+    });
+    var card = document.querySelector('.mod[data-key="' + key + '"]');
+    if (card) card.setAttribute("data-state", enabled ? "on" : "off");
+    var stat = document.getElementById("stat-on");
+    if (stat) {
+      var total = document.querySelectorAll(".mod[data-state='on'], .mod[data-state='off']").length;
+      var on = document.querySelectorAll(".mod[data-state='on']").length;
+      stat.innerHTML = on + "<small> / " + total + "</small>";
+    }
+  }
+
   var prefix = document.getElementById("prefix");
   var prefixSave = document.getElementById("prefix-save");
   if (prefix && prefixSave) {
@@ -65,6 +123,8 @@
       send("/api/g/" + gid + "/m/" + key + "/toggle", { enabled: box.checked })
         .then(function (data) {
           if (label) label.textContent = data.enabled ? "On" : "Off";
+          syncModuleState(key, data.enabled);
+          apply && apply();
           window.toast(data.enabled ? "Module enabled." : "Module disabled.");
         })
         .catch(function (err) {
@@ -76,20 +136,36 @@
 
   var search = document.getElementById("mod-search");
   var chips = document.querySelectorAll("#chips .chip");
+  var segs = document.querySelectorAll("#seg button");
+  var pins = store.get("soward-pins-" + gid, []);
+  var apply = null;
   if (search) {
     var active = "";
+    var status = "";
     var groups = document.querySelectorAll(".modgroup");
     var empty = document.getElementById("mod-empty");
 
-    function apply() {
+    var paintPins = function () {
+      document.querySelectorAll(".pin").forEach(function (pin) {
+        var on = pins.indexOf(pin.getAttribute("data-pin")) !== -1;
+        pin.setAttribute("aria-pressed", on ? "true" : "false");
+        pin.closest(".mod").classList.toggle("is-pinned", on);
+      });
+    };
+
+    apply = function () {
       var q = search.value.trim().toLowerCase();
       var any = false;
       groups.forEach(function (group) {
         var shown = 0;
         group.querySelectorAll(".mod").forEach(function (card) {
+          var state = card.getAttribute("data-state");
+          var pinned = pins.indexOf(card.getAttribute("data-key")) !== -1;
+          var okStatus = !status || (status === "pinned" ? pinned : status === state);
           var match =
             (!q || card.getAttribute("data-search").indexOf(q) !== -1) &&
-            (!active || group.getAttribute("data-group") === active);
+            (!active || group.getAttribute("data-group") === active) &&
+            okStatus;
           card.hidden = !match;
           if (match) shown += 1;
         });
@@ -97,7 +173,7 @@
         if (shown) any = true;
       });
       if (empty) empty.hidden = any;
-    }
+    };
 
     search.addEventListener("input", apply);
     chips.forEach(function (chip) {
@@ -109,6 +185,28 @@
         apply();
       });
     });
+    segs.forEach(function (seg) {
+      seg.addEventListener("click", function () {
+        status = seg.getAttribute("data-status");
+        segs.forEach(function (s) {
+          s.setAttribute("aria-pressed", s === seg ? "true" : "false");
+        });
+        apply();
+      });
+    });
+    document.querySelectorAll(".pin").forEach(function (pin) {
+      pin.addEventListener("click", function () {
+        var k = pin.getAttribute("data-pin");
+        var at = pins.indexOf(k);
+        if (at === -1) pins.push(k);
+        else pins.splice(at, 1);
+        store.set("soward-pins-" + gid, pins);
+        paintPins();
+        window.toast(at === -1 ? "Pinned. Use the Pinned filter to see your favorites." : "Unpinned.");
+        apply();
+      });
+    });
+    paintPins();
   }
 
   var key = root.getAttribute("data-key");
@@ -121,6 +219,7 @@
       send("/api/g/" + gid + "/m/" + key + "/toggle", { enabled: toggle.checked })
         .then(function (data) {
           if (state) state.textContent = data.enabled ? "Enabled" : "Disabled";
+          syncModuleState(key, data.enabled);
           window.toast(data.enabled ? "Module enabled." : "Module disabled.");
         })
         .catch(function (err) {

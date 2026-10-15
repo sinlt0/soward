@@ -1,0 +1,24 @@
+{% macro side(g, grouped, active) %}
+<aside class="dside" id="dside">
+  <button class="dside__toggle" type="button" id="dside-toggle" aria-expanded="false" aria-controls="dside-body"><span>Navigate</span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+  <div class="dside__body" id="dside-body">
+    <nav class="dside__main" aria-label="Server">
+      <a href="{{ url_for('server_page', gid=g.id) }}"{% if active == 'overview' %} aria-current="page"{% endif %}>Overview</a>
+      <a href="{{ url_for('audit_page', gid=g.id) }}"{% if active == 'audit' %} aria-current="page"{% endif %}>Audit log</a>
+    </nav>
+    <div class="dside__find"><input id="side-filter" type="search" placeholder="Filter modules" autocomplete="off" aria-label="Filter modules"></div>
+    <nav class="dside__mods" aria-label="Modules">
+      {% for grp in grouped %}
+      <div class="dside__group">
+        <div class="dside__title">{{ grp.name }}</div>
+        {% for m in grp.modules %}{% if m.configurable or m.toggleable %}
+        <a href="{{ url_for('module_page', gid=g.id, key=m.key) }}" data-name="{{ m.name|lower }}"{% if active == m.key %} aria-current="page"{% endif %}>
+          <i class="dot-s {% if m.enabled %}is-on{% elif m.toggleable %}is-off{% else %}is-always{% endif %}" data-dot-for="{{ m.key }}"></i>{{ m.name }}
+        </a>
+        {% endif %}{% endfor %}
+      </div>
+      {% endfor %}
+    </nav>
+  </div>
+</aside>
+{% endmacro %}

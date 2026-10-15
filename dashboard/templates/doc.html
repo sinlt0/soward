@@ -3,16 +3,34 @@
 {% block description %}{{ doc.description }}{% endblock %}
 {% block content %}
 <div class="wrap" style="padding-top:36px">
-  <div class="docs">
+  <div class="docs docs--3">
     <nav class="docs__nav" aria-label="Docs">
-      {% for d in docs %}
-      <a href="{{ url_for('doc_page', slug=d.slug) }}"{% if d.slug == doc.slug %} aria-current="page"{% endif %}>{{ d.title }}</a>
+      <div class="docs__find"><input id="doc-filter" type="search" placeholder="Filter guides" autocomplete="off" aria-label="Filter guides"></div>
+      {% for grp in groups %}
+      <div class="docs__group" data-group="{{ grp.name }}"{% if grp.name != doc.group %} data-collapsed="true"{% endif %}>
+        <button class="docs__gtitle" type="button" aria-expanded="{{ 'true' if grp.name == doc.group else 'false' }}">{{ grp.name }}<small>{{ grp.docs|length }}</small></button>
+        <div class="docs__links">
+          {% for d in grp.docs %}
+          <a href="{{ url_for('doc_page', slug=d.slug) }}" data-title="{{ d.title|lower }}"{% if d.slug == doc.slug %} aria-current="page"{% endif %}>{{ d.title }}</a>
+          {% endfor %}
+        </div>
+      </div>
       {% endfor %}
     </nav>
-    <article class="prose">
+    <article class="prose" id="prose">
+      <div class="crumbs"><a href="{{ url_for('docs_index') }}">Docs</a><span>/</span><span>{{ doc.group }}</span></div>
       <h1>{{ doc.title }}</h1>
       {{ html }}
+      <nav class="pager" aria-label="More guides">
+        {% if prev_doc %}<a href="{{ url_for('doc_page', slug=prev_doc.slug) }}"><small>Previous</small><span>{{ prev_doc.title }}</span></a>{% else %}<span></span>{% endif %}
+        {% if next_doc %}<a class="pager__next" href="{{ url_for('doc_page', slug=next_doc.slug) }}"><small>Next</small><span>{{ next_doc.title }}</span></a>{% endif %}
+      </nav>
     </article>
+    <aside class="toc" id="toc" aria-label="On this page" hidden>
+      <div class="toc__title">On this page</div>
+      <div class="toc__list" id="toc-list"></div>
+    </aside>
   </div>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/docs.js') }}" defer></script>{% endblock %}
