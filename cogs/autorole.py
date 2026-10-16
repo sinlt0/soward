@@ -4,8 +4,8 @@ from typing import Optional
 import discord
 from discord.ext import commands
 
-from utils import db, emoji_manager, greeting_config, guild_settings
-from utils.colors import ERROR, NEUTRAL, SUCCESS
+from utils import emoji_manager, greeting_config, guild_settings, security
+from utils.colors import NEUTRAL
 from utils.components import ConfirmLayout, error_layout, footer_block, info_layout, success_layout
 from utils.events_bus import MEMBER_VERIFIED, AUTOROLE_ASSIGN, AUTOROLE_STRIP, LOG_EVENT, bus
 from utils.checks import has_guild_permission
@@ -104,6 +104,21 @@ class AutoRoleOverviewLayout(discord.ui.LayoutView):
                 item.disabled = True
 
 
+def role_problem(guild: discord.Guild, actor: discord.Member, role: discord.Role) -> Optional[str]:
+    if role.is_default():
+        return "The @everyone role cannot be an automatic role."
+    if role.managed:
+        return "That role is managed by an integration and cannot be given."
+    if role >= guild.me.top_role:
+        return "That role is above my highest role, so I could not give it."
+    if actor.id != guild.owner_id and role >= actor.top_role:
+        return "You can only automate roles below your own highest role."
+    dangerous = security.dangerous_permissions(role.permissions)
+    if dangerous:
+        return f"That role has dangerous permissions ({', '.join(dangerous)}) and cannot be given automatically."
+    return None
+
+
 class AutoRole(commands.Cog):
     category = "Config"
 
@@ -118,13 +133,13 @@ class AutoRole(commands.Cog):
         if not guild:
             return
         member = guild.get_member(user_id)
-        if not member:
+        if not member or await security.is_quarantined(guild_id, user_id):
             return
 
         verified_roles: list = await guild_settings.get(guild_id, "autorole_on_verify", [])
         for role_id in verified_roles:
             role = guild.get_role(int(role_id))
-            if role:
+            if role and not role.managed and not security.dangerous_permissions(role.permissions):
                 try:
                     await member.add_roles(role, reason="AutoRole: verification passed")
                 except discord.HTTPException:
@@ -142,12 +157,14 @@ class AutoRole(commands.Cog):
         await self._apply_join_roles(guild, member, reason)
 
     async def _apply_join_roles(self, guild: discord.Guild, member: discord.Member, reason: str):
+        if await security.is_quarantined(guild.id, member.id):
+            return []
         key = "autorole_bot_join" if member.bot else "autorole_human_join"
         role_ids: list = await guild_settings.get(guild.id, key, [])
         applied = []
         for role_id in role_ids:
             role = guild.get_role(int(role_id))
-            if role and role not in member.roles:
+            if role and role not in member.roles and not role.managed and not security.dangerous_permissions(role.permissions):
                 try:
                     await member.add_roles(role, reason=reason)
                     applied.append(role.id)
@@ -167,12 +184,7 @@ class AutoRole(commands.Cog):
         member = guild.get_member(user_id)
         if not member:
             return
-        try:
-            removable = [r for r in member.roles if not r.is_default() and r < guild.me.top_role]
-            if removable:
-                await member.remove_roles(*removable, reason=reason)
-        except discord.HTTPException:
-            pass
+        await security.strip_member(guild, member, reason)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -211,6 +223,10 @@ class AutoRole(commands.Cog):
         target = target.lower()
         if target not in ("human", "bot"):
             return await ctx.send(view=error_layout("Invalid Target", "Use `human` or `bot` as the target."))
+
+        problem = role_problem(ctx.guild, ctx.author, role)
+        if problem:
+            return await ctx.send(view=error_layout(f"{e('cross')} Role not allowed", problem))
 
         key = f"autorole_{target}_join"
         current: list = await guild_settings.get(ctx.guild.id, key, [])
@@ -315,6 +331,9 @@ class AutoRole(commands.Cog):
     @has_guild_permission("manage_roles")
     async def ar_verifyrole(self, ctx: commands.Context, role: discord.Role):
         e = emoji_manager.get
+        problem = role_problem(ctx.guild, ctx.author, role)
+        if problem:
+            return await ctx.send(view=error_layout(f"{e('cross')} Role not allowed", problem))
         current: list = await guild_settings.get(ctx.guild.id, "autorole_on_verify", [])
         if role.id in current:
             return await ctx.send(view=error_layout("Already Added", f"{role.mention} is already a verify role."))

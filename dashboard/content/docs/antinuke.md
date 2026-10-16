@@ -7,7 +7,7 @@ group: Security
 
 ## How AntiNuke works
 
-AntiNuke watches your server's audit log for destructive actions such as deleting channels, deleting roles, banning or kicking members and creating webhooks. It counts how many times each person does each kind of action. If one person reaches the limit for an action inside a **10 second window**, AntiNuke punishes them right away. The default punishment is **quarantine**: the member loses their roles until the server owner releases them.
+AntiNuke watches your server's audit log for destructive actions such as deleting channels, deleting roles, banning or kicking members and creating webhooks. It counts how many times each person does each kind of action. If one person reaches the limit for an action inside the detection window (**10 seconds** by default, change it with `!antinuke window`), AntiNuke punishes them right away. The default punishment is **quarantine**: the member loses their roles until the server owner releases them.
 
 A few things to know first:
 
@@ -41,7 +41,7 @@ A few things to know first:
 
 ## What AntiNuke watches
 
-Each action has its own limit. Reaching the limit (counting the action that hits it) within 10 seconds triggers the punishment. Change a limit with `!antinuke threshold <action> <number>`.
+Each action has its own limit. Reaching the limit (counting the action that hits it) inside the window triggers the punishment. Change a limit with `!antinuke threshold <action> <number>`, or set an hourly limit with `!antinuke hourly <action> <number>`. See [Security Center](/docs/security-center) for tiers, the whitelist and all settings.
 
 | Action name | What is counted | Default limit |
 | --- | --- | --- |
@@ -128,8 +128,8 @@ Commands in this table that need Administrator also work for members who were gr
 | `!antinuke punishmentactions` | Lists your overrides, or the built-in defaults if you have none. Alias: `listpunishments`. | Anyone |
 | `!antinuke threshold <action> <number>` | Sets the limit for an action. Only the actions in the table above are accepted. | Administrator |
 | `!antinuke quarantinerole <role>` | Sets the role given to quarantined members. | Administrator |
-| `!antinuke trust add <member>` | Adds a member to the trusted list. Alias: `!antinuke whitelist`. | Administrator |
-| `!antinuke trust remove <member>` | Removes a member from the trusted list. | Administrator |
+| `!antinuke trust add <member>` | Adds a member to the trusted list. Alias: `!antinuke whitelist`. | Owner or Extra Owner |
+| `!antinuke trust remove <member>` | Removes a member from the trusted list. | Owner or Extra Owner |
 | `!antinuke incident status` | Shows the incident state. | Administrator |
 | `!antinuke incident elevate` | Raises the incident state by one step. | Administrator |
 | `!antinuke incident reset` | Sets the incident state back to normal. | Administrator |
@@ -166,7 +166,7 @@ Both tiers are exempt from AntiNuke, AutoMod and AntiRaid. A member holds one ti
 | Setting | Default |
 | --- | --- |
 | AntiNuke | Off |
-| Detection window | 10 seconds (fixed) |
+| Detection window | 10 seconds, adjustable with `!antinuke window` |
 | General punishment | Quarantine |
 | Strict mode | Off |
 | Quarantine role | Not set |

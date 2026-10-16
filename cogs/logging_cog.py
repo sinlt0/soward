@@ -12,6 +12,15 @@ from utils.checks import has_guild_permission
 import config
 
 
+SECURITY_LABELS = {
+    "beast_mode": "Beast mode",
+    "server_lockdown": "Server lockdown",
+    "security_backup": "Security backup",
+    "security_whitelist": "Whitelist changed",
+    "security_change": "Security setting changed",
+}
+
+
 def _event_category(event: str) -> Optional[str]:
     for category, meta in config.LOG_CATEGORIES.items():
         if event in meta["events"]:
@@ -272,6 +281,15 @@ class Logging(commands.Cog):
             actor_id = kwargs.get("actor_id")
             label = {"role_create": "Role created", "role_delete": "Role deleted", "role_change": "Role updated"}[action]
             body = f"## {e('info')} {label} · {ts}\n**Role:** `@{role_name}`" + (f"\n**By:** <@{actor_id}>" if actor_id else "")
+        elif action in SECURITY_LABELS:
+            color = ERROR if kwargs.get("active", True) and action in ("beast_mode", "server_lockdown") else NEUTRAL
+            actor_id = kwargs.get("actor_id")
+            detail = kwargs.get("detail") or kwargs.get("reason") or ""
+            body = (
+                f"## {e('shield')} {SECURITY_LABELS[action]} · {ts}\n"
+                + (f"**By:** <@{actor_id}>\n\n" if actor_id else "")
+                + str(detail)
+            )
         elif action == "nsfw_action":
             color = NEUTRAL
             user_id = kwargs.get("user_id")

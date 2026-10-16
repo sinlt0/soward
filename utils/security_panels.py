@@ -4,6 +4,15 @@ from utils import db, emoji_manager, guild_settings, incident, security
 from utils.colors import NEUTRAL
 from utils.components import footer_block
 import config
+from utils.security_access import LEVEL_OWNER, LEVEL_TRUSTED, level_of
+
+
+async def _owner_gate(interaction: discord.Interaction) -> bool:
+    if await level_of(interaction.guild, interaction.user) >= LEVEL_OWNER:
+        return True
+    await interaction.response.send_message("Only the server owner or an Extra Owner can turn a security system on or off.", ephemeral=True)
+    return False
+
 
 def _toggle_style(enabled: bool) -> discord.ButtonStyle:
     return discord.ButtonStyle.success if enabled else discord.ButtonStyle.danger
@@ -20,6 +29,8 @@ class AntiNukeActionRow(discord.ui.ActionRow):
     async def toggle_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         view = self.layout_ref
         new_state = not view.enabled
+        if not new_state and not await _owner_gate(interaction):
+            return
         await guild_settings.set(view.guild_id, "antinuke_enabled", new_state)
         view.enabled = new_state
         await view.refresh(interaction)
@@ -230,6 +241,9 @@ class AntiNukeOverviewLayout(discord.ui.LayoutView):
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("This panel is not for you.", ephemeral=True)
             return False
+        if interaction.guild is None or await level_of(interaction.guild, interaction.user) < LEVEL_TRUSTED:
+            await interaction.response.send_message("Only the server owner, an Extra Owner or a Trusted Admin can change security settings.", ephemeral=True)
+            return False
         return True
 
     async def on_timeout(self):
@@ -265,6 +279,8 @@ class AutoModActionRow(discord.ui.ActionRow):
     async def toggle_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         view = self.layout_ref
         new_state = not view.enabled
+        if not new_state and not await _owner_gate(interaction):
+            return
         await guild_settings.set(view.guild_id, "automod_enabled", new_state)
         view.enabled = new_state
         await view.refresh(interaction)
@@ -365,6 +381,9 @@ class AutoModOverviewLayout(discord.ui.LayoutView):
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("This panel is not for you.", ephemeral=True)
             return False
+        if interaction.guild is None or await level_of(interaction.guild, interaction.user) < LEVEL_TRUSTED:
+            await interaction.response.send_message("Only the server owner, an Extra Owner or a Trusted Admin can change security settings.", ephemeral=True)
+            return False
         return True
 
     async def on_timeout(self):
@@ -381,6 +400,8 @@ class AntiRaidActionRow(discord.ui.ActionRow):
     async def toggle_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         view = self.layout_ref
         new_state = not view.enabled
+        if not new_state and not await _owner_gate(interaction):
+            return
         await guild_settings.set(view.guild_id, "antiraid_enabled", new_state)
         view.enabled = new_state
         await view.refresh(interaction)
@@ -470,6 +491,9 @@ class AntiRaidOverviewLayout(discord.ui.LayoutView):
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("This panel is not for you.", ephemeral=True)
             return False
+        if interaction.guild is None or await level_of(interaction.guild, interaction.user) < LEVEL_TRUSTED:
+            await interaction.response.send_message("Only the server owner, an Extra Owner or a Trusted Admin can change security settings.", ephemeral=True)
+            return False
         return True
 
     async def on_timeout(self):
@@ -556,6 +580,9 @@ class VerificationOverviewLayout(discord.ui.LayoutView):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("This panel is not for you.", ephemeral=True)
+            return False
+        if interaction.guild is None or await level_of(interaction.guild, interaction.user) < LEVEL_TRUSTED:
+            await interaction.response.send_message("Only the server owner, an Extra Owner or a Trusted Admin can change security settings.", ephemeral=True)
             return False
         return True
 
@@ -653,6 +680,9 @@ class LoggingOverviewLayout(discord.ui.LayoutView):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("This panel is not for you.", ephemeral=True)
+            return False
+        if interaction.guild is None or await level_of(interaction.guild, interaction.user) < LEVEL_TRUSTED:
+            await interaction.response.send_message("Only the server owner, an Extra Owner or a Trusted Admin can change security settings.", ephemeral=True)
             return False
         return True
 

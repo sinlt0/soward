@@ -18,6 +18,8 @@ CATEGORY_DESCRIPTIONS = {
 
 COG_DESCRIPTIONS = {
     "AntiNuke": "Protection against malicious admin actions.",
+    "SecurityHub": "Security tiers, whitelist, presets and settings.",
+    "Lockdown": "Server lockdown, backups and the security check.",
     "AntiRaid": "Join-based raid protection and panic mode.",
     "AutoMod": "Automated filters for spam, mentions, links, and banned words.",
     "Verification": "Member verification gates and approval flows.",

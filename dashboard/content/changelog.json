@@ -1,5 +1,22 @@
 [
   {
+    "version": "3.1.0",
+    "title": "Security Center",
+    "date": "2026-10-16",
+    "items": [
+      "Added the Security Center: Owner, Extra Owner and Trusted Admin tiers control who can change security settings, with a tier lock that is on by default",
+      "Added a global whitelist for members, roles and channels with per-system scopes",
+      "Added about 200 security settings with set, get, reset, add and remove commands in every security module",
+      "Added relaxed, balanced, strict and paranoid presets, plus settings export and import",
+      "AntiNuke now has short and hourly limits per action, restores deleted channels and roles, reverts permission escalation, and watches webhooks, vanity URL changes and bot additions",
+      "AntiRaid join gate filters each have their own action, with account-age cluster detection and a sweep of recent joins",
+      "AutoMod gained scam and IP logger link detection, caps, zalgo, emoji, duplicate and wall-of-text filters with adjustable weights",
+      "Verification has attempt limits, lockouts, cooldowns, secure captchas and a fail action",
+      "Added server lockdown, backups with restore, a threat score with Beast Mode and the securitycheck command",
+      "Fixed quarantine failing the second time a member was quarantined"
+    ]
+  },
+  {
     "version": "3.0.0",
     "title": "Web dashboard, new site and tickets overhaul",
     "date": "2026-10-10",

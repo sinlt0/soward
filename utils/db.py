@@ -69,6 +69,15 @@ async def init(bot_loop: asyncio.AbstractEventLoop) -> None:
     await _bootstrap_sqlite()
 
     try:
+        await _sqlite_conn.execute(
+            "INSERT OR IGNORE INTO security_whitelist (guild_id, target_id, target_type, scope, added_by, added_at)"
+            " SELECT guild_id, target_id, 'user', 'antinuke', added_by, added_at FROM antinuke_whitelist"
+        )
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
         await _sqlite_conn.execute("ALTER TABLE lofi_state ADD COLUMN radio_key TEXT NOT NULL DEFAULT 'lofi_girl'")
         await _sqlite_conn.commit()
     except Exception:
@@ -496,6 +505,32 @@ async def _bootstrap_sqlite() -> None:
             granted_by INTEGER NOT NULL,
             granted_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS security_whitelist (
+            guild_id INTEGER NOT NULL,
+            target_id INTEGER NOT NULL,
+            target_type TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            added_by INTEGER,
+            added_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
+            PRIMARY KEY (guild_id, target_id, scope)
+        )""",
+        """CREATE TABLE IF NOT EXISTS security_backups (
+            backup_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            label TEXT,
+            created_by INTEGER,
+            created_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
+            auto INTEGER NOT NULL DEFAULT 0,
+            data TEXT NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS security_lockdown (
+            guild_id INTEGER PRIMARY KEY,
+            active INTEGER NOT NULL DEFAULT 0,
+            started_at REAL,
+            expires_at REAL,
+            started_by TEXT,
+            saved TEXT NOT NULL DEFAULT '[]'
         )""",
         """CREATE TABLE IF NOT EXISTS pending_verification (
             guild_id INTEGER NOT NULL,

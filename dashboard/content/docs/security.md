@@ -11,6 +11,7 @@ Soward has several security tools. Each protects against a different problem, an
 
 | Tool | Protects against | Guide |
 | --- | --- | --- |
+| Security Center | Who can change security settings, the whitelist, presets, lockdown, backups | [Security Center](/docs/security-center) |
 | AutoMod | Spam, banned words, invite links and bad links from members | [AutoMod](/docs/automod) |
 | AntiNuke | Destructive actions such as mass bans and deleted channels | [AntiNuke](/docs/antinuke) |
 | AntiRaid | Join floods and suspicious new accounts | [AntiRaid](/docs/antiraid) |

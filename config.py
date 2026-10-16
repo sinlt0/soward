@@ -126,6 +126,14 @@ ANTINUKE_DANGEROUS_PERMISSIONS: list[str] = [
 ]
 
 ANTINUKE_WATCH_QUARANTINED_DEFAULT: bool = True
+ANTINUKE_ADMIN_BYPASS_DEFAULT: bool = False
+ANTINUKE_RESTORE_DEFAULT: bool = True
+ANTINUKE_BOT_ADD_BLOCK_DEFAULT: bool = True
+ANTINUKE_ALERT_OWNER_DEFAULT: bool = True
+ANTINUKE_AUDIT_MAX_AGE_SECONDS: int = 20
+ANTINUKE_PUNISH_COOLDOWN_SECONDS: int = 30
+ANTINUKE_ROLLBACK_WINDOW_SECONDS: int = 120
+QUARANTINE_TIMEOUT_SECONDS: int = 2419200
 
 VERIFICATION_LEVELS: dict = {
     "none": 0,
@@ -135,6 +143,10 @@ VERIFICATION_LEVELS: dict = {
     "manual": 4,
 }
 
+VERIFICATION_MAX_ATTEMPTS_DEFAULT: int = 3
+VERIFICATION_LOCKOUT_SECONDS: int = 300
+VERIFICATION_CLICK_COOLDOWN_SECONDS: int = 5
+VERIFICATION_CAPTCHA_LENGTH: int = 6
 VERIFICATION_PENDING_TIMEOUT_ENABLED_DEFAULT: bool = False
 VERIFICATION_PENDING_TIMEOUT_MINUTES_DEFAULT: int = 30
 VERIFICATION_PENDING_TIMEOUT_ACTION_DEFAULT: str = "kick"
@@ -153,6 +165,10 @@ ANTIRAID_FLAG_NO_AVATAR: bool = True
 ANTIRAID_JOIN_ACTION: str = "kick"
 ANTIRAID_RAID_MODE_DURATION_SECONDS: int = 600
 ANTIRAID_RAID_MODE_ACTION: str = "kick"
+ANTIRAID_SWEEP_DEFAULT: bool = True
+ANTIRAID_RAISE_VERIFICATION_DEFAULT: bool = True
+ANTIRAID_FOLLOW_ANTINUKE_DEFAULT: bool = True
+ANTIRAID_LOG_RETENTION_SECONDS: int = 30 * 86400
 
 AUTOMOD_HEAT_DECAY_PER_SECOND: float = 1.0
 AUTOMOD_HEAT_MUTE_THRESHOLD: float = 10.0
@@ -165,7 +181,25 @@ AUTOMOD_HEAT_EVENTS: dict = {
     "banned_word": 5.0,
     "duplicate_message": 3.0,
 }
+AUTOMOD_HEAT_EVENTS.update({
+    "everyone": 4.0,
+    "phishing": 12.0,
+    "iplogger": 12.0,
+    "caps": 1.5,
+    "zalgo": 3.0,
+    "attachments": 2.0,
+    "emoji": 1.5,
+    "wall": 1.0,
+})
 AUTOMOD_BASE_MUTE_SECONDS: int = 300
+AUTOMOD_RAID_HEAT_FACTOR: float = 1.5
+AUTOMOD_DUPLICATE_WINDOW_SECONDS: int = 30
+AUTOMOD_DUPLICATE_SIMILARITY: float = 0.9
+AUTOMOD_CAPS_MIN_LENGTH: int = 15
+AUTOMOD_CAPS_RATIO: float = 0.7
+AUTOMOD_ATTACHMENT_LIMIT: int = 6
+AUTOMOD_MENTION_LIMIT: int = 5
+AUTOMOD_STALE_SECONDS: int = 3600
 AUTOMOD_MUTE_MULTIPLIER_RESET_SECONDS: int = 3600
 
 PANIC_MODE_RAIDER_COUNT: int = 3
@@ -192,6 +226,7 @@ QUARANTINE_ESCALATION_WINDOW_SECONDS: int = 86400
 SECURITY_TIER_EXTRA_OWNER: str = "extra_owner"
 SECURITY_TIER_TRUSTED_ADMIN: str = "trusted_admin"
 SECURITY_TIER_MAX_PER_TIER: int = 5
+SECURITY_LOCK_DEFAULT: bool = True
 
 LOG_EVENTS: list[str] = [
     "ban",
@@ -220,10 +255,17 @@ LOG_EVENTS: list[str] = [
     "voice_state_update",
     "automod_action",
     "antinuke_action",
+    "antinuke_triggered",
     "antinuke_quarantine",
+    "antinuke_quarantine_release",
     "antiraid_action",
     "antiraid_raid_mode",
     "verification_action",
+    "beast_mode",
+    "server_lockdown",
+    "security_backup",
+    "security_whitelist",
+    "security_change",
     "autorole_action",
     "nsfw_action",
     "ticket_action",
@@ -243,10 +285,17 @@ LOG_CATEGORIES: dict[str, dict] = {
         "events": [
             "automod_action",
             "antinuke_action",
+            "antinuke_triggered",
             "antinuke_quarantine",
+            "antinuke_quarantine_release",
             "antiraid_action",
             "antiraid_raid_mode",
             "verification_action",
+            "beast_mode",
+            "server_lockdown",
+            "security_backup",
+            "security_whitelist",
+            "security_change",
         ],
     },
     "member": {

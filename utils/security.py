@@ -1,10 +1,12 @@
 import ast
+import datetime
 import time
 from typing import Optional
 
 import discord
 
 from utils import db, guild_settings
+from utils import security_whitelist as whitelist
 from utils.events_bus import (
     ANTINUKE_QUARANTINED,
     ANTINUKE_RELEASED,
@@ -16,18 +18,36 @@ from utils.events_bus import (
 import config
 
 
+async def is_trusted_id(guild_id: int, user_id: int, owner_id: Optional[int] = None) -> bool:
+    if owner_id is not None and user_id == owner_id:
+        return True
+    if user_id in config.ALL_PRIVILEGED_IDS:
+        return True
+    if await get_permit_tier(guild_id, user_id) is not None:
+        return True
+    return user_id in await whitelist.user_ids_for(guild_id, "antinuke")
+
+
 async def is_trusted(guild_id: int, member: discord.Member) -> bool:
+    if await is_trusted_id(guild_id, member.id, member.guild.owner_id):
+        return True
+    if await whitelist.is_whitelisted(guild_id, ("antinuke",), member):
+        return True
+    if member.guild_permissions.administrator:
+        return bool(await guild_settings.get(guild_id, "antinuke_admin_bypass", config.ANTINUKE_ADMIN_BYPASS_DEFAULT))
+    return False
+
+
+async def is_exempt(guild_id: int, member: discord.Member, scope: str = "automod", channel: Optional[discord.abc.GuildChannel] = None) -> bool:
     if member.guild_permissions.administrator:
         return True
-    if member.id in config.ALL_PRIVILEGED_IDS:
+    if await is_trusted_id(guild_id, member.id, member.guild.owner_id):
         return True
-    if await get_permit_tier(guild_id, member.id) is not None:
-        return True
-    row = await db.raw_fetchone(
-        "SELECT 1 FROM antinuke_whitelist WHERE guild_id=? AND target_id=?",
-        (guild_id, member.id),
-    )
-    return row is not None
+    return await whitelist.is_whitelisted(guild_id, (scope,), member, channel)
+
+
+def dangerous_permissions(permissions: discord.Permissions) -> list[str]:
+    return [perm for perm in config.ANTINUKE_DANGEROUS_PERMISSIONS if getattr(permissions, perm, False)]
 
 
 async def is_real_owner(guild: discord.Guild, user_id: int) -> bool:
@@ -108,23 +128,16 @@ async def list_permit_tiers(guild_id: int) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def add_trusted(guild_id: int, target_id: int, added_by: int) -> None:
-    await db.raw_execute(
-        "INSERT OR IGNORE INTO antinuke_whitelist (guild_id, target_id, added_by) VALUES (?, ?, ?)",
-        (guild_id, target_id, added_by),
-    )
+async def add_trusted(guild_id: int, target_id: int, added_by: int) -> bool:
+    return await whitelist.add(guild_id, target_id, "user", "antinuke", added_by)
 
 
 async def remove_trusted(guild_id: int, target_id: int) -> bool:
-    cur = await db.raw_execute(
-        "DELETE FROM antinuke_whitelist WHERE guild_id=? AND target_id=?", (guild_id, target_id)
-    )
-    return cur.rowcount > 0
+    return await whitelist.remove(guild_id, target_id, "antinuke") > 0
 
 
 async def list_trusted(guild_id: int) -> list[dict]:
-    rows = await db.raw_fetch("SELECT * FROM antinuke_whitelist WHERE guild_id=?", (guild_id,))
-    return [dict(r) for r in rows]
+    return [r for r in await whitelist.list_entries(guild_id, "antinuke") if r["target_type"] == "user"]
 
 
 async def _quarantine_role(guild: discord.Guild) -> Optional[discord.Role]:
@@ -175,6 +188,47 @@ async def _record_offense(guild_id: int, user_id: int) -> int:
     return new_count
 
 
+async def _lock_member(guild: discord.Guild, member: discord.Member, reason: str) -> None:
+    quarantine_role = await _quarantine_role(guild)
+    removable = [r for r in member.roles if not r.is_default() and not r.managed and r < guild.me.top_role and r != quarantine_role]
+    try:
+        if removable:
+            await member.remove_roles(*removable, reason=reason)
+    except discord.HTTPException:
+        removable = []
+    try:
+        if quarantine_role and quarantine_role < guild.me.top_role and quarantine_role not in member.roles:
+            await member.add_roles(quarantine_role, reason=reason)
+    except discord.HTTPException:
+        pass
+
+    kept = [r for r in member.roles if not r.is_default() and r != quarantine_role and r not in removable]
+    remaining_dangerous = any(dangerous_permissions(r.permissions) for r in kept)
+    if quarantine_role is None or remaining_dangerous:
+        try:
+            until = discord.utils.utcnow() + datetime.timedelta(seconds=config.QUARANTINE_TIMEOUT_SECONDS)
+            await member.timeout(until, reason=reason)
+        except discord.HTTPException:
+            pass
+
+
+async def strip_member(guild: discord.Guild, member: discord.Member, reason: str) -> bool:
+    removable = [r for r in member.roles if not r.is_default() and not r.managed and r < guild.me.top_role]
+    try:
+        if removable:
+            await member.remove_roles(*removable, reason=reason)
+    except discord.HTTPException:
+        removable = []
+    kept = [r for r in member.roles if not r.is_default() and r not in removable]
+    if any(dangerous_permissions(r.permissions) for r in kept):
+        try:
+            until = discord.utils.utcnow() + datetime.timedelta(seconds=config.QUARANTINE_TIMEOUT_SECONDS)
+            await member.timeout(until, reason=reason)
+        except discord.HTTPException:
+            return False
+    return True
+
+
 async def quarantine_member(guild: discord.Guild, member: discord.Member, reason: str, by: Optional[int] = None, *, track_escalation: bool = True) -> bool:
     existing = await db.raw_fetchone(
         "SELECT 1 FROM quarantine WHERE guild_id=? AND user_id=? AND released_at IS NULL",
@@ -184,28 +238,35 @@ async def quarantine_member(guild: discord.Guild, member: discord.Member, reason
         return False
 
     quarantine_role = await _quarantine_role(guild)
-    saved_role_ids = [r.id for r in member.roles if not r.is_default()]
+    saved_role_ids = [r.id for r in member.roles if not r.is_default() and r != quarantine_role]
 
     await db.raw_execute(
         "INSERT INTO quarantine (guild_id, user_id, reason, saved_roles, quarantined_by, quarantined_at)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
+        " VALUES (?, ?, ?, ?, ?, ?)"
+        " ON CONFLICT(guild_id, user_id) DO UPDATE SET reason=excluded.reason, saved_roles=excluded.saved_roles,"
+        " quarantined_by=excluded.quarantined_by, quarantined_at=excluded.quarantined_at, released_at=NULL",
         (guild.id, member.id, reason, repr(saved_role_ids), by, time.time()),
     )
 
-    try:
-        removable = [r for r in member.roles if not r.is_default() and r < guild.me.top_role]
-        if removable:
-            await member.remove_roles(*removable, reason=reason)
-        if quarantine_role and quarantine_role < guild.me.top_role:
-            await member.add_roles(quarantine_role, reason=reason)
-    except discord.HTTPException:
-        pass
+    await _lock_member(guild, member, reason)
 
     if track_escalation:
         await _record_offense(guild.id, member.id)
 
     await bus.publish(ANTINUKE_QUARANTINED, guild_id=guild.id, user_id=member.id, reason=reason)
     await bus.publish(LOG_EVENT, guild_id=guild.id, action="antinuke_quarantine", user_id=member.id, reason=reason)
+    return True
+
+
+async def enforce_quarantine(guild: discord.Guild, member: discord.Member, reason: str) -> bool:
+    if not await is_quarantined(guild.id, member.id):
+        return False
+    quarantine_role = await _quarantine_role(guild)
+    extra = [r for r in member.roles if not r.is_default() and not r.managed and r != quarantine_role]
+    missing_role = quarantine_role is not None and quarantine_role not in member.roles
+    if not extra and not missing_role:
+        return False
+    await _lock_member(guild, member, reason)
     return True
 
 
@@ -217,6 +278,11 @@ async def release_member(guild: discord.Guild, user_id: int, by: Optional[int] =
     if not row:
         return False
 
+    await db.raw_execute(
+        "UPDATE quarantine SET released_at=? WHERE guild_id=? AND user_id=? AND released_at IS NULL",
+        (time.time(), guild.id, user_id),
+    )
+
     member = guild.get_member(user_id)
     quarantine_role = await _quarantine_role(guild)
 
@@ -226,18 +292,16 @@ async def release_member(guild: discord.Guild, user_id: int, by: Optional[int] =
                 await member.remove_roles(quarantine_role, reason="Security: quarantine released")
             saved_ids = ast.literal_eval(row["saved_roles"]) if row["saved_roles"] else []
             roles_to_restore = [guild.get_role(rid) for rid in saved_ids]
-            roles_to_restore = [r for r in roles_to_restore if r and r < guild.me.top_role]
+            roles_to_restore = [r for r in roles_to_restore if r and not r.managed and r < guild.me.top_role]
             if roles_to_restore:
                 await member.add_roles(*roles_to_restore, reason="Security: quarantine released")
+            if member.is_timed_out():
+                await member.timeout(None, reason="Security: quarantine released")
         except discord.HTTPException:
             pass
         except (ValueError, SyntaxError):
             pass
 
-    await db.raw_execute(
-        "UPDATE quarantine SET released_at=? WHERE guild_id=? AND user_id=? AND released_at IS NULL",
-        (time.time(), guild.id, user_id),
-    )
     await bus.publish(ANTINUKE_RELEASED, guild_id=guild.id, user_id=user_id)
     await bus.publish(LOG_EVENT, guild_id=guild.id, action="antinuke_quarantine_release", user_id=user_id)
     return True

@@ -669,7 +669,7 @@ def _automod_heat():
 async def heat_section(guild: discord.Guild) -> dict:
     automod_cog = _automod_heat()
     rows = []
-    for user_id in list(automod_cog._heat.get(guild.id, {})):
+    for user_id in automod_cog.heat_members(guild.id):
         heat, multiplier = automod_cog._get_heat(guild.id, user_id)
         if heat < 0.05 and multiplier <= 1:
             continue
@@ -698,8 +698,7 @@ async def heat_check(ctx: ActionContext, payload: dict) -> list:
 async def heat_reset(ctx: ActionContext, payload: dict) -> list:
     member = _need_member(ctx.guild, _target_values(payload))
     automod_cog = _automod_heat()
-    automod_cog._heat[ctx.guild.id].pop(member.id, None)
-    automod_cog._reset_multiplier(ctx.guild.id, member.id)
+    automod_cog.clear_heat(ctx.guild.id, member.id)
     return [f"Heat score and mute multiplier cleared for {member.display_name}"]
 
 
