@@ -108,6 +108,7 @@ def _build() -> None:
     _duration("security", "threat_window", 600, 60, 86400, "Threat window")
 
     _bool("antinuke", "enabled", False, "AntiNuke", "Master switch for AntiNuke.", critical=True)
+    _bool("antinuke", "restore_from_backup", False, "Restore from backup after an attack", "After an AntiNuke incident, recreate missing roles, channels and bans from the latest backup.")
     _bool("antinuke", "strict_mode", config.ANTINUKE_STRICT_MODE_DEFAULT, "Strict mode", "Any dangerous permission grant by an untrusted member is punished at once.")
     _bool("antinuke", "admin_bypass", config.ANTINUKE_ADMIN_BYPASS_DEFAULT, "Administrator bypass", "Let members with Administrator skip AntiNuke without being trusted.", critical=True)
     _bool("antinuke", "watch_quarantined", config.ANTINUKE_WATCH_QUARANTINED_DEFAULT, "Watch quarantined members", "Any action by a quarantined member is punished immediately.")
@@ -166,6 +167,16 @@ def _build() -> None:
     _int("antiraid", "gate_suspicious_score", 3, 1, 10, "Suspicion score needed", group="Join gate")
     _choice("antiraid", "gate_suspicious_action", "default", ("default",) + GATE_ACTIONS[1:], "Suspicious account action", group="Join gate")
     _duration("antiraid", "timeout_duration", 3600, 60, 2419200, "Timeout length", group="Join gate")
+    _bool("antiraid", "gate_impersonation_enabled", False, "Staff impersonation filter", "Joins whose name is nearly the same as a staff member's.", group="Join gate")
+    _float("antiraid", "impersonation_threshold", 0.88, 0.7, 1.0, "Impersonation similarity", "How alike two names must be, from 0.7 to 1.0.", group="Join gate")
+    _choice("antiraid", "gate_impersonation_action", "default", ("default",) + GATE_ACTIONS[1:], "Impersonation action", group="Join gate")
+    _bool("antiraid", "gate_evasion_enabled", False, "Ban evasion filter", "Joins that look like a banned user: same avatar or a very similar name. A heuristic, not proof.", group="Join gate")
+    _float("antiraid", "evasion_threshold", 0.92, 0.8, 1.0, "Ban evasion name similarity", group="Join gate")
+    _choice("antiraid", "gate_evasion_action", "default", ("default",) + GATE_ACTIONS[1:], "Ban evasion action", group="Join gate")
+    _bool("antiraid", "invite_tracking", False, "Invite tracking", "Remember which invite each member used. Needs Manage Server.", group="Invites")
+    _bool("antiraid", "revoke_invites", False, "Revoke raid invites", "Delete an invite when several flagged joins came through it.", group="Invites")
+    _int("antiraid", "revoke_invite_min", 3, 2, 50, "Flagged joins before revoking", group="Invites")
+    _duration("antiraid", "invite_window", 600, 60, 86400, "Invite window", "How far back flagged joins are counted.", group="Invites")
 
     _bool("automod", "enabled", False, "AutoMod", "Master switch for AutoMod.", critical=True)
     _bool("automod", "block_invites", False, "Block invite links", group="Filters")
@@ -195,6 +206,18 @@ def _build() -> None:
     _bool("automod", "reset_heat_on_punish", True, "Reset heat after a punishment", group="Heat")
     _float("automod", "raid_heat_factor", config.AUTOMOD_RAID_HEAT_FACTOR, 1.0, 5.0, "Heat factor during raid mode", group="Heat")
     _float("automod", "unverified_heat_factor", 1.5, 1.0, 5.0, "Heat factor for unverified members", group="Heat")
+    _bool("automod", "warn_ladder_enabled", False, "Warning ladder", "Escalate members who collect warnings: timeout, then kick, then ban.", group="Warnings")
+    _duration("automod", "warn_window", 2592000, 3600, 31536000, "Warnings count for", "Older warnings stop counting toward the ladder.", group="Warnings")
+    _int("automod", "warn_timeout_at", 3, 0, 50, "Timeout at warnings", "0 turns this step off.", group="Warnings")
+    _duration("automod", "warn_timeout_duration", 3600, 60, 2419200, "Ladder timeout length", group="Warnings")
+    _int("automod", "warn_kick_at", 5, 0, 50, "Kick at warnings", "0 turns this step off.", group="Warnings")
+    _int("automod", "warn_ban_at", 7, 0, 50, "Ban at warnings", "0 turns this step off.", group="Warnings")
+    _bool("automod", "warn_on_punish", False, "AutoMod punishments add a warning", group="Warnings")
+    _bool("automod", "webhook_protection", False, "Webhook message protection", "Delete webhook posts that ping everyone, carry invites or mass-mention.", group="Webhooks")
+    _bool("automod", "webhook_delete", False, "Delete abusive webhooks", "Also delete the webhook itself. Needs Manage Webhooks.", group="Webhooks")
+    _bool("automod", "burst_lockdown", False, "Mass-mention burst lockdown", "Lock the server when many mass-mention messages land at once.", group="Webhooks")
+    _int("automod", "burst_count", 5, 2, 50, "Mass-mention messages", group="Webhooks")
+    _duration("automod", "burst_window", 30, 5, 600, "Burst window", group="Webhooks")
     _bool("automod", "delete_flagged", True, "Delete flagged messages", group="Responses")
     _bool("automod", "notify", True, "Tell the member why", group="Responses")
     _duration("automod", "notify_delete_after", 6, 2, 120, "Notice lifetime", group="Responses")
@@ -393,6 +416,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         "antiraid.enabled": True, "antiraid.join_velocity_count": 7, "antiraid.min_age_seconds": 14 * 86400, "antiraid.gate_noavatar_enabled": True,
         "antiraid.raid_mode_action": "ban", "antiraid.join_action": "kick", "antiraid.sweep": True, "antiraid.gate_name_enabled": True,
         "antiraid.gate_suspicious_enabled": True, "antiraid.gate_unverified_bots": True, "antiraid.raise_verification": True,
+        "antiraid.gate_impersonation_enabled": True, "antiraid.invite_tracking": True, "automod.webhook_protection": True,
         "automod.enabled": True, "automod.mute_threshold": 8, "automod.panic_threshold": 24, "automod.block_invites": True, "automod.mention_limit": 4,
         "verification.max_attempts": 3, "verification.min_account_age_hours": 24, "verification.fail_lockouts": 2,
         "security.threat_score": True, "security.lock": True,
@@ -403,7 +427,9 @@ PRESETS: dict[str, dict[str, Any]] = {
         "antinuke.threshold_channel_create": 2, "antinuke.threshold_role_create": 2, "antinuke.threshold_webhook_create": 1,
         "antinuke.threshold_emoji_change": 3, "antinuke.threshold_sticker_change": 3, "antinuke.threshold_channel_update": 3, "antinuke.threshold_role_update": 2,
         "antinuke.punishment": "ban", "antinuke.restore": True, "antinuke.bot_add_block": True, "antinuke.quarantine_hold": True,
-        "antinuke.monitor_overwrites": True, "antinuke.protect_everyone": True,
+        "antinuke.monitor_overwrites": True, "antinuke.protect_everyone": True, "antinuke.restore_from_backup": True,
+        "antiraid.gate_impersonation_enabled": True, "antiraid.gate_evasion_enabled": True, "antiraid.invite_tracking": True, "antiraid.revoke_invites": True,
+        "automod.webhook_protection": True, "automod.burst_lockdown": True, "automod.warn_ladder_enabled": True,
         "antiraid.enabled": True, "antiraid.join_velocity_count": 5, "antiraid.join_velocity_window": 10, "antiraid.min_age_seconds": 30 * 86400,
         "antiraid.gate_noavatar_enabled": True, "antiraid.raid_mode_action": "ban", "antiraid.join_action": "ban", "antiraid.sweep": True,
         "antiraid.gate_name_enabled": True, "antiraid.gate_suspicious_enabled": True, "antiraid.gate_unverified_bots": True,

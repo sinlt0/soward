@@ -223,6 +223,7 @@ class Utility(commands.Cog):
     @commands.command(name="serverinfo", aliases=["si", "guildinfo"], help="Display information about this server.")
     @commands.guild_only()
     async def serverinfo(self, ctx: commands.Context):
+        from utils import prefix as prefix_utils
         e = emoji_manager.get
         guild = ctx.guild
 
@@ -241,8 +242,8 @@ class Utility(commands.Cog):
             f"**Roles:** `{len(guild.roles)}`\n"
             f"**Emojis:** `{len(guild.emojis)}`\n\n"
             f"**Boosts:** `{guild.premium_subscription_count}` (Level `{guild.premium_tier}`)\n"
-            f"**Verification Level:** `{guild.verification_level}`\n"
-            f"**Soward Prefix:** run `prefix` to check"
+            f"**Verification Level:** `{guild.verification_level.name}`\n"
+            f"**Soward Prefix:** `{await prefix_utils.get_guild_prefix(guild.id)}`"
         )
         await ctx.send(view=_layout(f"{e('guild')} {guild.name}", body, thumbnail=guild.icon.url if guild.icon else None))
 

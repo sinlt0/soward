@@ -8,7 +8,7 @@ from discord.ext import commands, tasks
 
 import re
 
-from utils import db, emoji_manager, guild_settings, security, threat
+from utils import db, emoji_manager, guild_settings, security, security_intel, threat
 from utils import security_settings as settings
 from utils import security_cmds
 from utils.checks import has_guild_permission
@@ -117,6 +117,14 @@ class AntiRaid(commands.Cog):
         hit = await self._name_hit(gid, member)
         if hit:
             found.append((f"name matches blocked pattern `{hit}`", await self._gate_action(gid, "name_filter")))
+        if await settings.get(gid, "antiraid", "gate_impersonation_enabled"):
+            who = security_intel.impersonation_hit(member.guild, member, await settings.get(gid, "antiraid", "impersonation_threshold"))
+            if who:
+                found.append((f"name resembles staff member {who}", await self._gate_action(gid, "gate_impersonation")))
+        if await settings.get(gid, "antiraid", "gate_evasion_enabled"):
+            why = await security_intel.evasion_hit(member.guild, member, await settings.get(gid, "antiraid", "evasion_threshold"))
+            if why:
+                found.append((f"possible ban evasion ({why})", await self._gate_action(gid, "gate_evasion")))
         if await settings.get(gid, "antiraid", "gate_suspicious_enabled"):
             needed = await settings.get(gid, "antiraid", "gate_suspicious_score")
             points = self._suspicion_points(member)
@@ -362,6 +370,9 @@ class AntiRaid(commands.Cog):
             in_raid_mode = True
         window.append((now, member.id, member.created_at.timestamp(), re.sub(r"\d+", "", member.name.lower())[:12]))
 
+        if await settings.get(guild_id, "antiraid", "invite_tracking"):
+            await security_intel.used_invite(member.guild, member)
+
         findings = await self._evaluate_join(member)
         exempt = (in_raid_mode or findings) and await security.is_exempt(guild_id, member, "antiraid")
         if exempt:
@@ -382,8 +393,64 @@ class AntiRaid(commands.Cog):
                     reasons = ["active raid mode"]
         if reasons:
             await self._take_action(member.guild, member, action, ", ".join(reasons))
+            await self._revoke_flagged_invites(member.guild, member.id)
         else:
             await self._log_clean_join(member)
+
+    async def _revoke_flagged_invites(self, guild: discord.Guild, user_id: int):
+        gid = guild.id
+        if not await settings.get(gid, "antiraid", "revoke_invites"):
+            return
+        code = security_intel.invite_for(gid, user_id)
+        if code is None:
+            return
+        minimum = await settings.get(gid, "antiraid", "revoke_invite_min")
+        window = await settings.get(gid, "antiraid", "invite_window")
+        flagged = 0
+        for joined_id in security_intel.recent_by_invite(gid, window).get(code, []):
+            row = await db.raw_fetchone(
+                "SELECT 1 FROM raid_join_log WHERE guild_id=? AND user_id=? AND flagged=1 AND joined_at>?",
+                (gid, joined_id, time.time() - window),
+            )
+            flagged += 1 if row else 0
+        if flagged < minimum:
+            return
+        try:
+            invites = await guild.invites()
+            target = discord.utils.get(invites, code=code)
+            if target is not None:
+                await target.delete(reason=f"AntiRaid: {flagged} flagged joins came through this invite")
+                security_intel.note_invite_deleted(gid, code)
+                await bus.publish(
+                    LOG_EVENT, guild_id=gid, action="antiraid_action", user_id=0,
+                    reason=f"Revoked invite {code} after {flagged} flagged joins", action_taken="revoke_invite",
+                )
+        except discord.HTTPException:
+            pass
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        for guild in self.bot.guilds:
+            if await settings.get(guild.id, "antiraid", "invite_tracking"):
+                await security_intel.prime_invites(guild)
+
+    @commands.Cog.listener()
+    async def on_invite_create(self, invite: discord.Invite):
+        if invite.guild is not None:
+            security_intel.note_invite_created(invite.guild.id, invite.code, invite.uses or 0)
+
+    @commands.Cog.listener()
+    async def on_invite_delete(self, invite: discord.Invite):
+        if invite.guild is not None:
+            security_intel.note_invite_deleted(invite.guild.id, invite.code)
+
+    @commands.Cog.listener()
+    async def on_member_ban(self, guild: discord.Guild, user: discord.abc.User):
+        security_intel.forget_bans(guild.id)
+
+    @commands.Cog.listener()
+    async def on_member_unban(self, guild: discord.Guild, user: discord.abc.User):
+        security_intel.forget_bans(guild.id)
 
     @commands.group(name="antiraid", aliases=["raid"], invoke_without_command=True, help='View or configure AntiRaid join protection.')
     @has_guild_permission("administrator")

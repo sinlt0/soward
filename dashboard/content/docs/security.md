@@ -33,7 +33,7 @@ You can also turn tools on and change their settings from the web dashboard. See
 ## How the tools work together
 
 - **Trusted members.** Anyone with Administrator, the bot's owners, Extra Owners, Trusted Admins and members on the AntiNuke trusted list are skipped by AutoMod, AntiNuke and AntiRaid. Add people with `!antinuke trust add @member`.
-- **Quarantine.** AntiNuke and AutoMod can quarantine a member, which removes their roles. Only the server owner can release them with `!release @member`.
+- **Quarantine.** AntiNuke and AutoMod can quarantine a member, which removes their roles. Only the server owner and Extra Owners can release them with `!release @member`.
 - **Incident state.** The server has an incident state of `normal`, `elevated` or `lockdown`. AntiNuke raises it by one step after each punishment. See it with `!antinuke incident status`.
 - **Panic mode.** AutoMod starts a server-wide panic mode when 3 members hit panic-level heat within 60 seconds. AntiRaid shares this state, and starts raid mode when it sees panic mode or an AntiNuke punishment.
 - **Logs.** Quarantines, raid mode changes, flagged joins and AutoMod actions are sent to your Security log channel if you set up [logging](/docs/logging).

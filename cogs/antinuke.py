@@ -12,7 +12,7 @@ from utils import security_settings as settings
 from utils import security_whitelist as whitelist
 from utils import security_cmds
 from utils.checks import has_guild_permission
-from utils.security_access import security_owner, security_staff
+from utils.security_access import LEVEL_OWNER, LEVEL_TRUSTED, level_of, security_owner, security_staff
 from utils.events_bus import (
     ANTINUKE_INCIDENT,
     ANTINUKE_TRIGGERED,
@@ -947,12 +947,12 @@ class AntiNuke(commands.Cog):
         extra_owners = [r for r in rows if r["tier"] == config.SECURITY_TIER_EXTRA_OWNER]
         trusted_admins = [r for r in rows if r["tier"] == config.SECURITY_TIER_TRUSTED_ADMIN]
 
-        body_lines = [f"**Server Owner:** <@{ctx.guild.owner_id}> (always full control, including quarantine release)"]
+        body_lines = [f"**Server Owner:** <@{ctx.guild.owner_id}> (always full control)"]
         body_lines.append(f"\n**Extra Owners** (`{len(extra_owners)}/{config.SECURITY_TIER_MAX_PER_TIER}`):")
         body_lines.append("\n".join(f"<@{r['user_id']}>" for r in extra_owners) or "None")
         body_lines.append(f"\n**Trusted Admins** (`{len(trusted_admins)}/{config.SECURITY_TIER_MAX_PER_TIER}`):")
         body_lines.append("\n".join(f"<@{r['user_id']}>" for r in trusted_admins) or "None")
-        body_lines.append("\n-# Note: only the real server owner can release a quarantined member, regardless of tier.")
+        body_lines.append("\n-# The server owner and Extra Owners can release quarantined members. Trusted Admins cannot.")
 
         await ctx.send(view=info_layout(f"{e('shield')} Permit Tiers", "\n".join(body_lines)))
 
@@ -981,22 +981,39 @@ class AntiNuke(commands.Cog):
     async def quarantine_cmd(self, ctx: commands.Context, member: discord.Member, *, reason: str = "Manually quarantined"):
         from utils.components import error_layout, success_layout
         e = emoji_manager.get
+        actor_level = await level_of(ctx.guild, ctx.author)
+        blocked = None
+        if member.id == ctx.author.id or member.id == ctx.guild.me.id or member.id == ctx.guild.owner_id:
+            blocked = "That member cannot be quarantined."
+        elif member.id in config.ALL_PRIVILEGED_IDS or await level_of(ctx.guild, member) >= max(actor_level, LEVEL_TRUSTED):
+            blocked = "You cannot quarantine someone at or above your security tier."
+        elif ctx.author.id != ctx.guild.owner_id and member.top_role >= ctx.author.top_role:
+            blocked = "You cannot quarantine someone with a higher or equal role."
+        elif member.top_role >= ctx.guild.me.top_role:
+            blocked = "Their top role is at or above mine, so I cannot strip their roles."
+        if blocked:
+            return await ctx.send(view=error_layout(f"{e('cross')} Not Allowed", blocked))
         ok = await security.quarantine_member(ctx.guild, member, reason, by=ctx.author.id)
         if ok:
             await ctx.send(view=success_layout(f"{e('quarantine')} Quarantined", f"{member.mention} has been quarantined.\n**Reason:** {reason}"))
         else:
             await ctx.send(view=error_layout(f"{e('cross')} Already quarantined", f"{member.mention} is already quarantined."))
 
-    @commands.command(name="release", help='Release a quarantined member and restore their roles. Only the real server owner can do this.')
+    @commands.command(name="release", help='Release a quarantined member and restore their roles. Server owner and Extra Owners only.')
     @commands.guild_only()
     async def release_cmd(self, ctx: commands.Context, member: discord.Member):
         from utils.components import error_layout, success_layout
         e = emoji_manager.get
 
-        if not await security.is_real_owner(ctx.guild, ctx.author.id):
+        if await level_of(ctx.guild, ctx.author) < LEVEL_OWNER:
             return await ctx.send(view=error_layout(
                 f"{e('cross')} Owner Only",
-                "Only the server owner can release a quarantined member — this is intentional and cannot be delegated, even to Extra Owners or administrators.",
+                "Only the server owner or an Extra Owner can release a quarantined member.",
+            ))
+        if member.id == ctx.author.id or await security.is_quarantined(ctx.guild.id, ctx.author.id):
+            return await ctx.send(view=error_layout(
+                f"{e('cross')} Not Allowed",
+                "You cannot release yourself, and quarantined members cannot release anyone.",
             ))
 
         ok = await security.release_member(ctx.guild, member.id, by=ctx.author.id)

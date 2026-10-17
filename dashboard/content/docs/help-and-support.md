@@ -41,15 +41,16 @@ If you need hands-on help, you can give the Soward team temporary Administrator 
 
 | Command | What it does | Needs |
 | --- | --- | --- |
-| `!supportaccess` | Asks you to confirm, then creates a role called **Soward Support** with Administrator permission and gives it to the bot and to any Soward team members who are in your server. Alias: `!grantsupport`. | Administrator |
+| `!supportaccess` | Asks you to confirm, then creates a role called **Soward Support** with Administrator permission and gives it to the bot and to any Soward team members who are in your server. Alias: `!grantsupport`. | Server owner or Extra Owner |
 | `!supportstatus` | Shows whether the role exists and who has it. | Nothing |
-| `!revokesupport` | Deletes the **Soward Support** role and ends the access. | Administrator |
+| `!revokesupport` | Deletes the **Soward Support** role and ends the access. | Server owner or Extra Owner |
 
 What to know:
 
 - Nothing is granted until you press the confirm button. You can cancel.
 - The access does not expire on its own. Run `!revokesupport` when you are done.
-- If the role already exists, `!supportaccess` tells you to revoke it first.
+- The bot remembers the exact role it created, so a role someone else names **Soward Support** is never treated as support access and is never deleted by `!revokesupport`.
+- If the support role already exists, `!supportaccess` tells you to revoke it first.
 - The bot needs the Manage Roles permission, and its role must be high enough to create and assign the role.
 
 ## Web dashboard command

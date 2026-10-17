@@ -8,12 +8,13 @@ import discord
 from discord.ext import commands, tasks
 
 import config
-from utils import cases, db, emoji_manager
+from utils import cases, db, emoji_manager, security, warn_ladder
 from utils.checks import has_guild_permission
 from utils.colors import NEUTRAL, SUCCESS
 from utils.components import ConfirmLayout, error_layout, footer_block, info_layout, success_layout
 from utils.converters import DurationConverter, MemberOrIdConverter, format_duration
 from utils.events_bus import LOG_EVENT, MOD_ACTION, bus
+from utils.security_access import LEVEL_OWNER, level_of
 
 
 def _case_body(fields: dict) -> str:
@@ -300,10 +301,73 @@ class Moderation(commands.Cog):
         await bus.publish(LOG_EVENT, guild_id=guild.id, action=action, **kwargs)
         await bus.publish(MOD_ACTION, guild_id=guild.id, action=action, **kwargs)
 
-    def _can_act_on(self, ctx: commands.Context, target: discord.Member) -> bool:
-        if ctx.author.id in config.ALL_PRIVILEGED_IDS:
+    async def _guard(self, ctx: commands.Context, target: discord.Member, verb: str) -> Optional[str]:
+        guild = ctx.guild
+        if target.id == ctx.author.id:
+            return f"You cannot {verb} yourself."
+        if target.id == guild.me.id:
+            return f"I won't {verb} myself."
+        if target.id == guild.owner_id:
+            return f"The server owner cannot be targeted by `{verb}`."
+        actor_level = await level_of(guild, ctx.author)
+        if await level_of(guild, target) >= LEVEL_OWNER and actor_level < LEVEL_OWNER:
+            return f"Owners and Extra Owners are protected. You cannot {verb} them."
+        if target.id in config.ALL_PRIVILEGED_IDS and ctx.author.id not in config.ALL_PRIVILEGED_IDS:
+            return f"You cannot {verb} that member."
+        if ctx.author.id != guild.owner_id and ctx.author.id not in config.ALL_PRIVILEGED_IDS and target.top_role >= ctx.author.top_role:
+            return f"You cannot {verb} someone with a higher or equal role."
+        if target.top_role >= guild.me.top_role:
+            return f"I cannot {verb} that member because their top role is at or above mine."
+        return None
+
+    async def _guard_id(self, ctx: commands.Context, user_id: int, verb: str) -> Optional[str]:
+        if user_id == ctx.author.id:
+            return f"You cannot {verb} yourself."
+        if user_id == ctx.guild.me.id:
+            return f"I won't {verb} myself."
+        if user_id == ctx.guild.owner_id or user_id in config.ALL_PRIVILEGED_IDS:
+            return f"You cannot {verb} that user."
+        if await level_of(ctx.guild, discord.Object(id=user_id)) >= LEVEL_OWNER:
+            return f"You cannot {verb} that user."
+        return None
+
+    async def _attempt(self, ctx: commands.Context, call) -> bool:
+        try:
+            await call
             return True
-        return target.top_role < ctx.author.top_role
+        except discord.Forbidden:
+            await ctx.send(view=error_layout("Missing Permissions", "Discord refused that. Check my permissions and that my role is above the target."))
+        except discord.HTTPException as ex:
+            await ctx.send(view=error_layout("Failed", f"Discord returned an error: {ex.text or ex}"))
+        return False
+
+    async def _drop(self, message: discord.Message):
+        try:
+            await message.delete()
+        except discord.HTTPException:
+            pass
+
+    async def _role_problem(self, ctx: commands.Context, member: discord.Member, role: discord.Role, *, adding: bool) -> Optional[str]:
+        guild = ctx.guild
+        if role.is_default():
+            return "The @everyone role cannot be changed this way."
+        if role.managed:
+            return f"{role.mention} is managed by an integration."
+        if role >= guild.me.top_role:
+            return f"{role.mention} is at or above my top role."
+        owner_level = await level_of(guild, ctx.author) >= LEVEL_OWNER
+        if not owner_level and role >= ctx.author.top_role:
+            return f"{role.mention} is at or above your top role."
+        if adding and not owner_level and security.dangerous_permissions(role.permissions):
+            return f"{role.mention} carries dangerous permissions. Only the server owner or an Extra Owner can hand it out."
+        if member.id != ctx.author.id:
+            if member.id == guild.owner_id and not adding:
+                return "The server owner's roles cannot be changed this way."
+            if not owner_level and member.top_role >= ctx.author.top_role:
+                return "That member's top role is at or above yours."
+            if await security.is_quarantined(guild.id, member.id):
+                return f"{member.mention} is quarantined. Release them first."
+        return None
 
     @tasks.loop(minutes=1)
     async def tempban_watcher(self):
@@ -332,13 +396,19 @@ class Moderation(commands.Cog):
     async def ban(self, ctx: commands.Context, target: MemberOrIdConverter, *, reason: str = "No reason provided"):
         e = emoji_manager.get
         if isinstance(target, discord.Member):
-            if not self._can_act_on(ctx, target):
-                return await ctx.send(view=error_layout("Permission Denied", "You cannot ban someone with a higher or equal role."))
-            await target.ban(reason=f"{ctx.author} | {reason}")
+            problem = await self._guard(ctx, target, "ban")
+            if problem:
+                return await ctx.send(view=error_layout("Permission Denied", problem))
+            if not await self._attempt(ctx, target.ban(reason=f"{ctx.author} | {reason}")):
+                return
             user_id = target.id
             display = str(target)
         else:
-            await ctx.guild.ban(discord.Object(id=target), reason=f"{ctx.author} | {reason}")
+            problem = await self._guard_id(ctx, target, "ban")
+            if problem:
+                return await ctx.send(view=error_layout("Permission Denied", problem))
+            if not await self._attempt(ctx, ctx.guild.ban(discord.Object(id=target), reason=f"{ctx.author} | {reason}")):
+                return
             user_id = target
             display = str(target)
 
@@ -354,13 +424,19 @@ class Moderation(commands.Cog):
     async def tempban(self, ctx: commands.Context, target: MemberOrIdConverter, duration: DurationConverter, *, reason: str = "No reason provided"):
         e = emoji_manager.get
         if isinstance(target, discord.Member):
-            if not self._can_act_on(ctx, target):
-                return await ctx.send(view=error_layout("Permission Denied", "You cannot ban someone with a higher or equal role."))
-            await target.ban(reason=f"{ctx.author} | {reason}")
+            problem = await self._guard(ctx, target, "ban")
+            if problem:
+                return await ctx.send(view=error_layout("Permission Denied", problem))
+            if not await self._attempt(ctx, target.ban(reason=f"{ctx.author} | {reason}")):
+                return
             user_id = target.id
             display = str(target)
         else:
-            await ctx.guild.ban(discord.Object(id=target), reason=f"{ctx.author} | {reason}")
+            problem = await self._guard_id(ctx, target, "ban")
+            if problem:
+                return await ctx.send(view=error_layout("Permission Denied", problem))
+            if not await self._attempt(ctx, ctx.guild.ban(discord.Object(id=target), reason=f"{ctx.author} | {reason}")):
+                return
             user_id = target
             display = str(target)
 
@@ -382,10 +458,12 @@ class Moderation(commands.Cog):
     @commands.guild_only()
     async def softban(self, ctx: commands.Context, member: discord.Member, delete_days: int = 1, *, reason: str = "No reason provided"):
         e = emoji_manager.get
-        if not self._can_act_on(ctx, member):
-            return await ctx.send(view=error_layout("Permission Denied", "You cannot softban someone with a higher or equal role."))
+        problem = await self._guard(ctx, member, "softban")
+        if problem:
+            return await ctx.send(view=error_layout("Permission Denied", problem))
         delete_days = max(0, min(7, delete_days))
-        await member.ban(reason=f"Softban: {ctx.author} | {reason}", delete_message_days=delete_days)
+        if not await self._attempt(ctx, member.ban(reason=f"Softban: {ctx.author} | {reason}", delete_message_days=delete_days)):
+            return
         await ctx.guild.unban(member, reason="Softban auto-unban")
         case_id = await cases.create_mod_case(ctx.guild.id, "softban", member.id, ctx.author.id, reason)
         await ctx.send(view=_mod_layout(f"{e('ban')} Member Softbanned", {
@@ -417,10 +495,12 @@ class Moderation(commands.Cog):
     @commands.guild_only()
     async def kick(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
         e = emoji_manager.get
-        if not self._can_act_on(ctx, member):
-            return await ctx.send(view=error_layout("Permission Denied", "You cannot kick someone with a higher or equal role."))
+        problem = await self._guard(ctx, member, "kick")
+        if problem:
+            return await ctx.send(view=error_layout("Permission Denied", problem))
 
-        await member.kick(reason=f"{ctx.author} | {reason}")
+        if not await self._attempt(ctx, member.kick(reason=f"{ctx.author} | {reason}")):
+            return
         case_id = await cases.create_mod_case(ctx.guild.id, "kick", member.id, ctx.author.id, reason)
         await ctx.send(view=_mod_layout(f"{e('kick')} Member Kicked", {
             "User": str(member), "Moderator": ctx.author.mention, "Reason": reason, "Case": f"`{case_id}`",
@@ -447,7 +527,7 @@ class Moderation(commands.Cog):
 
         kicked, failed = [], []
         for member in members:
-            if not self._can_act_on(ctx, member):
+            if await self._guard(ctx, member, "kick"):
                 failed.append(member)
                 continue
             try:
@@ -464,15 +544,72 @@ class Moderation(commands.Cog):
             "Reason": reason,
         }))
 
+    @commands.command(name="massban", help="Ban several users by ID or mention. Usage: massban <id> <id> ... [reason]")
+    @has_guild_permission("ban_members")
+    @commands.guild_only()
+    async def massban(self, ctx: commands.Context, *, args: str):
+        e = emoji_manager.get
+        tokens = args.split()
+        ids: list[int] = []
+        for token in tokens:
+            digits = token.strip("<@!>")
+            if not digits.isdigit():
+                break
+            if int(digits) not in ids:
+                ids.append(int(digits))
+        reason = " ".join(tokens[len(ids):]) or "No reason provided"
+        if not ids:
+            return await ctx.send(view=error_layout("No Targets", "Give at least one user ID or mention."))
+        if len(ids) > 25:
+            return await ctx.send(view=error_layout("Too Many", "Massban handles at most 25 users at a time."))
+
+        allowed, refused = [], []
+        for user_id in ids:
+            member = ctx.guild.get_member(user_id)
+            problem = await self._guard(ctx, member, "ban") if member else await self._guard_id(ctx, user_id, "ban")
+            (refused if problem else allowed).append(user_id)
+        if not allowed:
+            return await ctx.send(view=error_layout("Permission Denied", "None of those users can be banned by you."))
+
+        confirm = ConfirmLayout(
+            f"{e('ban')} Confirm mass ban",
+            f"You are about to ban **{len(allowed)}** user(s)." + (f"\n**Skipped (protected):** {len(refused)}" if refused else "") + f"\n**Reason:** {reason}",
+            author_id=ctx.author.id,
+        )
+        msg = await ctx.send(view=confirm)
+        await confirm.wait()
+        if not confirm.value:
+            return await msg.edit(view=error_layout("Cancelled", "Mass ban cancelled."))
+
+        banned, failed = 0, 0
+        for user_id in allowed:
+            try:
+                await ctx.guild.ban(discord.Object(id=user_id), reason=f"{ctx.author} | Mass ban: {reason}", delete_message_days=0)
+            except discord.HTTPException:
+                failed += 1
+                continue
+            banned += 1
+            case_id = await cases.create_mod_case(ctx.guild.id, "ban", user_id, ctx.author.id, reason)
+            await self._log(ctx.guild, "ban", user_id=user_id, moderator_id=ctx.author.id, reason=f"Mass ban: {reason}", case_id=case_id)
+            await asyncio.sleep(0.4)
+        await msg.edit(view=_mod_layout(f"{e('ban')} Mass Ban Complete", {
+            "Banned": f"{banned} user(s)",
+            "Failed": f"{failed} user(s)" if failed else None,
+            "Skipped": f"{len(refused)} protected user(s)" if refused else None,
+            "Reason": reason,
+        }))
+
     @commands.command(name="mute", aliases=["timeout"], help="Timeout a member for a given duration.")
     @has_guild_permission("moderate_members")
     @commands.guild_only()
     async def mute(self, ctx: commands.Context, member: discord.Member, duration: DurationConverter, *, reason: str = "No reason provided"):
         e = emoji_manager.get
-        if not self._can_act_on(ctx, member):
-            return await ctx.send(view=error_layout("Permission Denied", "You cannot mute someone with a higher or equal role."))
+        problem = await self._guard(ctx, member, "mute")
+        if problem:
+            return await ctx.send(view=error_layout("Permission Denied", problem))
         until = discord.utils.utcnow() + datetime.timedelta(seconds=duration)
-        await member.timeout(until, reason=f"{ctx.author} | {reason}")
+        if not await self._attempt(ctx, member.timeout(until, reason=f"{ctx.author} | {reason}")):
+            return
         case_id = await cases.create_mod_case(ctx.guild.id, "mute", member.id, ctx.author.id, reason, duration)
         await ctx.send(view=_mod_layout(f"{e('mute')} Member Muted", {
             "User": str(member), "Moderator": ctx.author.mention, "Duration": format_duration(duration),
@@ -485,7 +622,12 @@ class Moderation(commands.Cog):
     @commands.guild_only()
     async def unmute(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
         e = emoji_manager.get
-        await member.timeout(None, reason=f"{ctx.author} | {reason}")
+        if member.id != ctx.author.id:
+            problem = await self._guard(ctx, member, "unmute")
+            if problem:
+                return await ctx.send(view=error_layout("Permission Denied", problem))
+        if not await self._attempt(ctx, member.timeout(None, reason=f"{ctx.author} | {reason}")):
+            return
         case_id = await cases.create_mod_case(ctx.guild.id, "unmute", member.id, ctx.author.id, reason)
         await ctx.send(view=_mod_layout(f"{e('unmute')} Member Unmuted", {
             "User": str(member), "Moderator": ctx.author.mention, "Reason": reason, "Case": f"`{case_id}`",
@@ -497,6 +639,9 @@ class Moderation(commands.Cog):
     @commands.guild_only()
     async def warn(self, ctx: commands.Context, member: discord.Member, *, reason: str = "No reason provided"):
         e = emoji_manager.get
+        problem = await self._guard(ctx, member, "warn")
+        if problem:
+            return await ctx.send(view=error_layout("Permission Denied", problem))
         case_id = await cases.create_warn(ctx.guild.id, member.id, ctx.author.id, reason)
         await ctx.send(view=_mod_layout(f"{e('warn')} Warning Issued", {
             "User": str(member), "Moderator": ctx.author.mention, "Reason": reason, "Case": f"`{case_id}`",
@@ -509,6 +654,9 @@ class Moderation(commands.Cog):
         except discord.HTTPException:
             pass
         await self._log(ctx.guild, "warn", user_id=member.id, moderator_id=ctx.author.id, reason=reason, case_id=case_id)
+        stepped = await warn_ladder.apply(ctx.guild, member)
+        if stepped:
+            await ctx.send(view=info_layout(f"{e('warn')} Warning Ladder", f"{member.mention} reached the warning limit: **{stepped}** applied."))
 
     @commands.command(name="warnings", aliases=["warns"], help="View the warning history for a member.")
     @has_guild_permission("manage_messages")
@@ -598,8 +746,8 @@ class Moderation(commands.Cog):
         if amount < 1 or amount > 1000:
             return await ctx.send(view=error_layout("Invalid Amount", "Amount must be between 1 and 1000."))
 
-        await ctx.message.delete()
-        check = (lambda m: m.author == member) if member else (lambda m: True)
+        await self._drop(ctx.message)
+        check = (lambda m: m.author == member and not m.pinned) if member else (lambda m: not m.pinned)
         deleted = await ctx.channel.purge(limit=amount, check=check)
         msg = await ctx.send(view=success_layout(f"{e('purge')} Messages Purged", f"Deleted **{len(deleted)}** messages."))
         await asyncio.sleep(4)
@@ -616,8 +764,8 @@ class Moderation(commands.Cog):
     async def purgebots(self, ctx: commands.Context, amount: int = 50):
         e = emoji_manager.get
         amount = max(1, min(1000, amount))
-        await ctx.message.delete()
-        deleted = await ctx.channel.purge(limit=amount, check=lambda m: m.author.bot)
+        await self._drop(ctx.message)
+        deleted = await ctx.channel.purge(limit=amount, check=lambda m: m.author.bot and not m.pinned)
         msg = await ctx.send(view=success_layout(f"{e('purge')} Bot Messages Purged", f"Deleted **{len(deleted)}** bot messages."))
         await asyncio.sleep(4)
         try:
@@ -654,6 +802,14 @@ class Moderation(commands.Cog):
         if not confirm.value:
             return await msg.edit(view=error_layout("Cancelled", "Server-wide lockdown cancelled."))
 
+        engine = self.bot.get_cog("Lockdown")
+        if engine is not None:
+            locked = await engine.start(ctx.guild, reason, ctx.author.id)
+            if not locked:
+                return await msg.edit(view=error_layout("Already Locked", "A server lockdown is already active. Use `unlockall` to lift it."))
+            await msg.edit(view=success_layout(f"{e('lock')} Server Locked", f"Locked **{locked}** channel(s). Their previous settings are saved and restored by `unlockall`.\n**Reason:** {reason}"))
+            return await self._log(ctx.guild, "lockdown", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"Server-wide: {reason}", case_id="N/A")
+
         locked = 0
         for channel in ctx.guild.text_channels:
             overwrite = channel.overwrites_for(ctx.guild.default_role)
@@ -688,6 +844,11 @@ class Moderation(commands.Cog):
     @commands.guild_only()
     async def unlockall(self, ctx: commands.Context, *, reason: str = "Server lockdown lifted"):
         e = emoji_manager.get
+        engine = self.bot.get_cog("Lockdown")
+        if engine is not None and await engine.is_active(ctx.guild.id):
+            restored = await engine.end(ctx.guild, ctx.author.id, reason)
+            await ctx.send(view=success_layout(f"{e('unlock')} Server Unlocked", f"Restored **{restored}** channel(s) to how they were before the lockdown.\n**Reason:** {reason}"))
+            return await self._log(ctx.guild, "unlock", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"Server-wide: {reason}", case_id="N/A")
         unlocked = 0
         for channel in ctx.guild.text_channels:
             overwrite = channel.overwrites_for(ctx.guild.default_role)
@@ -722,7 +883,14 @@ class Moderation(commands.Cog):
     async def nickname(self, ctx: commands.Context, member: discord.Member, *, new_nick: Optional[str] = None):
         e = emoji_manager.get
         old_nick = member.display_name
-        await member.edit(nick=new_nick, reason=f"Changed by {ctx.author}")
+        if member.id != ctx.author.id:
+            problem = await self._guard(ctx, member, "rename")
+            if problem:
+                return await ctx.send(view=error_layout("Permission Denied", problem))
+        if new_nick and len(new_nick) > 32:
+            return await ctx.send(view=error_layout("Too Long", "Nicknames can be at most 32 characters."))
+        if not await self._attempt(ctx, member.edit(nick=new_nick, reason=f"Changed by {ctx.author}")):
+            return
         await ctx.send(view=_mod_layout(f"{e('check')} Nickname Updated", {
             "User": member.mention, "Before": old_nick, "After": new_nick or member.name, "Moderator": ctx.author.mention,
         }))
@@ -738,20 +906,28 @@ class Moderation(commands.Cog):
     @has_guild_permission("manage_roles")
     async def role_add(self, ctx: commands.Context, member: discord.Member, role: discord.Role):
         e = emoji_manager.get
-        if role >= ctx.guild.me.top_role:
-            return await ctx.send(view=error_layout("Cannot Assign", "That role is higher than or equal to my top role."))
+        problem = await self._role_problem(ctx, member, role, adding=True)
+        if problem:
+            return await ctx.send(view=error_layout("Cannot Assign", problem))
         if role in member.roles:
             return await ctx.send(view=error_layout("Already Has Role", f"{member.mention} already has {role.mention}."))
-        await member.add_roles(role, reason=f"Added by {ctx.author}")
+        if not await self._attempt(ctx, member.add_roles(role, reason=f"Added by {ctx.author}")):
+            return
+        await self._log(ctx.guild, "role_add", user_id=member.id, moderator_id=ctx.author.id, reason=f"Gave {role.name}", case_id="N/A")
         await ctx.send(view=success_layout(f"{e('check')} Role Added", f"Gave {role.mention} to {member.mention}."))
 
     @role_group.command(name="remove", help="Remove a role from a member.")
     @has_guild_permission("manage_roles")
     async def role_remove(self, ctx: commands.Context, member: discord.Member, role: discord.Role):
         e = emoji_manager.get
+        problem = await self._role_problem(ctx, member, role, adding=False)
+        if problem:
+            return await ctx.send(view=error_layout("Cannot Remove", problem))
         if role not in member.roles:
             return await ctx.send(view=error_layout("Doesn't Have Role", f"{member.mention} doesn't have {role.mention}."))
-        await member.remove_roles(role, reason=f"Removed by {ctx.author}")
+        if not await self._attempt(ctx, member.remove_roles(role, reason=f"Removed by {ctx.author}")):
+            return
+        await self._log(ctx.guild, "role_remove", user_id=member.id, moderator_id=ctx.author.id, reason=f"Removed {role.name}", case_id="N/A")
         await ctx.send(view=success_layout(f"{e('check')} Role Removed", f"Removed {role.mention} from {member.mention}."))
 
     @commands.command(name="cases", help="View moderation case history.")

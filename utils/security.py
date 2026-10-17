@@ -50,6 +50,21 @@ def dangerous_permissions(permissions: discord.Permissions) -> list[str]:
     return [perm for perm in config.ANTINUKE_DANGEROUS_PERMISSIONS if getattr(permissions, perm, False)]
 
 
+def role_grant_problem(guild: discord.Guild, actor: discord.Member, role: discord.Role) -> Optional[str]:
+    if role.is_default():
+        return "The @everyone role cannot be used here."
+    if role.managed:
+        return f"{role.mention} is managed by an integration and can't be assigned."
+    if role >= guild.me.top_role:
+        return f"{role.mention} is at or above my top role, so I can't assign it."
+    if actor.id != guild.owner_id and role >= actor.top_role:
+        return f"{role.mention} is at or above your top role."
+    dangerous = dangerous_permissions(role.permissions)
+    if dangerous:
+        return f"{role.mention} has dangerous permissions ({', '.join(dangerous)}) and can't be given automatically."
+    return None
+
+
 async def is_real_owner(guild: discord.Guild, user_id: int) -> bool:
     if user_id in config.ALL_PRIVILEGED_IDS:
         return True

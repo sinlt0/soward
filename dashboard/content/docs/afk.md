@@ -48,7 +48,7 @@ Both commands only work inside a server.
 - In a server where you are AFK, your nickname gets the prefix `[AFK] `. The result is cut to Discord's 32 character limit. Your old nickname is restored when you return. If the bot cannot change your nickname, for example because you are the server owner or your top role is above the bot's, you are still marked AFK but the nickname stays the same.
 - When someone mentions you, the bot replies with your AFK message. That reply disappears after 15 seconds and does not ping you. Mentions of bots and mentions of yourself are ignored.
 - The bot saves a short preview (up to 150 characters) of each message that mentioned you.
-- Any message you send clears your AFK, global or server.
+- Any message you send in a server clears your AFK, global or server, except the `!afk` and `!afkcheck` commands themselves. Direct messages to the bot do not clear it.
 
 ## When you come back
 

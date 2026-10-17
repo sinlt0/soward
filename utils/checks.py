@@ -52,6 +52,13 @@ def has_guild_permission(discord_perm: str, fake_node: str = None):
         if ctx.guild is None:
             raise commands.NoPrivateMessage()
 
+        held = await db.raw_fetchone(
+            "SELECT 1 FROM quarantine WHERE guild_id=? AND user_id=? AND released_at IS NULL",
+            (ctx.guild.id, ctx.author.id),
+        )
+        if held and ctx.author.id != ctx.guild.owner_id:
+            raise commands.CheckFailure("You are quarantined, so you cannot use moderation commands until you are released.")
+
         discord_check = getattr(ctx.author.guild_permissions, discord_perm, False)
         if discord_check:
             return True

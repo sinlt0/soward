@@ -35,7 +35,7 @@ The main command is `!nbot`. Its alias is `!nexus`.
 | `!nbot bio <text>` | Changes the bot's server-specific About Me. Maximum 190 characters. | Premium, Manage Server |
 | `!nbot avatar [image URL]` | Changes the bot's avatar in this server. Use a link or attach an image. | Premium, Manage Server |
 | `!nbot banner [image URL]` | Changes the bot's profile banner in this server. Use a link or attach an image. | Premium, Manage Server |
-| `!nbot reset` | Clears the nickname, avatar, banner and bio and goes back to the defaults. | Premium, Manage Server |
+| `!nbot reset` | Clears the nickname, avatar, banner and bio one by one and goes back to the defaults. If one part fails, the rest are still reset and the failed part is listed. | Premium, Manage Server |
 
 Administrators and the bot's owners can use every command. Fake permissions granted for Manage Server also work.
 
@@ -43,7 +43,8 @@ Administrators and the bot's owners can use every command. Fake permissions gran
 
 - Attach an image, or give a link that loads within 10 seconds. If both are given, the attachment is used.
 - Images must be under 8 MB.
-- If Discord rejects the image, the bot tells you. Try a smaller file or a common format such as PNG or JPG.
+- The file must really be a PNG, JPEG, GIF or WebP image. Links that point to private or internal addresses are refused.
+- If Discord rejects a change, the bot shows what Discord said. Try a smaller file or a common format such as PNG or JPG.
 - Banners may need your server to have enough boosts, depending on Discord's rules.
 
 ## Limits and defaults

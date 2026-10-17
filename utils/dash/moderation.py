@@ -9,6 +9,7 @@ import discord
 import config
 from utils import cases, db, emoji_manager
 from utils.components import info_layout
+from utils.security_access import LEVEL_OWNER, level_of
 from utils.dash.base import ActionContext, action, button, fld, need_text, row, section, table
 
 UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
@@ -57,11 +58,11 @@ async def _target(ctx: ActionContext, actor, user_id: int) -> discord.Member:
             member = await ctx.guild.fetch_member(user_id)
         except discord.HTTPException:
             raise ValueError("That user is not in this server.")
-    guard(ctx, actor, member)
+    await guard(ctx, actor, member)
     return member
 
 
-def guard(ctx: ActionContext, actor, member: discord.Member) -> None:
+async def guard(ctx: ActionContext, actor, member: discord.Member) -> None:
     me = ctx.guild.me
     if member.id == ctx.guild.owner_id:
         raise ValueError("The server owner cannot be moderated.")
@@ -74,6 +75,9 @@ def guard(ctx: ActionContext, actor, member: discord.Member) -> None:
     privileged = ctx.user_id in config.ALL_PRIVILEGED_IDS or ctx.user_id == ctx.guild.owner_id
     if not privileged and actor is not None and member.top_role >= actor.top_role:
         raise ValueError("You cannot act on someone with a higher or equal role.")
+    if not privileged:
+        if member.id in config.ALL_PRIVILEGED_IDS or await level_of(ctx.guild, member) >= LEVEL_OWNER:
+            raise ValueError("Owners and Extra Owners are protected from moderation by lower tiers.")
 
 
 async def _finish(ctx: ActionContext, kind: str, user_id: int, reason: str, duration=None, log_reason=None) -> str:
@@ -195,8 +199,8 @@ async def mod_ban(ctx: ActionContext, payload: dict) -> list:
     reason = _reason(values)
     member = ctx.guild.get_member(user_id)
     if member is not None:
-        guard(ctx, actor, member)
-    elif user_id in (ctx.guild.owner_id, ctx.guild.me.id, ctx.user_id):
+        await guard(ctx, actor, member)
+    elif user_id in (ctx.guild.owner_id, ctx.guild.me.id, ctx.user_id) or user_id in config.ALL_PRIVILEGED_IDS:
         raise ValueError("That user cannot be banned.")
     try:
         await ctx.guild.ban(discord.Object(id=user_id), reason=_stamp(ctx, reason))

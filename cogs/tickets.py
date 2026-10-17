@@ -100,8 +100,8 @@ async def _post_log(
     channel = guild.get_channel(override_channel_id) if override_channel_id else None
     if channel is None:
         settings = await tickets.get_settings(guild.id)
-        channel_id = settings.get("log_channel_id")
-        channel = guild.get_channel(channel_id) if channel_id else None
+        configured = settings.get("log_channel_id")
+        channel = guild.get_channel(configured) if configured else None
     if channel is None:
         return
     try:
@@ -110,7 +110,7 @@ async def _post_log(
         else:
             await channel.send(view=view)
     except discord.HTTPException:
-        log.warning("Could not post to ticket log channel %s in guild %s", channel_id, guild.id, exc_info=True)
+        log.warning("Could not post to ticket log channel %s in guild %s", channel.id, guild.id, exc_info=True)
 
 
 async def _announce(bot: commands.Bot, guild: discord.Guild, user_id: Optional[int], detail: str) -> None:

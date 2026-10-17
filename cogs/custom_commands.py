@@ -39,6 +39,9 @@ def _cc_layout(title: str, fields: dict, *, color: int = NEUTRAL) -> discord.ui.
     return view
 
 
+MENTIONS = discord.AllowedMentions(everyone=False, roles=True, users=True)
+
+
 def _build_embed_from_data(cmd: CustomCommand, clean_response: str, embed_data: dict) -> discord.Embed:
     color = embed_data.get("color") or (int(cmd.embed_color.lstrip("#"), 16) if cmd.embed_color else NEUTRAL)
     embed = discord.Embed(
@@ -270,14 +273,19 @@ class CustomCommands(commands.Cog):
                     "channel": channel.mention, "channelname": channel.name,
                     "channelid": str(channel.id),
                 }
-                raw = cc_engine.substitute_variables(cmd.get_response(), var_map)
-                clean, _, channel_sends, embed_data = await cc_engine.process_actions(raw, None, self.bot)
+                raw = cc_engine.substitute_variables(cmd.get_response(), var_map, guild, None)
+                clean, _, channel_sends, embed_data = await cc_engine.process_actions(raw, None, self.bot, guild=guild, channel=channel)
                 if clean or embed_data:
                     try:
                         if cmd.embed or embed_data:
                             await channel.send(embed=_build_embed_from_data(cmd, clean, embed_data))
                         else:
-                            await channel.send(clean)
+                            await channel.send(clean, allowed_mentions=MENTIONS)
+                    except discord.HTTPException:
+                        pass
+                for ch, msg in channel_sends:
+                    try:
+                        await ch.send(msg, allowed_mentions=MENTIONS)
                     except discord.HTTPException:
                         pass
                 cmd.interval_next_run = now + (cmd.interval_minutes * 60)
@@ -324,8 +332,8 @@ class CustomCommands(commands.Cog):
                 "channel": channel.mention, "channelname": channel.name, "channelid": str(channel.id),
                 "emoji": str(payload.emoji), "msgid": str(payload.message_id),
             }
-            raw = cc_engine.substitute_variables(cmd.get_response(), var_map)
-            clean, delete_after, channel_sends, embed_data = await cc_engine.process_actions(raw, None, self.bot)
+            raw = cc_engine.substitute_variables(cmd.get_response(), var_map, guild, member)
+            clean, delete_after, channel_sends, embed_data = await cc_engine.process_actions(raw, None, self.bot, guild=guild, member=member, channel=channel)
 
             if clean or embed_data:
                 da = delete_after or cmd.delete_response_after or None
@@ -333,12 +341,12 @@ class CustomCommands(commands.Cog):
                     if cmd.embed or embed_data:
                         await channel.send(embed=_build_embed_from_data(cmd, clean, embed_data), delete_after=da)
                     else:
-                        await channel.send(clean, delete_after=da)
+                        await channel.send(clean, delete_after=da, allowed_mentions=MENTIONS)
                 except discord.HTTPException:
                     pass
             for ch, msg in channel_sends:
                 try:
-                    await ch.send(msg)
+                    await ch.send(msg, allowed_mentions=MENTIONS)
                 except discord.HTTPException:
                     pass
 
@@ -347,7 +355,7 @@ class CustomCommands(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
-        if after.author.bot or not after.guild:
+        if after.author.bot or not after.guild or before.content == after.content:
             return
         await self._ensure_loaded(after.guild.id)
         cmds = self._get_commands(after.guild.id)
@@ -368,7 +376,7 @@ class CustomCommands(commands.Cog):
             args = after.content.split()[1:]
             var_map = cc_engine.build_variables(after, args)
             var_map["before"] = before.content
-            raw = cc_engine.substitute_variables(cmd.get_response(), var_map)
+            raw = cc_engine.substitute_variables(cmd.get_response(), var_map, after.guild, after.author)
             clean, delete_after, channel_sends, embed_data = await cc_engine.process_actions(raw, after, self.bot)
 
             if clean or embed_data:
@@ -377,7 +385,7 @@ class CustomCommands(commands.Cog):
                     if cmd.embed or embed_data:
                         await after.channel.send(embed=_build_embed_from_data(cmd, clean, embed_data), delete_after=da)
                     else:
-                        await after.channel.send(clean, delete_after=da)
+                        await after.channel.send(clean, delete_after=da, allowed_mentions=MENTIONS)
                 except discord.HTTPException:
                     pass
 
@@ -435,7 +443,7 @@ class CustomCommands(commands.Cog):
                 import re
                 try:
                     flags = 0 if cmd.case_sensitive else re.IGNORECASE
-                    m = re.search(cmd.trigger, message.content, flags)
+                    m = re.search(cmd.trigger_text, message.content[:cc_engine.MAX_REGEX_INPUT], flags)
                     if m:
                         for i, grp in enumerate(m.groups(), 1):
                             var_map[f"match{i}"] = grp or ""
@@ -443,7 +451,7 @@ class CustomCommands(commands.Cog):
                 except re.error:
                     pass
 
-            raw_response = cc_engine.substitute_variables(cmd.get_response(), var_map)
+            raw_response = cc_engine.substitute_variables(cmd.get_response(), var_map, message.guild, message.author)
             clean_response, delete_after_secs, channel_sends, embed_data = await cc_engine.process_actions(raw_response, message, self.bot)
 
             da = delete_after_secs or cmd.delete_response_after or None
@@ -452,13 +460,13 @@ class CustomCommands(commands.Cog):
                     if cmd.embed or embed_data:
                         await message.channel.send(embed=_build_embed_from_data(cmd, clean_response, embed_data), delete_after=da)
                     else:
-                        await message.channel.send(clean_response, delete_after=da)
+                        await message.channel.send(clean_response, delete_after=da, allowed_mentions=MENTIONS)
                 except discord.HTTPException:
                     pass
 
             for ch, msg in channel_sends:
                 try:
-                    await ch.send(msg)
+                    await ch.send(msg, allowed_mentions=MENTIONS)
                 except discord.HTTPException:
                     pass
 
@@ -502,7 +510,7 @@ class CustomCommands(commands.Cog):
             return await ctx.send(view=error_layout("Limit Reached", f"Maximum {MAX_COMMANDS_PER_GUILD} custom commands per server."))
 
         nid = self._alloc_id()
-        cmd = CustomCommand(trigger_key, {"responses": [response], "numeric_id": nid})
+        cmd = CustomCommand(trigger_key, {"responses": [response], "numeric_id": nid, "trigger_text": trigger})
         self._cache.setdefault(ctx.guild.id, {})[trigger_key] = cmd
         await self._save_command(ctx.guild.id, cmd, created_by=ctx.author.id)
         await ctx.send(view=success_layout(f"{e('check')} Command Created", f"`{trigger_key}` created.\n**Type:** `command` · **Responses:** `1`"))
@@ -579,7 +587,7 @@ class CustomCommands(commands.Cog):
         if trigger_type == cc_engine.TRIGGER_REGEX:
             import re
             try:
-                re.compile(cmd.trigger)
+                re.compile(cmd.trigger_text)
             except re.error as ex:
                 return await ctx.send(view=error_layout("Invalid Regex", f"Current trigger is not a valid regex: `{ex}`"))
         cmd.trigger_type = trigger_type
@@ -866,7 +874,7 @@ class CustomCommands(commands.Cog):
 
         arg_list = args.split() if args else []
         var_map = cc_engine.build_variables(ctx.message, arg_list)
-        raw = cc_engine.substitute_variables(cmd.get_response(), var_map)
+        raw = cc_engine.substitute_variables(cmd.get_response(), var_map, ctx.guild, ctx.author)
         clean, delete_after, channel_sends, embed_data = await cc_engine.process_actions(raw, ctx.message, self.bot)
         da = delete_after or cmd.delete_response_after or None
 
@@ -874,10 +882,10 @@ class CustomCommands(commands.Cog):
             if cmd.embed or embed_data:
                 await ctx.send(embed=_build_embed_from_data(cmd, clean, embed_data), delete_after=da)
             else:
-                await ctx.send(clean, delete_after=da)
+                await ctx.send(clean, delete_after=da, allowed_mentions=MENTIONS)
         for ch, msg in channel_sends:
             try:
-                await ch.send(msg)
+                await ch.send(msg, allowed_mentions=MENTIONS)
             except discord.HTTPException:
                 pass
 

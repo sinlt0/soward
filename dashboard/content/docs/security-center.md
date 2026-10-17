@@ -60,7 +60,7 @@ Administrators are exempt from AutoMod filters. For AntiNuke they are **not** ex
 
 ## Customizing everything
 
-Every security module exposes the same commands. About 200 settings in total.
+Every security module exposes the same commands. Over 220 settings in total.
 
 | Command | What it does |
 |---|---|
@@ -144,9 +144,24 @@ Aliases: `!panic`, `!slock`. Lockdown denies sending messages, reactions, thread
 !backup auto on
 ```
 
-A backup keeps roles, role permissions, categories, channels and their permission overwrites. **Restore only creates what is missing.** Nothing existing is deleted. Add `repair` to also reset the permissions of roles that still exist. Members' role assignments, messages and settings are not part of a backup. Restoring is owner-only.
+A backup keeps roles, role permissions, categories, channels and their permission overwrites, the ban list (up to 1000) and a few server settings. **Restore only creates what is missing.** Nothing existing is deleted. Restore `roles`, `channels`, `bans`, `settings` or `all`. Add `repair` to also reset the permissions of roles that still exist. Members' role assignments and messages are not part of a backup. Restoring is owner-only.
 
 Automatic backups run every few hours (`security.backup_interval_hours`) and keep the newest few (`security.backup_keep`). Manual backups keep the newest 25.
+
+## Extra protections
+
+All of these are off by default and switched on in the paranoid preset.
+
+| Feature | Setting prefix | What it does |
+|---|---|---|
+| Impersonation filter | `antiraid.gate_impersonation_*` | Flags joins whose name is nearly the same as a staff member's |
+| Ban evasion filter | `antiraid.gate_evasion_*` | Flags joins with the same avatar or a very similar name as a banned user |
+| Invite tracking | `antiraid.invite_tracking`, `revoke_invites` | Remembers which invite each member used and deletes an invite once several flagged joins came through it. Needs Manage Server |
+| Native AutoMod | `!automod native sync` | Mirrors banned words, the mention limit and spam into Discord's own AutoMod so they work even if the bot is offline |
+| Warning ladder | `automod.warn_*` | Timeout, kick or ban at set warning counts within a time window |
+| Webhook protection | `automod.webhook_protection` | Deletes webhook posts that ping everyone, carry invites or mass-mention |
+| Burst lockdown | `automod.burst_lockdown` | Locks the server when many mass-mention messages arrive within the window |
+| Restore after attack | `antinuke.restore_from_backup` | Recreates missing roles, channels and bans from the latest backup after an AntiNuke incident |
 
 ## Security check
 
@@ -158,4 +173,4 @@ Automatic backups run every few hours (`security.backup_interval_hours`) and kee
 - The bot can only act on members and roles **below** its own top role.
 - Restores recreate objects, so channel and role IDs change.
 - Counts and threat scores are kept in memory and reset when the bot restarts.
-- Soward does not try to detect alt accounts or VPNs. That needs an outside service.
+- Ban evasion and impersonation checks are heuristics: they compare avatars and names, not people. Soward cannot detect VPNs or alt accounts reliably.

@@ -33,6 +33,7 @@ There is nothing to switch on. The commands work as soon as the bot is in your s
 | --- | --- | --- |
 | `!ban <member or ID> [reason]` | Bans a member. You can use a user ID for someone who is not in the server. | Ban Members |
 | `!tempban <member or ID> <duration> [reason]` | Bans for a set time. The bot unbans automatically, checking once a minute. | Ban Members |
+| `!massban <id> <id> ... [reason]` | Bans up to 25 users after you confirm. Protected users are skipped. | Ban Members |
 | `!softban <member> [days] [reason]` | Bans and immediately unbans, which deletes their recent messages. `days` is how many days of messages to delete, from 0 to 7. Default is 1. | Ban Members |
 | `!unban <user ID> [reason]` | Unbans a user by ID and cancels any pending temp-ban. | Ban Members |
 | `!kick <member> [reason]` | Kicks a member. | Kick Members |
@@ -90,8 +91,8 @@ Your command message is deleted and the result message disappears after a few se
 | --- | --- | --- |
 | `!lockdown [channel] [reason]` | Stops `@everyone` from sending messages in a channel (the current one by default). Alias: `!lock`. | Manage Channels |
 | `!unlock [channel] [reason]` | Restores sending in a channel. | Manage Channels |
-| `!lockdownall [reason]` | Locks every text channel after you confirm. | Administrator |
-| `!unlockall [reason]` | Unlocks every text channel that was locked. | Administrator |
+| `!lockdownall [reason]` | Starts a server lockdown after you confirm. The channels' earlier settings are saved. | Administrator |
+| `!unlockall [reason]` | Lifts the lockdown and puts every channel back as it was. | Administrator |
 | `!slowmode <seconds> [channel]` | Sets slowmode from 0 (off) to 21600 seconds. | Manage Channels |
 
 ## Nicknames and roles
@@ -99,7 +100,7 @@ Your command message is deleted and the result message disappears after a few se
 | Command | What it does | Needs |
 | --- | --- | --- |
 | `!nickname <member> [new nickname]` | Changes a nickname. Leave the name out to reset it. Alias: `!nick`. | Manage Nicknames |
-| `!role add <member> <role>` | Gives a role. The role must be below the bot's top role. | Manage Roles |
+| `!role add <member> <role>` | Gives a role. The role must be below both your top role and the bot's. Roles with dangerous permissions can only be given by the server owner or an Extra Owner. | Manage Roles |
 | `!role remove <member> <role>` | Takes a role away. | Manage Roles |
 
 Running `!role` on its own shows a short usage hint.
@@ -146,6 +147,13 @@ The Moderation page on the web dashboard lets you:
 - Browse recent cases and recent warnings, and delete a warning.
 
 Dashboard actions create the same cases and log entries as the commands and follow the same role rules. Purge, lockdown and slowmode stay as commands because they depend on a channel. Notes, `!masskick`, nicknames, roles and fake permissions are commands only.
+
+## Protection
+
+- The server owner, Owners and Extra Owners cannot be warned, muted, kicked or banned by anyone of a lower tier, and nobody can moderate themselves or the bot.
+- A quarantined member cannot use moderation or security commands until the owner or an Extra Owner releases them.
+- Role changes on a quarantined member are refused until they are released.
+- Warnings feed the optional [warning ladder](/docs/security-center), which can time out, kick or ban at set counts.
 
 ## Troubleshooting
 

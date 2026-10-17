@@ -755,7 +755,7 @@ class Verification(commands.Cog):
         from utils.components import error_layout, success_layout
         e = emoji_manager.get
         if not await _complete_verification(ctx.guild, member):
-            return await ctx.send(view=error_layout(f"{e('cross')} Quarantined", f"{member.mention} is quarantined. Only the server owner can release them with `release`."))
+            return await ctx.send(view=error_layout(f"{e('cross')} Quarantined", f"{member.mention} is quarantined. Only the server owner or an Extra Owner can release them with `release`."))
         await ctx.send(view=success_layout(
             f"{e('check')} Approved",
             f"{member.mention} has been manually approved and granted access.",

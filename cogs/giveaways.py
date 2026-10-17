@@ -1,6 +1,7 @@
 import json
 import logging
 import random
+import re
 import time
 import uuid
 from typing import Optional
@@ -144,11 +145,12 @@ class PollVoteRow(discord.ui.ActionRow):
         await interaction.response.send_message(view=success_layout(f"{e('check')} Vote Recorded", f"You voted for **{choice}**."), ephemeral=True)
 
 
-def build_poll_panel(poll_id: str, question: str, options: list[str]) -> discord.ui.LayoutView:
+def build_poll_panel(poll_id: str, question: str, options: list[str], ends_at: Optional[float] = None) -> discord.ui.LayoutView:
     e = emoji_manager.get
     view = discord.ui.LayoutView(timeout=None)
     container = discord.ui.Container(accent_color=NEUTRAL)
-    container.add_item(discord.ui.TextDisplay(f"## {e('poll')} {question}\nSelect an option below to vote."))
+    closing = f"\nCloses <t:{int(ends_at)}:R>." if ends_at else ""
+    container.add_item(discord.ui.TextDisplay(f"## {e('poll')} {question}\nSelect an option below to vote.{closing}"))
     container.add_item(discord.ui.Separator())
     container.add_item(PollVoteRow(poll_id, options))
     container.add_item(discord.ui.Separator())
@@ -324,9 +326,11 @@ class Giveaways(commands.Cog):
 
     def _format_poll_results(self, options: list, votes: dict) -> str:
         counts = {opt: 0 for opt in options}
+        by_value = {opt[:100]: opt for opt in options}
         for voted_option in votes.values():
-            if voted_option in counts:
-                counts[voted_option] += 1
+            key = by_value.get(voted_option)
+            if key in counts:
+                counts[key] += 1
         total = sum(counts.values())
         lines = []
         for opt in options:
@@ -576,24 +580,51 @@ class Giveaways(commands.Cog):
         extra = f"\n\n...and {len(entries) - 30} more" if len(entries) > 30 else ""
         await ctx.send(view=info_layout(f"{e('members')} Entries for {row['prize']} ({len(entries)})", ", ".join(lines) + extra))
 
-    @commands.command(name="poll", help="Create a poll with up to 10 options separated by |.")
+    @commands.command(name="poll", help="Create a poll with up to 10 options separated by |. Add --duration 1h to close it automatically.")
     @has_guild_permission("manage_guild")
     @commands.guild_only()
     async def poll(self, ctx: commands.Context, question: str, *, options: str):
         e = emoji_manager.get
-        option_list = [o.strip() for o in options.split("|") if o.strip()]
+        ends_at = None
+        match = re.search(r"\s--duration\s+(\S+)\s*$", options)
+        if match:
+            try:
+                seconds = await DurationConverter().convert(ctx, match.group(1))
+            except commands.BadArgument:
+                return await ctx.send(view=error_layout("Invalid Duration", "Use a duration like `30m`, `2h` or `1d`."))
+            options = options[:match.start()]
+            ends_at = time.time() + seconds
+        option_list = list(dict.fromkeys(o.strip()[:100] for o in options.split("|") if o.strip()))
         if len(option_list) < 2 or len(option_list) > 10:
-            return await ctx.send(view=error_layout("Invalid Options", "Provide 2-10 options separated by `|`."))
+            return await ctx.send(view=error_layout("Invalid Options", "Provide 2-10 different options separated by `|`."))
+        if len(question) > 200:
+            return await ctx.send(view=error_layout("Question Too Long", "Keep the question under 200 characters."))
 
         poll_id = str(uuid.uuid4())[:8].upper()
-        panel = build_poll_panel(poll_id, question, option_list)
+        panel = build_poll_panel(poll_id, question, option_list, ends_at)
         msg = await ctx.send(view=panel)
 
         await db.raw_execute(
             "INSERT INTO polls (poll_id, guild_id, channel_id, message_id, question, options, votes, ends_at, ended)"
-            " VALUES (?, ?, ?, ?, ?, ?, '{}', NULL, 0)",
-            (poll_id, ctx.guild.id, ctx.channel.id, msg.id, question, json.dumps(option_list)),
+            " VALUES (?, ?, ?, ?, ?, ?, '{}', ?, 0)",
+            (poll_id, ctx.guild.id, ctx.channel.id, msg.id, question, json.dumps(option_list), ends_at),
         )
+
+    @commands.command(name="pollend", aliases=["endpoll"], help="End a poll now and show the final results. Usage: pollend <message_id|poll_id>")
+    @has_guild_permission("manage_guild")
+    @commands.guild_only()
+    async def pollend(self, ctx: commands.Context, message_id: str):
+        e = emoji_manager.get
+        if message_id.isdigit():
+            row = await db.raw_fetchone("SELECT * FROM polls WHERE message_id=? AND guild_id=?", (int(message_id), ctx.guild.id))
+        else:
+            row = await db.raw_fetchone("SELECT * FROM polls WHERE poll_id=? AND guild_id=?", (message_id.upper(), ctx.guild.id))
+        if not row:
+            return await ctx.send(view=error_layout(f"{e('cross')} Not Found", "No poll found with that ID."))
+        if row["ended"]:
+            return await ctx.send(view=error_layout("Already Ended", "That poll has already ended."))
+        await self._end_poll(row)
+        await ctx.send(view=success_layout(f"{e('check')} Poll Ended", "The poll was closed and the results were posted."))
 
     @commands.command(name="pollresults", help="View the current results of a poll. Usage: pollresults <message_id>")
     @commands.guild_only()

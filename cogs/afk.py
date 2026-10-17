@@ -315,24 +315,28 @@ class AFK(commands.Cog):
 
     @commands.Cog.listener("on_message")
     async def on_message_afk_check(self, message: discord.Message):
-        if message.author.bot:
+        if message.author.bot or not message.guild:
             return
 
         e = emoji_manager.get
 
-        global_row = await get_global_afk(message.author.id)
-        if global_row:
-            cleared = await clear_global_afk(message.author.id)
-            if cleared:
-                await self._send_return_digest(message, cleared, scope="global")
+        ctx = await self.bot.get_context(message)
+        setting_afk = ctx.valid and ctx.command is not None and ctx.command.qualified_name.split()[0] in ("afk", "afkcheck")
 
-        server_row = await get_server_afk(message.guild.id, message.author.id) if message.guild else None
-        if server_row:
-            cleared = await clear_server_afk(message.guild, message.author)
-            if cleared:
-                await self._send_return_digest(message, cleared, scope="server")
+        if not setting_afk:
+            global_row = await get_global_afk(message.author.id)
+            if global_row:
+                cleared = await clear_global_afk(message.author.id)
+                if cleared:
+                    await self._send_return_digest(message, cleared, scope="global")
 
-        if not message.guild or not message.mentions:
+            server_row = await get_server_afk(message.guild.id, message.author.id)
+            if server_row:
+                cleared = await clear_server_afk(message.guild, message.author)
+                if cleared:
+                    await self._send_return_digest(message, cleared, scope="server")
+
+        if not message.mentions:
             return
 
         for mentioned in message.mentions:

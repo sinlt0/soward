@@ -35,7 +35,7 @@ Most commands only work inside a server. `!ping`, `!uptime`, `!about`, `!owners`
 | Command | What it does | Needs |
 | --- | --- | --- |
 | `!userinfo [member]` | Shows ID, nickname, status, badges (server owner, bot, booster), account creation and join dates, top role and up to 10 roles. Defaults to you. Aliases: `!whois`, `!ui`. | Nothing |
-| `!serverinfo` | Shows ID, owner, creation date, member counts (humans and bots), channel counts, roles, emojis, boosts and verification level. Aliases: `!si`, `!guildinfo`. | Nothing |
+| `!serverinfo` | Shows ID, owner, creation date, member counts (humans and bots), channel counts, roles, emojis, boosts, verification level and the server prefix. Aliases: `!si`, `!guildinfo`. | Nothing |
 | `!roleinfo <role>` | Shows ID, color, position, creation date, member count, whether it is hoisted, mentionable or managed, and its key permissions. Alias: `!ri`. | Nothing |
 | `!channelinfo [channel]` | Shows ID, type, category, position and creation date. Text channels also show topic, NSFW state, slowmode and how many members can see them. Voice channels also show bitrate, user limit and how many people are connected. Defaults to the current channel. Alias: `!ci`. | Nothing |
 

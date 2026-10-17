@@ -9,7 +9,7 @@ from discord.ext import commands, tasks
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 import config
-from utils import db, emoji_manager, message_vars, xp_engine
+from utils import db, emoji_manager, message_vars, security, xp_engine
 from utils.checks import has_guild_permission
 from utils.colors import ERROR, NEUTRAL, SUCCESS
 from utils.components import ConfirmLayout, error_layout, footer_block, info_layout, success_layout
@@ -403,7 +403,7 @@ class Leveling(commands.Cog):
     @has_guild_permission("manage_guild")
     async def lvl_setxp(self, ctx: commands.Context, member: discord.Member, amount: int):
         e = emoji_manager.get
-        amount = max(0, amount)
+        amount = max(0, min(amount, 100_000_000))
         level = xp_engine.level_from_xp(amount)
         await db.raw_execute(
             "INSERT INTO member_xp (guild_id, user_id, xp, level) VALUES (?, ?, ?, ?)"
@@ -427,6 +427,11 @@ class Leveling(commands.Cog):
     @has_guild_permission("manage_guild")
     async def lvl_levelrole(self, ctx: commands.Context, level: int, role: discord.Role):
         e = emoji_manager.get
+        if not 1 <= level <= 1000:
+            return await ctx.send(view=error_layout("Invalid Level", "Choose a level between 1 and 1000."))
+        problem = security.role_grant_problem(ctx.guild, ctx.author, role)
+        if problem:
+            return await ctx.send(view=error_layout("Role Not Allowed", problem))
         await db.raw_execute(
             "INSERT OR IGNORE INTO level_role_rewards (guild_id, level, role_id) VALUES (?, ?, ?)",
             (ctx.guild.id, level, role.id),
@@ -488,24 +493,37 @@ class Leveling(commands.Cog):
 
     @lvl_multiplier.command(name="add", help="Add an XP multiplier. Usage: leveling multiplier add <global|channel|role> <target> <value>")
     @has_guild_permission("manage_guild")
-    async def lvl_multiplier_add(self, ctx: commands.Context, scope: str, target: Optional[str], value: float):
+    async def lvl_multiplier_add(self, ctx: commands.Context, scope: str, *args: str):
         e = emoji_manager.get
         scope = scope.lower()
         if scope not in (xp_engine.SCOPE_GLOBAL, xp_engine.SCOPE_CHANNEL, xp_engine.SCOPE_ROLE):
             return await ctx.send(view=error_layout("Invalid Scope", "Use `global`, `channel`, or `role`."))
-        if value <= 0:
-            return await ctx.send(view=error_layout("Invalid Value", "Multiplier must be greater than 0."))
+        if not args:
+            return await ctx.send(view=error_layout("Missing Value", "Usage: `leveling multiplier add <global|channel|role> [target] <value>`"))
+        try:
+            value = float(args[-1].lower().rstrip("x"))
+        except ValueError:
+            return await ctx.send(view=error_layout("Invalid Value", "The last argument must be a number such as `2` or `1.5x`."))
+        target = " ".join(args[:-1]) or None
+        if value <= 0 or value > 100:
+            return await ctx.send(view=error_layout("Invalid Value", "Multiplier must be greater than 0 and at most 100."))
 
         scope_id = None
         if scope == xp_engine.SCOPE_CHANNEL:
-            channel = await commands.TextChannelConverter().convert(ctx, target) if target else None
-            if not channel:
+            if not target:
                 return await ctx.send(view=error_layout("Missing Target", "Provide a channel for the `channel` scope."))
+            try:
+                channel = await commands.TextChannelConverter().convert(ctx, target)
+            except commands.BadArgument:
+                return await ctx.send(view=error_layout("Channel Not Found", f"Couldn't find a channel called `{target}`."))
             scope_id = channel.id
         elif scope == xp_engine.SCOPE_ROLE:
-            role = await commands.RoleConverter().convert(ctx, target) if target else None
-            if not role:
+            if not target:
                 return await ctx.send(view=error_layout("Missing Target", "Provide a role for the `role` scope."))
+            try:
+                role = await commands.RoleConverter().convert(ctx, target)
+            except commands.BadArgument:
+                return await ctx.send(view=error_layout("Role Not Found", f"Couldn't find a role called `{target}`."))
             scope_id = role.id
 
         multiplier_id = xp_engine.new_multiplier_id()

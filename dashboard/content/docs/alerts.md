@@ -67,7 +67,7 @@ You can also run `!alerts` on its own to open an interactive menu with buttons f
 
 ## Messages and placeholders
 
-Each alert posts a card with the title, a link and a thumbnail. The message text (your custom message, or the default) is sent above the card when the subscription has a ping role, with the role mentioned first.
+Each alert posts a card with the title, a link and a thumbnail. When a subscription has a ping role or a custom message, the message text is posted as its own message just before the card, with the role mentioned first. If the alert could not be posted, the bot tries again on the next check. `!alerts variables` needs Manage Server.
 
 Default messages:
 

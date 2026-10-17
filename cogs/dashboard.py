@@ -27,7 +27,7 @@ class Dashboard(commands.Cog):
         global_on = await ipc_server.global_enabled()
         server_on = await ipc_server.guild_enabled(ctx.guild.id)
         if not config.DASHBOARD_ADDON_ENABLED:
-            state = "Disabled in addons.py (the web server is not running)"
+            state = "Turned off in the bot configuration, so the web server is not running"
         elif not global_on:
             state = "Off for every server (bot owner setting)"
         else:

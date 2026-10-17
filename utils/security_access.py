@@ -25,6 +25,8 @@ async def level_of(guild: discord.Guild, member: discord.abc.User) -> int:
         return LEVEL_OWNER
     if tier == config.SECURITY_TIER_TRUSTED_ADMIN:
         return LEVEL_TRUSTED
+    if await security.is_quarantined(guild.id, member.id):
+        return LEVEL_NONE
     perms = getattr(member, "guild_permissions", None)
     if perms is not None and perms.administrator:
         locked = await guild_settings.get(guild.id, "security_lock", config.SECURITY_LOCK_DEFAULT)

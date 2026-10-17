@@ -122,7 +122,7 @@ class Greetings(commands.Cog):
                 sent_to_dm = False
 
         if cfg["send_as_dm"]:
-            should_send_channel = (not sent_to_dm) or cfg["dm_fallback_to_channel"]
+            should_send_channel = (not sent_to_dm) and bool(cfg["dm_fallback_to_channel"])
         else:
             should_send_channel = True
 

@@ -104,10 +104,10 @@ Channel placeholders (`{channel}`, `{channelname}`, `{channelid}`) are not fille
 
 ## Direct messages
 
-`!greetings dm <trigger> on` sends the greeting to the member instead of (or as well as) the channel. DMs are available for `join`, `leave` and `boost`. A banned member cannot be messaged, so `ban` has no DM option.
+`!greetings dm <trigger> on` sends the greeting to the member as a direct message instead of in the channel. DMs are available for `join`, `leave` and `boost`. A banned member cannot be messaged, so `ban` has no DM option.
 
-- The setting `fallback_on` is the default. The channel message is always posted as well as the DM.
-- With `fallback_off`, the channel message is posted only when the DM could not be delivered (for example the member has DMs closed). If the DM goes through, nothing is posted in the channel.
+- `fallback_on` is the default. If the DM could not be delivered (for example the member has DMs closed), the greeting is posted in the channel instead.
+- With `fallback_off`, the greeting is only ever sent as a DM. Nothing is posted in the channel, even when the DM fails.
 - With DM delivery off, only the channel message is sent.
 - A channel message is only posted if a channel is set for the trigger.
 

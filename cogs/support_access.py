@@ -1,8 +1,10 @@
+from typing import Optional
+
 import discord
 from discord.ext import commands
 
-from utils import emoji_manager
-from utils.checks import has_guild_permission
+from utils import emoji_manager, guild_settings
+from utils.security_access import security_owner
 from utils.components import ConfirmLayout, error_layout, success_layout
 from utils.events_bus import LOG_EVENT, bus
 import config
@@ -10,8 +12,9 @@ import config
 SUPPORT_ROLE_NAME = "Soward Support"
 
 
-def _support_role(guild: discord.Guild) -> discord.Role:
-    return discord.utils.get(guild.roles, name=SUPPORT_ROLE_NAME)
+async def _support_role(guild: discord.Guild) -> Optional[discord.Role]:
+    role_id = await guild_settings.get(guild.id, "support_role_id")
+    return guild.get_role(int(role_id)) if role_id else None
 
 
 class SupportAccess(commands.Cog):
@@ -20,13 +23,13 @@ class SupportAccess(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name="supportaccess", aliases=["grantsupport"], help="Grant the Soward development team temporary Administrator access to this server for support/troubleshooting. Requires you to be a server Administrator.")
-    @has_guild_permission("administrator")
+    @commands.command(name="supportaccess", aliases=["grantsupport"], help="Grant the Soward development team temporary Administrator access to this server for support/troubleshooting. Only the server owner or an Extra Owner can grant it.")
+    @security_owner()
     @commands.guild_only()
     async def supportaccess(self, ctx: commands.Context):
         e = emoji_manager.get
 
-        existing = _support_role(ctx.guild)
+        existing = await _support_role(ctx.guild)
         if existing:
             return await ctx.send(view=error_layout(
                 "Already Granted",
@@ -43,7 +46,7 @@ class SupportAccess(commands.Cog):
                 f"This will create a **{SUPPORT_ROLE_NAME}** role with **Administrator** permissions "
                 f"and assign it to the bot and the Soward dev team ({len(dev_members)} currently in this server).\n\n"
                 "This is meant for troubleshooting issues you're having with the bot. "
-                f"You can remove this access at any time with `revokesupport`, and only a server Administrator or the owner can grant or revoke it.\n\n"
+                f"You can remove this access at any time with `revokesupport`, and only the server owner or an Extra Owner can grant or revoke it.\n\n"
                 "Do you want to proceed?"
             ),
             author_id=ctx.author.id,
@@ -66,6 +69,7 @@ class SupportAccess(commands.Cog):
         except discord.HTTPException as ex:
             return await msg.edit(view=error_layout("Failed", f"Couldn't create the support role: {ex}"))
 
+        await guild_settings.set(ctx.guild.id, "support_role_id", role.id)
         granted_to = []
         try:
             await ctx.guild.me.add_roles(role, reason="Soward support access self-assignment")
@@ -93,11 +97,11 @@ class SupportAccess(commands.Cog):
         await msg.edit(view=success_layout(f"{e('check')} Support Access Granted", body))
 
     @commands.command(name="revokesupport", help="Remove the Soward support access role from this server.")
-    @has_guild_permission("administrator")
+    @security_owner()
     @commands.guild_only()
     async def revokesupport(self, ctx: commands.Context):
         e = emoji_manager.get
-        role = _support_role(ctx.guild)
+        role = await _support_role(ctx.guild)
         if not role:
             return await ctx.send(view=error_layout("Not Found", f"There is no **{SUPPORT_ROLE_NAME}** role in this server."))
 
@@ -106,6 +110,7 @@ class SupportAccess(commands.Cog):
         except discord.HTTPException as ex:
             return await ctx.send(view=error_layout("Failed", f"Couldn't remove the support role: {ex}"))
 
+        await guild_settings.delete(ctx.guild.id, "support_role_id")
         await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="support_access_revoked", revoked_by=ctx.author.id)
         await ctx.send(view=success_layout(f"{e('check')} Support Access Revoked", f"The **{SUPPORT_ROLE_NAME}** role has been removed."))
 
@@ -113,7 +118,7 @@ class SupportAccess(commands.Cog):
     @commands.guild_only()
     async def supportstatus(self, ctx: commands.Context):
         e = emoji_manager.get
-        role = _support_role(ctx.guild)
+        role = await _support_role(ctx.guild)
         if not role:
             return await ctx.send(view=error_layout("Inactive", f"No **{SUPPORT_ROLE_NAME}** role exists in this server."))
 

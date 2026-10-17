@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 
 from utils import automod_filters as filters
+from utils import automod_native, cases, warn_ladder
 from utils import emoji_manager, guild_settings, incident, security, threat
 from utils import security_settings as settings
 from utils import security_whitelist as whitelist
@@ -27,6 +28,7 @@ _history: dict[tuple[int, int], deque] = {}
 _unverified: dict[int, set] = defaultdict(set)
 _panic_flags: dict[int, list[tuple[int, float]]] = defaultdict(list)
 _counter = [0]
+_bursts: dict[int, deque] = defaultdict(deque)
 
 FILTER_DEFAULTS = {
     "scamlinks": True,
@@ -273,6 +275,9 @@ class AutoMod(commands.Cog):
             note = f"AutoMod: {violation} (x{multiplier} repeat offender)" if multiplier > 1 else f"AutoMod: {violation}"
             await self._punish(guild, member, action, note, seconds)
             await threat.add(gid, "automod_punish", f"{member.id}: {violation}")
+            if await settings.get(gid, "automod", "warn_on_punish"):
+                await cases.create_warn(gid, member.id, self.bot.user.id, f"AutoMod: {violation}")
+                await warn_ladder.apply(guild, member)
         _register_offense(
             gid, member.id, int(await settings.get(gid, "automod", "max_multiplier")),
             bool(await settings.get(gid, "automod", "reset_heat_on_punish")),
@@ -328,7 +333,55 @@ class AutoMod(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        if message.guild and message.webhook_id and getattr(message, "application_id", None) is None:
+            return await self._guard_webhook(message)
         await self._scan(message, edited=False)
+        await self._watch_burst(message)
+
+    async def _watch_burst(self, message: discord.Message):
+        if message.author.bot or not message.guild:
+            return
+        gid = message.guild.id
+        if not await self._is_enabled(gid) or not await settings.get(gid, "automod", "burst_lockdown"):
+            return
+        limit = await settings.get(gid, "automod", "mention_limit")
+        if not (message.mention_everyone or len(message.mentions) + len(message.role_mentions) >= limit):
+            return
+        now = time.time()
+        window = await settings.get(gid, "automod", "burst_window")
+        events = _bursts[gid]
+        events.append(now)
+        while events and now - events[0] > window:
+            events.popleft()
+        if len(events) < await settings.get(gid, "automod", "burst_count"):
+            return
+        events.clear()
+        lockdown = self.bot.get_cog("Lockdown")
+        if lockdown is not None:
+            await lockdown.start(message.guild, "Mass-mention burst detected by AutoMod", None)
+            await threat.add(gid, "automod_burst", "mass-mention burst")
+
+    async def _guard_webhook(self, message: discord.Message):
+        gid = message.guild.id
+        if not await self._is_enabled(gid) or not await settings.get(gid, "automod", "webhook_protection"):
+            return
+        limit = await settings.get(gid, "automod", "mention_limit")
+        invite = filters.has_invite(message.content)
+        if not (message.mention_everyone or invite or len(message.mentions) + len(message.role_mentions) >= limit):
+            return
+        try:
+            await message.delete()
+        except discord.HTTPException:
+            pass
+        if await settings.get(gid, "automod", "webhook_delete") and message.guild.me.guild_permissions.manage_webhooks:
+            try:
+                hook = discord.utils.get(await message.guild.webhooks(), id=message.webhook_id)
+                if hook is not None:
+                    await hook.delete(reason="AutoMod: abusive webhook message")
+            except discord.HTTPException:
+                pass
+        await threat.add(gid, "automod_webhook", f"webhook {message.webhook_id}")
+        await bus.publish(LOG_EVENT, guild_id=gid, action="automod_action", user_id=0, channel_id=message.channel.id, detail=f"webhook {message.webhook_id} message removed")
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
@@ -394,6 +447,37 @@ class AutoMod(commands.Cog):
         e = emoji_manager.get
         await guild_settings.set(ctx.guild.id, "automod_enabled", False)
         await ctx.send(view=success_layout(f"{e('check')} AutoMod disabled", "AutoMod has been disabled."))
+
+    @automod_group.group(name="native", invoke_without_command=True, help="Mirror these filters into Discord's built-in AutoMod. Usage: native [sync|status|off]")
+    @security_staff()
+    @commands.guild_only()
+    async def automod_native(self, ctx: commands.Context):
+        await self.automod_native_status(ctx)
+
+    @automod_native.command(name="status", help="Show the Discord AutoMod rules Soward manages.")
+    @security_staff()
+    async def automod_native_status(self, ctx: commands.Context):
+        from utils.components import info_layout
+        rules = await automod_native.status(ctx.guild)
+        body = "\n".join(f"• {line}" for line in rules) if rules else "No native rules yet. Run `automod native sync`."
+        await ctx.send(view=info_layout("Native AutoMod", body))
+
+    @automod_native.command(name="sync", help="Create or refresh Discord AutoMod rules from banned words, mention limit and spam.")
+    @security_staff()
+    async def automod_native_sync(self, ctx: commands.Context):
+        from utils.components import error_layout, info_layout
+        made, notes = await automod_native.sync(ctx.guild, ctx.author)
+        lines = [f"Created: {', '.join(made)}" if made else "Nothing was created."]
+        lines += [f"• {note}" for note in notes]
+        layout = info_layout if made else error_layout
+        await ctx.send(view=layout("Native AutoMod", "\n".join(lines)))
+
+    @automod_native.command(name="off", aliases=["remove"], help="Delete the Discord AutoMod rules Soward created.")
+    @security_staff()
+    async def automod_native_off(self, ctx: commands.Context):
+        from utils.components import info_layout
+        count = await automod_native.remove(ctx.guild, f"Removed by {ctx.author}")
+        await ctx.send(view=info_layout("Native AutoMod", f"Removed {count} rule(s)."))
 
     @automod_group.command(name="banword", help='Add a word to the banned words list.')
     @security_staff()

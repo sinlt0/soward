@@ -117,14 +117,14 @@ Set the trigger type with `!cc triggertype <trigger> <type>`.
 | `contains` | The trigger appears anywhere in the message. | |
 | `exact_match` | The whole message equals the trigger. | |
 | `regex` | The trigger, read as a regular expression, matches somewhere in the message. | The trigger must be a valid regex or the change is refused. |
-| `message_edit` | Reserved for edited messages. | Accepted by `!cc triggertype`, but commands set to this type do not currently fire. Use one of the other types. |
+| `message_edit` | A member edits a message and the new text contains the trigger. | Set with `!cc triggertype`. Edits that only change embeds or links do not fire it. `{before}` holds the old text. |
 | `reaction` | A member adds the set reaction. | Set with `!cc reaction`. |
 | `interval` | A timer runs out. | Set with `!cc interval`. |
 
 Things to know:
 
-- Triggers are saved in lowercase. Matching ignores case unless you turn on case sensitivity. A case-sensitive command then only matches lowercase text.
-- For `regex` triggers, the lowercasing also changes escapes such as `\S` or `\D` into `\s` or `\d`. Write regex triggers using lowercase escapes only.
+- The trigger is stored exactly as you typed it for matching, and looked up case-insensitively by name. Matching ignores case unless you turn on case sensitivity, and then it matches the case you typed.
+- Regex triggers keep their exact text, so `\S` and `\D` work as written. Only the first 500 characters of a message are tested.
 - To create a trigger with a space, put it in quotes, then change its type: `!cc add "good morning" Morning!` followed by `!cc triggertype "good morning" contains`.
 - Bots and direct messages never trigger custom commands.
 
@@ -138,7 +138,7 @@ Things to know:
 
 ### Reaction and interval limits
 
-These two types have no message to work with, so they can only use a small set of variables (see below), and action tags do nothing. Action tags are removed from the text before it is sent. The embed builder tags (`{settitle:}` and friends) are also removed, so use `!cc embed` for embed styling.
+These two types have no triggering message, so they can only use a small set of variables (see below). Action tags that do not need a message still run: roles, moderation and nicknames work on the member who reacted (reaction triggers only), and channel, message and role-management tags work in both. Tags that need the triggering message, such as `{silentdelete}` and `{react}`, do nothing. Embed builder tags work.
 
 ## Responses
 
@@ -197,6 +197,7 @@ Use `{if ...}...{else}...{end}` to change the response. The `{else}` part is opt
 
 | Condition | True when |
 | --- | --- |
+| `hasrole Role` | The member who triggered the command has that role. Use `{if not hasrole Role}` for the opposite. |
 | `name == value` | The variable equals the value. |
 | `name != value` | The variable does not equal the value. |
 | `name > value`, `>=`, `<`, `<=` | Both sides are numbers and the comparison holds. |
@@ -214,9 +215,11 @@ Rules:
 
 Action tags do things instead of (or as well as) sending text. They are written as `{action:value}`, run when the command fires, and are removed from the message before it is sent. Use `|` to separate parts of a value. If an action fails, for example because the bot lacks permission, it is skipped without an error.
 
-Tags that take no value still need the colon, for example `{noresponse:}`.
+Tags that take no value work with or without the colon, for example `{noresponse}`.
 
-Action tags only run for message-based triggers (and `!cc exec`). Run `!cc actions` in Discord to see the same list with page buttons.
+Action tags run for message triggers, `!cc exec`, and in a reduced form for reaction and interval triggers. Run `!cc actions` in Discord to see the same list with page buttons.
+
+Text that members type into variables such as `{args}` is never treated as a tag, and mentions inside it are neutralised, so members cannot inject actions. Role tags refuse managed roles, roles above the bot, and roles with dangerous permissions. Moderation tags refuse the server owner, the bot, and members whose highest role is at or above the bot's.
 
 Anyone who is allowed to use the command triggers its actions. Actions such as `{ban}` and `{deleterole}` run with the bot's permissions, not the member's, so restrict powerful commands to trusted roles.
 
@@ -267,7 +270,7 @@ For `{kick}`, `{ban}` and `{softban}`, if you leave out the `|` the member who t
 | `{reactremove:emoji1,emoji2}` | Removes those reactions from the triggering message. Up to 5. |
 | `{silentdelete:}` or `{deletetrigger:}` | Deletes the triggering message right away. |
 | `{deleteafter:seconds}` | Deletes the bot's response after that many seconds. |
-| `{noresponse:}` | Sends no response text. Actions still run. |
+| `{noresponse}` | Sends no response text. Actions still run. |
 | `{log:#channel\|message}` | Posts a log line with the member's name to a channel. |
 | `{sleep:seconds}` | Waits before running the next action. Maximum 60. |
 
@@ -382,9 +385,9 @@ Still commands only: extra responses, restrictions, groups, intervals, reaction 
 
 - **My command does nothing**: check `!cc info <trigger>`. The command must be enabled, and the trigger type must match how you are typing it. A built-in command with the same name always wins.
 - **"Reserved Name"**: the trigger matches a built-in command or alias. Pick another name.
-- **A regex trigger behaves oddly**: triggers are lowercased when saved. Avoid uppercase escapes such as `\S` and `\D`.
-- **A case-sensitive command never matches**: the trigger is saved in lowercase, so only lowercase messages match.
-- **`{noresponse}` or `{silentdelete}` shows up in the message**: tags with no value need a colon, like `{noresponse:}`.
+- **A regex trigger behaves oddly**: only the first 500 characters of a message are tested, and the pattern must be valid.
+- **A case-sensitive command never matches**: the message must match the case you typed when you created the trigger.
+- **`{noresponse}` or `{silentdelete}` shows up in the message**: tags with no value need a colon, like `{noresponse}`.
 - **An action does nothing**: the bot probably lacks the permission, or cannot find the role, member or channel. Names must match exactly, so try an ID or a mention.
-- **Reaction or interval command ignores my action tags**: those triggers cannot run actions.
+- **Reaction or interval command ignores an action tag**: tags that need the triggering message do nothing, and interval commands have no member, so tags aimed at the member do nothing.
 - **"Restricted" or "On Cooldown"**: see the cooldown and restriction sections. Use `!cc info` to see the current settings.

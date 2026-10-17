@@ -75,10 +75,11 @@ Polls live in the same module. A poll is a message with a drop-down menu. Member
 
 | Command | What it does | Needs |
 | --- | --- | --- |
-| `!poll <question> <option> \| <option> ...` | Posts a poll with 2 to 10 options separated by `\|`. Put the question in quotes if it has spaces. | Manage Server |
+| `!poll <question> <option> \| <option> ... [--duration 1h]` | Posts a poll with 2 to 10 options separated by `\|`. Put the question in quotes if it has spaces. Add `--duration` to close it automatically. | Manage Server |
+| `!pollend <message ID or poll ID>` | Closes a poll now and posts the final results. Alias: `!endpoll`. | Manage Server |
 | `!pollresults <message ID>` | Shows the current vote counts and percentages. | Anyone |
 
-Polls do not end on their own and there is no command to close one. Use `!pollresults` to see the latest numbers. Option names are cut to 100 characters.
+A poll without `--duration` stays open until you run `!pollend`. Use `!pollresults` to see the latest numbers. Options are cut to 100 characters and repeated options are merged.
 
 ## Limits and defaults
 

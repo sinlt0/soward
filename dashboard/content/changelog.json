@@ -6,14 +6,28 @@
     "items": [
       "Added the Security Center: Owner, Extra Owner and Trusted Admin tiers control who can change security settings, with a tier lock that is on by default",
       "Added a global whitelist for members, roles and channels with per-system scopes",
-      "Added about 200 security settings with set, get, reset, add and remove commands in every security module",
+      "Added over 220 security settings with set, get, reset, add and remove commands in every security module",
       "Added relaxed, balanced, strict and paranoid presets, plus settings export and import",
       "AntiNuke now has short and hourly limits per action, restores deleted channels and roles, reverts permission escalation, and watches webhooks, vanity URL changes and bot additions",
       "AntiRaid join gate filters each have their own action, with account-age cluster detection and a sweep of recent joins",
       "AutoMod gained scam and IP logger link detection, caps, zalgo, emoji, duplicate and wall-of-text filters with adjustable weights",
       "Verification has attempt limits, lockouts, cooldowns, secure captchas and a fail action",
       "Added server lockdown, backups with restore, a threat score with Beast Mode and the securitycheck command",
-      "Fixed quarantine failing the second time a member was quarantined"
+      "Fixed quarantine failing the second time a member was quarantined",
+      "Fixed reaction roles: unique and add_only modes now work, rr gate accepts off, rr create select works, posted panels update their reactions and menus, select panels can be attached, and rr post replaces the old message",
+      "Fixed custom commands: member text can no longer inject action tags, regex and case-sensitive triggers keep their case, message_edit triggers fire, tags work without a colon, and {if hasrole} works",
+      "Custom command role and moderation tags now refuse dangerous roles and protected members",
+      "Polls can close automatically with --duration or with pollend, and long options are counted correctly",
+      "Fixed alert announcements failing when a ping role was set, the ticket log error, leveling multiplier parsing, nbot errors and image checks, greeting DM fallback, AFK clearing on direct messages and the support access role check",
+      "Extra Owners can now release quarantined members, from the release command and the dashboard. Trusted Admins still cannot",
+      "AntiRaid can flag joins whose name nearly matches a staff member or a banned user, and can track invites and delete one that brought in several flagged joins",
+      "AutoMod can mirror banned words, mention limit and spam into Discord's built-in AutoMod with automod native sync",
+      "Added a warning ladder that times out, kicks or bans members who collect warnings, plus webhook message protection and a lockdown for mass-mention bursts",
+      "Backups now include bans and server settings, and can be restored automatically after an AntiNuke incident",
+      "Moderation commands now protect the owner, Extra Owners and the bot, explain when Discord refuses an action, and skip pinned messages when purging",
+      "Added massban, and role add and remove now refuse roles above you, dangerous roles (owner tier only) and quarantined members",
+      "lockdownall and unlockall now use the server lockdown, so channels are restored exactly as they were",
+      "Quarantined members lose access to moderation and security commands, and the quarantine command can no longer target members at or above your tier"
     ]
   },
   {

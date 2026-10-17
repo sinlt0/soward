@@ -36,9 +36,13 @@ ACTION_PATTERN = re.compile(
     r"|log|warn"
     r"|sleep|noresponse"
     r"|settitle|setcolor|setfooter|setthumbnail|setimage|addfield"
-    r"):([^}]*)\}",
+    r")(?::([^}]*))?\}",
     re.IGNORECASE,
 )
+
+UNTRUSTED_KEYS = re.compile(r"^(args|arg\d+|match\d+|before|username|usertag|emoji)$")
+MAX_REGEX_INPUT = 500
+BRACES = str.maketrans({"{": "\uff5b", "}": "\uff5d", "|": "\u2223"})
 
 VAR_PATTERN = re.compile(r"\{(\w+(?:\d+)?)\}")
 
@@ -64,6 +68,7 @@ class CCGroup:
 class CustomCommand:
     def __init__(self, trigger: str, data: dict):
         self.trigger = trigger
+        self.trigger_text = data.get("trigger_text") or trigger
         self.trigger_type = data.get("trigger_type", TRIGGER_COMMAND)
         self.responses = data.get("responses", [data.get("response", "")])
         self.case_sensitive = data.get("case_sensitive", False)
@@ -93,6 +98,7 @@ class CustomCommand:
 
     def to_dict(self) -> dict:
         return {
+            "trigger_text": self.trigger_text,
             "trigger_type": self.trigger_type,
             "responses": self.responses,
             "case_sensitive": self.case_sensitive,
@@ -121,7 +127,7 @@ class CustomCommand:
         }
 
     def matches(self, content: str, prefix_stripped: str) -> bool:
-        t = self.trigger if self.case_sensitive else self.trigger.lower()
+        t = self.trigger_text if self.case_sensitive else self.trigger_text.lower()
         c = content if self.case_sensitive else content.lower()
         p = prefix_stripped if self.case_sensitive else prefix_stripped.lower()
 
@@ -130,14 +136,14 @@ class CustomCommand:
             return bool(parts) and parts[0] == t
         if self.trigger_type == TRIGGER_STARTS:
             return c.startswith(t)
-        if self.trigger_type == TRIGGER_CONTAINS:
+        if self.trigger_type in (TRIGGER_CONTAINS, TRIGGER_MSG_EDIT):
             return t in c
         if self.trigger_type == TRIGGER_EXACT:
             return c == t
         if self.trigger_type == TRIGGER_REGEX:
             try:
                 flags = 0 if self.case_sensitive else re.IGNORECASE
-                return bool(re.search(self.trigger, content, flags))
+                return bool(re.search(self.trigger_text, content[:MAX_REGEX_INPUT], flags))
             except re.error:
                 return False
         return False
@@ -211,34 +217,41 @@ def build_variables(message: discord.Message, args: list[str]) -> dict:
     return var_map
 
 
-def apply_conditionals(response: str, var_map: dict) -> str:
+def apply_conditionals(response: str, var_map: dict, guild: Optional[discord.Guild] = None, member: Optional[discord.Member] = None) -> str:
     def eval_condition(cond: str) -> bool:
         cond = cond.strip()
+        negate = False
+        if cond.lower().startswith("not "):
+            negate = True
+            cond = cond[4:].strip()
+        result = _condition(cond)
+        return (not result) if negate else result
+
+    def _condition(cond: str) -> bool:
         parts = cond.split()
+        lowered = cond.lower()
+        if lowered.startswith("hasrole "):
+            if guild is None or member is None:
+                return False
+            role = resolve_role(guild, cond[8:])
+            return bool(role) and role in getattr(member, "roles", [])
+        if lowered.startswith("hasarg "):
+            idx = cond[7:].strip()
+            return f"arg{idx}" in var_map and bool(var_map[f"arg{idx}"])
         if len(parts) == 3:
             left = var_map.get(parts[0].strip("{}"), parts[0])
             op = parts[1]
             right = parts[2]
             if op == "==":
-                return left == right
+                return str(left) == right
             if op == "!=":
-                return left != right
+                return str(left) != right
             if op in (">", ">=", "<", "<="):
                 try:
                     l, r = float(left), float(right)
-                    if op == ">":
-                        return l > r
-                    if op == ">=":
-                        return l >= r
-                    if op == "<":
-                        return l < r
-                    if op == "<=":
-                        return l <= r
                 except ValueError:
-                    pass
-        if cond.startswith("hasarg "):
-            idx = cond[7:].strip()
-            return f"arg{idx}" in var_map and bool(var_map[f"arg{idx}"])
+                    return False
+                return {">": l > r, ">=": l >= r, "<": l < r, "<=": l <= r}[op]
         return bool(cond)
 
     pattern = re.compile(r"\{if ([^}]+)\}(.*?)(?:\{else\}(.*?))?\{end\}", re.DOTALL)
@@ -301,23 +314,49 @@ class ActionContext:
         self.embed_data: dict = {}
 
 
-async def process_actions(response: str, message: Optional[discord.Message], bot) -> tuple[str, Optional[int], list, dict]:
-    if not message or not message.guild:
+def _role_assignable(guild: discord.Guild, role: Optional[discord.Role]) -> bool:
+    from utils import security
+    if role is None or role.is_default() or role.managed:
+        return False
+    if role >= guild.me.top_role:
+        return False
+    return not security.dangerous_permissions(role.permissions)
+
+
+def _member_actionable(guild: discord.Guild, target: Optional[discord.Member]) -> bool:
+    if target is None or target.id == guild.owner_id or target.id == guild.me.id:
+        return False
+    return target.top_role < guild.me.top_role
+
+
+async def process_actions(
+    response: str,
+    message: Optional[discord.Message],
+    bot,
+    *,
+    guild: Optional[discord.Guild] = None,
+    member: Optional[discord.Member] = None,
+    channel=None,
+) -> tuple[str, Optional[int], list, dict]:
+    guild = guild or (message.guild if message else None)
+    if guild is None:
         clean = ACTION_PATTERN.sub("", response).strip()
         return clean, None, [], {}
 
     ctx = ActionContext(message)
-    guild = ctx.guild
+    ctx.guild = guild
+    ctx.author = member or (message.author if message else None)
+    ctx.channel = channel or (message.channel if message else None)
     author = ctx.author
 
     for match in ACTION_PATTERN.finditer(response):
         action = match.group(1).lower()
-        value = match.group(2).strip()
+        value = (match.group(2) or "").strip()
 
         try:
             if action == "addrole":
                 role = resolve_role(guild, value)
-                if role:
+                if _role_assignable(guild, role):
                     await author.add_roles(role, reason="Custom Command")
 
             elif action == "removerole":
@@ -330,7 +369,7 @@ async def process_actions(response: str, message: Optional[discord.Message], bot
                 if role:
                     if role in author.roles:
                         await author.remove_roles(role, reason="Custom Command Toggle")
-                    else:
+                    elif _role_assignable(guild, role):
                         await author.add_roles(role, reason="Custom Command Toggle")
 
             elif action in ("addroleto", "removerolefrom"):
@@ -340,7 +379,8 @@ async def process_actions(response: str, message: Optional[discord.Message], bot
                     role = resolve_role(guild, parts[1])
                     if target and role:
                         if action == "addroleto":
-                            await target.add_roles(role, reason="Custom Command")
+                            if _role_assignable(guild, role):
+                                await target.add_roles(role, reason="Custom Command")
                         else:
                             await target.remove_roles(role, reason="Custom Command")
 
@@ -350,11 +390,14 @@ async def process_actions(response: str, message: Optional[discord.Message], bot
                     target = resolve_member(guild, parts[0])
                     if target:
                         await target.send(parts[1].strip())
-                else:
+                elif author is not None:
                     await author.send(value)
 
             elif action == "sendreply":
-                await message.reply(value, mention_author=False)
+                if message is not None:
+                    await message.reply(value, mention_author=False)
+                elif ctx.channel is not None:
+                    await ctx.channel.send(value)
 
             elif action == "sendchannel":
                 parts = value.split("|", 1)
@@ -364,7 +407,7 @@ async def process_actions(response: str, message: Optional[discord.Message], bot
                         ctx.channel_sends.append((ch, parts[1].strip()))
 
             elif action == "deleteafter":
-                ctx.delete_after = max(0, int(value))
+                ctx.delete_after = max(0, min(int(value), 3600))
 
             elif action in ("silentdelete", "deletetrigger"):
                 await message.delete()
@@ -394,21 +437,21 @@ async def process_actions(response: str, message: Optional[discord.Message], bot
                 parts = value.split("|", 1)
                 target = resolve_member(guild, parts[0]) if "|" in value else author
                 reason = parts[1].strip() if len(parts) > 1 else "Custom Command"
-                if target and guild.me.guild_permissions.kick_members:
+                if _member_actionable(guild, target) and guild.me.guild_permissions.kick_members:
                     await target.kick(reason=reason)
 
             elif action == "ban":
                 parts = value.split("|", 1)
                 target = resolve_member(guild, parts[0]) if "|" in value else author
                 reason = parts[1].strip() if len(parts) > 1 else "Custom Command"
-                if target and guild.me.guild_permissions.ban_members:
+                if _member_actionable(guild, target) and guild.me.guild_permissions.ban_members:
                     await target.ban(reason=reason, delete_message_seconds=0)
 
             elif action == "softban":
                 parts = value.split("|", 1)
                 target = resolve_member(guild, parts[0]) if "|" in value else author
                 reason = parts[1].strip() if len(parts) > 1 else "Custom Command"
-                if target and guild.me.guild_permissions.ban_members:
+                if _member_actionable(guild, target) and guild.me.guild_permissions.ban_members:
                     await target.ban(reason=reason, delete_message_seconds=604800)
                     await guild.unban(target, reason="Softban auto-unban")
 
@@ -425,7 +468,7 @@ async def process_actions(response: str, message: Optional[discord.Message], bot
                 target_ref = parts[0].strip()
                 duration_str = parts[1].strip() if len(parts) > 1 else "10m"
                 target = resolve_member(guild, target_ref)
-                if target and guild.me.guild_permissions.moderate_members:
+                if _member_actionable(guild, target) and guild.me.guild_permissions.moderate_members:
                     m = re.match(r"(\d+)([smhd])", duration_str.lower())
                     if m:
                         import datetime
@@ -442,12 +485,12 @@ async def process_actions(response: str, message: Optional[discord.Message], bot
                 parts = value.split("|", 1)
                 target = resolve_member(guild, parts[0]) if len(parts) > 1 else author
                 nick = parts[1].strip() if len(parts) > 1 else parts[0].strip()
-                if target and guild.me.guild_permissions.manage_nicknames:
+                if _member_actionable(guild, target) and guild.me.guild_permissions.manage_nicknames:
                     await target.edit(nick=nick[:32] or None)
 
             elif action == "resetnick":
                 target = resolve_member(guild, value) if value else author
-                if target and guild.me.guild_permissions.manage_nicknames:
+                if _member_actionable(guild, target) and guild.me.guild_permissions.manage_nicknames:
                     await target.edit(nick=None)
 
             elif action == "createchannel":
@@ -577,9 +620,16 @@ async def process_actions(response: str, message: Optional[discord.Message], bot
     return clean_response, ctx.delete_after, ctx.channel_sends, ctx.embed_data
 
 
-def substitute_variables(response: str, var_map: dict) -> str:
-    response = apply_conditionals(response, var_map)
+def _safe_value(key: str, value) -> str:
+    text = str(value)
+    if UNTRUSTED_KEYS.match(key):
+        text = discord.utils.escape_mentions(text)
+    return text.translate(BRACES)
+
+
+def substitute_variables(response: str, var_map: dict, guild: Optional[discord.Guild] = None, member: Optional[discord.Member] = None) -> str:
+    response = apply_conditionals(response, var_map, guild, member)
     response = apply_random_blocks(response)
     for key, val in var_map.items():
-        response = response.replace(f"{{{key}}}", str(val))
+        response = response.replace(f"{{{key}}}", _safe_value(key, val))
     return response

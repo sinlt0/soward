@@ -134,7 +134,7 @@ Commands in this table that need Administrator also work for members who were gr
 | `!antinuke incident elevate` | Raises the incident state by one step. | Administrator |
 | `!antinuke incident reset` | Sets the incident state back to normal. | Administrator |
 | `!quarantine <member> [reason]` | Quarantines a member by hand. The default reason is "Manually quarantined". | Administrator |
-| `!release <member>` | Releases a quarantined member and gives their roles back. | Server owner only |
+| `!release <member>` | Releases a quarantined member and gives their roles back. | Server owner or Extra Owner |
 | `!quarantinelist` | Lists everyone currently quarantined, with the reason and time. Alias: `!qlist`. | Administrator |
 | `!extraowner add <member>` | Gives Extra Owner. Alias: `!eo`. | Server owner |
 | `!extraowner remove <member>` | Takes Extra Owner away. | Server owner |
@@ -146,7 +146,7 @@ The incident states are `normal`, `elevated` and `lockdown`. Each punishment rai
 
 ## Quarantine
 
-Quarantine is the safest punishment because it can be undone. The bot saves the member's roles, removes the ones it can, and adds the quarantine role. Only the real server owner (or the bot's own owners) can run `!release`. This cannot be delegated, not even to Extra Owners or administrators. Released members get back the saved roles that are still below the bot's top role, and the quarantine role is removed.
+Quarantine is the safest punishment because it can be undone. The bot saves the member's roles, removes the ones it can, and adds the quarantine role. The server owner and Extra Owners can run `!release`. Trusted Admins and administrators cannot, and a quarantined member cannot release anyone, including themselves. Released members get back the saved roles that are still below the bot's top role, and the quarantine role is removed.
 
 If you do not set a quarantine role, quarantined members still lose their roles but get no replacement role.
 
@@ -183,7 +183,7 @@ Open **AntiNuke** under the Security modules. You need to be the server owner or
 - **Punishment per action:** set or remove an override for each action. This list also offers `kick_bot`.
 - **Action thresholds:** edit the limit for each action, from 1 to 1000. The table shows the default next to your value.
 - **Quarantine role:** pick the role.
-- **Quarantined members:** see who is quarantined, quarantine someone by ID with an optional reason (up to 300 characters), or release them. Releasing is only allowed for the server owner. The dashboard will not quarantine the server owner or someone whose top role is at or above the bot's.
+- **Quarantined members:** see who is quarantined, quarantine someone by ID with an optional reason (up to 300 characters), or release them. Releasing is allowed for the server owner and Extra Owners. The dashboard will not quarantine the server owner or someone whose top role is at or above the bot's.
 
 The dashboard does not manage the incident state. Use `!antinuke incident` for that.
 
@@ -195,6 +195,6 @@ The dashboard does not manage the incident state. Use `!antinuke incident` for t
 
 **A kick turned into a ban.** The member already had 3 or more quarantine offenses in the last 24 hours.
 
-**`!release` says Owner Only.** This is intentional. Only the server owner can release members.
+**`!release` says Owner Only.** Only the server owner and Extra Owners can release members. Trusted Admins and administrators cannot, and quarantined members cannot release anyone, including themselves.
 
 **Someone lost their roles after adding a bot.** `bot_add` has a limit of 1 and the default punishment `kick_bot`. The punishment lands on the person who added the bot, and `kick_bot` only kicks bots, so a human gets their roles stripped. Add trusted people to the trusted list, or raise the limit.

@@ -371,21 +371,23 @@ class Alerts(commands.Cog):
             (subscription_id, content_id),
         )
 
-    async def _announce(self, sub: dict, view: discord.ui.LayoutView, plain_message: str):
+    async def _announce(self, sub: dict, view: discord.ui.LayoutView, plain_message: str) -> bool:
         guild = self.bot.get_guild(sub["guild_id"])
         if not guild:
-            return
+            return True
         channel = guild.get_channel(sub["announce_channel_id"])
         if not channel:
-            return
+            return True
         try:
-            await channel.send(
-                content=plain_message if sub["ping_role_id"] else None,
-                view=view,
-                allowed_mentions=discord.AllowedMentions(roles=True),
-            )
+            if sub["ping_role_id"] or sub["custom_message"]:
+                await channel.send(
+                    content=plain_message[:2000],
+                    allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
+                )
+            await channel.send(view=view)
         except discord.HTTPException:
-            pass
+            return False
+        return True
 
     @tasks.loop(seconds=config.ALERT_POLL_INTERVAL)
     async def poll_youtube(self):
@@ -443,8 +445,8 @@ class Alerts(commands.Cog):
                             color=SUCCESS,
                             thumbnail=latest["thumbnail"],
                         )
-                        await self._announce(dict(sub), view, plain)
-                        await self._mark_sent(sub["subscription_id"], latest["video_id"])
+                        if await self._announce(dict(sub), view, plain):
+                            await self._mark_sent(sub["subscription_id"], latest["video_id"])
 
                 await db.raw_execute(
                     "INSERT INTO alert_state (platform, target_id, last_video_id, updated_at) VALUES ('youtube', ?, ?, ?)"
@@ -506,8 +508,8 @@ class Alerts(commands.Cog):
                         color=SUCCESS,
                         thumbnail=stream["thumbnail"],
                     )
-                    await self._announce(dict(sub), view, plain)
-                    await self._mark_sent(sub["subscription_id"], stream["stream_id"])
+                    if await self._announce(dict(sub), view, plain):
+                        await self._mark_sent(sub["subscription_id"], stream["stream_id"])
 
             await db.raw_execute(
                 "INSERT INTO alert_state (platform, target_id, last_live_stream_id, is_live, updated_at) VALUES ('twitch', ?, ?, ?, ?)"
@@ -655,6 +657,7 @@ class Alerts(commands.Cog):
         await ctx.send(view=info_layout(f"{e('info')} Subscriptions ({len(subs)})", "\n".join(lines)))
 
     @alerts_group.command(name="variables", aliases=["vars"], help="Show all available message template variables.")
+    @has_guild_permission("manage_guild")
     async def alerts_variables(self, ctx: commands.Context):
         e = emoji_manager.get
         body = (

@@ -74,11 +74,11 @@ Binding modes change what reacting and un-reacting does for one role on a **reac
 | `reversed` | Removes the role. | Adds the role. Useful for opt-out roles. |
 | `verify` | Adds the role, then the bot removes the reaction. | Does nothing. |
 | `binding` | Removes the swap role (if the member has it) and adds this role. Set with `!rr bind`, not `bindingmode`. | Does nothing. |
-| `unique` | Same as `normal` at the moment. Use the panel mode `unique` or a role group to allow only one role. | Removes the role. |
+| `unique` | Adds the role and removes the member's other roles from the same panel. | Removes the role. |
 
 `!rr bindingmode` refuses `binding` and tells you to use `!rr bind`.
 
-On `select` panels binding modes are not used.
+On `select` panels `unique`, `add_only`, `remove_only`, `reversed`, `verify` and `binding` also apply. Picking a `remove_only` or `reversed` option removes the role, and roles in `add_only`, `verify`, `remove_only`, `reversed` or `binding` mode are not removed when the member un-picks them.
 
 ## Panel modes
 
@@ -88,7 +88,7 @@ On `select` panels binding modes are not used.
 | --- | --- |
 | `toggle` | Normal behavior: react to add, un-react to remove. |
 | `unique` | On reaction panels, picking a role removes the member's other roles from the same panel. Roles in a group (see below) follow the group rule instead. |
-| `add_only` | Accepted, but reactions do not use it yet. Set `add_only` on each binding with `!rr bindingmode` instead. |
+| `add_only` | Un-reacting never removes a role. A binding's own mode overrides this. |
 
 ## Groups, limits and gates
 
@@ -97,7 +97,7 @@ On `select` panels binding modes are not used.
 - **Required role.** `!rr gate <panel> required @Member` means only members with that role can use the panel.
 - **Blocked role.** `!rr gate <panel> blacklist @Muted` stops members with that role from using the panel.
 - **One binding only.** Add the emoji at the end: `!rr gate <panel> required @Member 🎮`.
-- **Clearing a gate.** Run the same command without a role: `!rr gate <panel> required` for the panel, or `!rr gate <panel> required 🎮` for one binding.
+- **Clearing a gate.** Use `off` as the role: `!rr gate <panel> required off` for the panel, or `!rr gate <panel> required off 🎮` for one binding.
 - A member who fails a gate gets their reaction removed on reaction panels, or a "Skipped" note on select panels.
 - **Locking.** A locked panel ignores reactions and menu choices. Existing roles stay as they are.
 
@@ -105,25 +105,26 @@ On `select` panels binding modes are not used.
 
 - Each menu option shows the role name, with the label under it if you set one. The emoji is only an internal key for select panels, so any short text works.
 - Members choose any number of roles, up to the maximum roles setting. The menu is a full set: roles from the panel that the member has but did not pick are removed. Picking nothing removes all of the panel's roles.
-- Role groups, required roles, blocked roles and locking all work. The panel mode and binding modes are not used.
-- After you add or remove a role on a posted select panel, the role list on the message updates but the menu does not. Run `!rr post` again to get a fresh menu.
-- `!rr attach` is meant for reaction panels. For a select panel use `!rr post`.
+- Role groups, required roles, blocked roles, locking, the panel mode and binding modes all work. With panel mode `unique` the menu allows one choice.
+- After you add or remove a role or change the panel mode on a posted select panel, both the role list and the menu on the message update on their own.
+- `!rr attach <panel> <message ID>` puts a select menu on one of the bot's own messages. Menus cannot be added to other people's messages.
 
 ## Limits
 
 | Limit | Value |
 | --- | --- |
-| Roles per panel | 20 |
+| Roles per panel | 20 on reaction panels, 25 on select panels |
 | Panels per server (dashboard) | 25 |
 | Panels per server (commands) | No limit |
-| Roles you can bind | Normal roles below the bot's top role. Roles managed by an integration cannot be used. |
+| Roles you can bind | Normal roles below both your top role and the bot's top role, without dangerous permissions such as Administrator. Roles managed by an integration cannot be used. |
 
 Reaction role limits are the same for free and Premium servers.
 
 ## Good to know
 
-- `!rr post` always makes a new message and leaves any earlier posted message alone. Delete the old one yourself, or use the dashboard's Repost, which removes the old message for you.
-- After `!rr addrole` on a panel that is already posted, the role list on the message updates, but the bot does not add the new reaction. Add it yourself or run `!rr post` again.
+- `!rr post` deletes the panel's earlier posted message and posts a new one.
+- After `!rr addrole` or `!rr removerole` on a panel that is already posted, the message updates and the bot adds or clears the reaction for you.
+- `!rr create select` creates a select panel without an embed template. Use `!rr create <embed name> select` to use a template.
 - Deleting a panel deletes its posted message too.
 - Role changes made by a panel are recorded in the member's role history by Discord's audit log with the reason "Reaction role".
 

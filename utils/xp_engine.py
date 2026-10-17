@@ -5,7 +5,7 @@ import uuid
 
 import discord
 
-from utils import db
+from utils import db, security
 
 SCOPE_GLOBAL = "global"
 SCOPE_CHANNEL = "channel"
@@ -153,12 +153,18 @@ async def apply_role_rewards(guild: discord.Guild, member: discord.Member, new_l
     earned_roles = [guild.get_role(rid) for rid in earned_role_ids]
     earned_roles = [r for r in earned_roles if r]
 
-    to_add = [r for r in earned_roles if r not in member.roles]
-    if to_add:
+    if await security.is_quarantined(guild.id, member.id):
+        return []
+
+    to_add = []
+    for role in earned_roles:
+        if role in member.roles or role.managed or role >= guild.me.top_role or security.dangerous_permissions(role.permissions):
+            continue
         try:
-            await member.add_roles(*to_add, reason="Leveling: role reward")
+            await member.add_roles(role, reason="Leveling: role reward")
+            to_add.append(role)
         except discord.HTTPException:
-            pass
+            continue
 
     if stack_mode == "nonstack":
         highest_role_id = earned_role_ids[-1] if earned_role_ids else None

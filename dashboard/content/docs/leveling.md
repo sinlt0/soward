@@ -51,7 +51,7 @@ These work for everyone, once leveling is enabled.
 | --- | --- | --- |
 | `!rank [member]` | Shows a rank card image with level, XP progress, leaderboard position and prestige if any. Defaults to you. Aliases: `!level`, `!lvl`. | Anyone |
 | `!leaderboard [period]` | Shows the top 10. The period is `alltime` (default), `weekly` or `monthly`. Aliases: `!lb`, `!top`. | Anyone |
-| `!leveling levelroles` | Lists the configured role rewards. | Anyone |
+| `!leveling levelroles` | Lists the configured role rewards. | Manage Server |
 | `!leveling variables` | Lists the level-up message placeholders. Alias: `!leveling vars`. | Anyone |
 
 If a member has no XP yet, `!rank` says they have not earned any.
@@ -74,7 +74,7 @@ All of these need **Manage Server** (or the matching fake permission, see [moder
 | `!leveling removelevelrole <level> <role>` | Removes one role reward. | Manage Server |
 | `!leveling rolestack <stack\|nonstack>` | Chooses how role rewards combine. | Manage Server |
 | `!leveling multiplier` | Lists XP multipliers with their IDs. Alias: `!leveling mult`. | Manage Server |
-| `!leveling multiplier add <global\|channel\|role> <target> <value>` | Adds an XP multiplier. | Manage Server |
+| `!leveling multiplier add <global\|channel\|role> [target] <value>` | Adds an XP multiplier. Global needs no target. | Manage Server |
 | `!leveling multiplier remove <ID>` | Removes a multiplier by its ID. | Manage Server |
 | `!leveling noxp` | Lists the no-XP channels and roles. | Manage Server |
 | `!leveling noxp channel <#channel>` | Toggles a text channel as no-XP. | Manage Server |
@@ -125,7 +125,7 @@ A multiplier scales the XP a member earns, for both messages and voice.
 ```
 !leveling multiplier add channel #events 2
 !leveling multiplier add role @Booster 1.5
-!leveling multiplier add global all 2
+!leveling multiplier add global 2
 !leveling multiplier remove 3F9A1C2B
 ```
 
@@ -192,7 +192,7 @@ Open your server, then **Leveling**. Use the switch at the top to enable or disa
 
 **Tables**
 
-- **Level role rewards.** Add a reward (level 1 to 1000 and a role) or remove one. Removing does not take the role from members who have it. Integration roles and roles above the bot are refused.
+- **Level role rewards.** Add a reward (level 1 to 1000 and a role) or remove one. Removing does not take the role from members who have it. Integration roles, roles above the bot or above you, and roles with dangerous permissions such as Administrator are refused. Quarantined members receive no rewards.
 - **No-XP channels** and **No-XP roles.** Add or remove.
 - **XP multipliers.** Add a server-wide, channel or role multiplier (above 0, up to 100), or remove one. The table shows each multiplier's ID.
 - **Member XP.** Shows the top members. Set XP or reset a member from the row, or by member ID for anyone else. As with the commands, role rewards are not re-synced.

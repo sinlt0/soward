@@ -8,6 +8,7 @@ import discord
 
 import config
 from utils import cases, db, guild_settings, nsfw, security
+from utils.security_access import LEVEL_OWNER, level_of
 from utils.dash.base import (
     ActionContext, action, button, fld, need_channel, need_choice, need_int, need_role, need_text, row, section, table,
 )
@@ -506,7 +507,7 @@ async def quarantined_section(guild: discord.Guild) -> dict:
     ]
     return table(
         "quarantined", "Quarantined members", ["Member", "Reason", "Since"], rows, "No members are quarantined.",
-        description="Only the real server owner can release a member.",
+        description="Only the server owner or an Extra Owner can release a member.",
         buttons=[button("quarantine_add", "Quarantine member", [_id_field(), fld("reason", "Reason", "text", maxlen=300)],
                         style="danger", title="Quarantine a member", submit="Quarantine")],
     )
@@ -604,9 +605,12 @@ async def quarantine_add(ctx: ActionContext, payload: dict) -> list:
 
 @action("antinuke", "quarantine_release")
 async def quarantine_release(ctx: ActionContext, payload: dict) -> list:
-    if not await security.is_real_owner(ctx.guild, ctx.user_id):
-        raise ValueError("Only the server owner can release a quarantined member.")
+    actor = ctx.guild.get_member(ctx.user_id)
+    if actor is None or await level_of(ctx.guild, actor) < LEVEL_OWNER:
+        raise ValueError("Only the server owner or an Extra Owner can release a quarantined member.")
     raw = str(payload.get("id") or "")
+    if raw == str(ctx.user_id) or await security.is_quarantined(ctx.guild.id, ctx.user_id):
+        raise ValueError("You cannot release yourself, and quarantined members cannot release anyone.")
     if not raw.isdigit() or not await security.release_member(ctx.guild, int(raw), by=ctx.user_id):
         raise ValueError("That member is not quarantined.")
     return [f"Released {_member_label(ctx.guild, int(raw))} from quarantine"]

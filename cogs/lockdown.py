@@ -10,7 +10,7 @@ from discord.ext import commands, tasks
 from utils import db, emoji_manager, security
 from utils import security_settings as settings
 from utils.components import error_layout, info_layout, success_layout
-from utils.events_bus import LOG_EVENT, bus
+from utils.events_bus import ANTINUKE_INCIDENT, LOG_EVENT, bus
 from utils.security_access import security_owner, security_staff
 from utils.security_cmds import chunked
 
@@ -62,6 +62,23 @@ def _snapshot_guild(guild: discord.Guild) -> dict:
     }
 
 
+async def _snapshot_full(guild: discord.Guild) -> dict:
+    data = _snapshot_guild(guild)
+    bans: list[int] = []
+    try:
+        async for entry in guild.bans(limit=1000):
+            bans.append(entry.user.id)
+    except discord.HTTPException:
+        pass
+    data["bans"] = bans
+    data["settings"] = {
+        "explicit_filter": guild.explicit_content_filter.value,
+        "notifications": guild.default_notifications.value,
+        "afk_timeout": guild.afk_timeout,
+    }
+    return data
+
+
 class Lockdown(commands.Cog):
     category = "Config"
     submodule = "Security"
@@ -69,10 +86,13 @@ class Lockdown(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._locks: dict[int, asyncio.Lock] = {}
+        self._quiet_until: dict[int, float] = {}
         self.expiry_loop.start()
         self.backup_loop.start()
+        bus.subscribe(ANTINUKE_INCIDENT, self._on_nuke)
 
     def cog_unload(self):
+        bus.unsubscribe(ANTINUKE_INCIDENT, self._on_nuke)
         self.expiry_loop.cancel()
         self.backup_loop.cancel()
 
@@ -175,6 +195,8 @@ class Lockdown(commands.Cog):
                 last = await db.raw_fetchone("SELECT MAX(created_at) AS t FROM security_backups WHERE guild_id=? AND auto=1", (guild.id,))
                 if last and last["t"] and time.time() - last["t"] < interval:
                     continue
+                if self._quiet_until.get(guild.id, 0) > time.time():
+                    continue
                 await self.create_backup(guild, "automatic", None, auto=True)
             except Exception:
                 continue
@@ -187,7 +209,7 @@ class Lockdown(commands.Cog):
         backup_id = secrets.token_hex(4)
         await db.raw_execute(
             "INSERT INTO security_backups (backup_id, guild_id, label, created_by, auto, data) VALUES (?, ?, ?, ?, ?, ?)",
-            (backup_id, guild.id, label[:60], created_by, 1 if auto else 0, json.dumps(_snapshot_guild(guild))),
+            (backup_id, guild.id, label[:60], created_by, 1 if auto else 0, json.dumps(await _snapshot_full(guild))),
         )
         if auto:
             keep = int(await settings.get(guild.id, "security", "backup_keep"))
@@ -204,6 +226,58 @@ class Lockdown(commands.Cog):
                 await db.raw_execute("DELETE FROM security_backups WHERE backup_id=?", (row["backup_id"],))
         await bus.publish(LOG_EVENT, guild_id=guild.id, action="security_backup", actor_id=created_by, detail=f"Backup `{backup_id}` created ({label}).")
         return backup_id
+
+    async def _on_nuke(self, *, guild_id: int, **_):
+        self._quiet_until[guild_id] = time.time() + 3600
+        guild = self.bot.get_guild(guild_id)
+        if guild is None or not await settings.get(guild_id, "antinuke", "restore_from_backup"):
+            return
+        row = await db.raw_fetchone("SELECT * FROM security_backups WHERE guild_id=? ORDER BY created_at DESC LIMIT 1", (guild_id,))
+        if row is None:
+            return
+        data = json.loads(row["data"])
+        roles, _, _ = await self._restore_roles(guild, data, False)
+        channels, _ = await self._restore_channels(guild, data)
+        banned = await self._restore_bans(guild, data)
+        await bus.publish(
+            LOG_EVENT, guild_id=guild_id, action="security_backup", actor_id=None,
+            detail=f"Auto-restored `{row['backup_id']}` after an AntiNuke incident: {roles} roles, {channels} channels, {banned} bans.",
+        )
+
+    async def _restore_bans(self, guild: discord.Guild, data: dict) -> int:
+        wanted = set(data.get("bans", []))
+        if not wanted:
+            return 0
+        try:
+            current = {entry.user.id async for entry in guild.bans(limit=None)}
+        except discord.HTTPException:
+            return 0
+        restored = 0
+        for user_id in wanted - current:
+            try:
+                await guild.ban(discord.Object(id=user_id), reason="Backup restore: ban was missing")
+                restored += 1
+            except discord.HTTPException:
+                continue
+            await asyncio.sleep(PAUSE)
+        return restored
+
+    async def _restore_settings(self, guild: discord.Guild, data: dict) -> bool:
+        saved = data.get("settings")
+        if not saved:
+            return False
+        try:
+            await guild.edit(
+                name=data.get("name", guild.name),
+                verification_level=discord.VerificationLevel(data.get("verification", guild.verification_level.value)),
+                explicit_content_filter=discord.ContentFilter(saved["explicit_filter"]),
+                default_notifications=discord.NotificationLevel(saved["notifications"]),
+                afk_timeout=saved["afk_timeout"],
+                reason="Backup restore: server settings",
+            )
+        except (discord.HTTPException, ValueError, KeyError):
+            return False
+        return True
 
     async def _find_backup(self, guild_id: int, backup_id: str) -> Optional[dict]:
         return await db.raw_fetchone("SELECT * FROM security_backups WHERE guild_id=? AND backup_id=?", (guild_id, backup_id.lower()))
@@ -397,13 +471,13 @@ class Lockdown(commands.Cog):
         lines = [f"**Label:** {row['label']} · **Taken:** {_ago(row['created_at'])}", f"**Roles:** {len(data['roles'])}", "**Channels:** " + (", ".join(f"{v} {k}" for k, v in kinds.items()) or "none")]
         await ctx.send(view=info_layout(f"Backup {row['backup_id']}", "\n".join(lines)))
 
-    @backup_group.command(name="restore", help="Recreate roles and channels that are missing. Add `repair` to also reset existing role permissions.")
+    @backup_group.command(name="restore", help="Recreate what is missing. Usage: restore <id> [roles|channels|bans|settings|all] [repair]")
     @security_owner()
     async def backup_restore(self, ctx: commands.Context, backup_id: str, what: str = "all", repair: Optional[str] = None):
         e = emoji_manager.get
         what = what.lower()
-        if what not in ("roles", "channels", "all"):
-            return await ctx.send(view=error_layout("Unknown part", "Use `roles`, `channels` or `all`."))
+        if what not in ("roles", "channels", "bans", "settings", "all"):
+            return await ctx.send(view=error_layout("Unknown part", "Use `roles`, `channels`, `bans`, `settings` or `all`."))
         row = await self._find_backup(ctx.guild.id, backup_id)
         if row is None:
             return await ctx.send(view=error_layout("Not found", "No backup with that id."))
@@ -416,6 +490,10 @@ class Lockdown(commands.Cog):
         if what in ("channels", "all"):
             made, bad = await self._restore_channels(ctx.guild, data)
             lines.append(f"Channels: {made} created, {bad} failed")
+        if what in ("bans", "all"):
+            lines.append(f"Bans: {await self._restore_bans(ctx.guild, data)} restored")
+        if what in ("settings", "all"):
+            lines.append("Server settings: " + ("restored" if await self._restore_settings(ctx.guild, data) else "not restored"))
         await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="security_backup", actor_id=ctx.author.id, detail=f"Restored `{row['backup_id']}` ({what}). " + " · ".join(lines))
         await note.edit(view=success_layout(f"{e('check')} Restore finished", "\n".join(lines) + "\n\n-# Members' role assignments are not restored."))
 
