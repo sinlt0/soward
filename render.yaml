@@ -45,6 +45,14 @@ services:
         sync: false
       - key: SOWARD_SESSION_SECRET
         generateValue: true
+      - key: SOWARD_IP_SALT
+        generateValue: true
+      - key: SOWARD_BEHIND_PROXY
+        value: "1"
+      - key: SOWARD_IPINTEL_PROVIDER
+        value: none
+      - key: SOWARD_IPINTEL_KEY
+        sync: false
       - key: SOWARD_SUPPORT_URL
         sync: false
       - key: PORT

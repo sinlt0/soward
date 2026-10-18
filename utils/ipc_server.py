@@ -331,10 +331,35 @@ async def audit_list(request: web.Request) -> web.Response:
     ]})
 
 
+async def public_verify_info(request: web.Request) -> web.Response:
+    from utils import web_verify
+    info = await web_verify.lookup_token(request.match_info["token"])
+    if info is None:
+        return _err("invalid", 404)
+    guild = _bot(request).get_guild(info["guild_id"])
+    return web.json_response({"guild": guild.name if guild else "the server"})
+
+
+async def public_verify_complete(request: web.Request) -> web.Response:
+    import ipaddress
+    cog = _bot(request).get_cog("Verification")
+    if cog is None:
+        return _err("Verification is unavailable.", 503)
+    body = await request.json()
+    try:
+        ip = str(ipaddress.ip_address(str(body.get("ip", ""))))
+    except ValueError:
+        return _err("Could not read your address.", 400)
+    result = await cog.web_complete(request.match_info["token"], ip, str(body.get("fingerprint", ""))[:128])
+    return web.json_response(result)
+
+
 def build_app(bot: commands.Bot, secret: str) -> web.Application:
     app = web.Application(middlewares=[_auth, _http_errors])
     app["bot"] = bot
     app["secret"] = secret
+    app.router.add_get("/public/verify/{token}", public_verify_info)
+    app.router.add_post("/public/verify/{token}", public_verify_complete)
     app.router.add_get("/status", status)
     app.router.add_get("/commands", command_catalog)
     app.router.add_get("/team", team)

@@ -58,6 +58,27 @@ Leaving the scope out means `all`. Removing without a scope removes every scope 
 
 Administrators are exempt from AutoMod filters. For AntiNuke they are **not** exempt unless you turn on `!antinuke adminbypass on`, because a stolen administrator account is the most common way servers are nuked.
 
+## Commands
+
+Plain Administrators can only view while the tier lock is on.
+
+| Command | What it does | Needs |
+|---|---|---|
+| `!security` (alias `!sec`) | Overview of every protection and your access level | Administrator |
+| `!security threat` | The threat score and what raised it | Administrator |
+| `!security settings`, `get <key>` | View settings | Administrator |
+| `!security set <module> <key> <value>`, `add`, `remove` | Change settings in any module | Trusted Admin |
+| `!security log <channel>`, `!security alerts <channel> [role]` | Where logs and alerts go | Trusted Admin |
+| `!security beast off` | End Beast Mode early | Trusted Admin |
+| `!whitelist list`, `scopes` (alias `!wl`) | View the whitelist | Trusted Admin |
+| `!serverlock`, `!backup`, `!securitycheck` | Lockdown, backups, scan | Trusted Admin |
+| `!security lock <on/off>` | The tier lock | Extra Owner |
+| `!security preset <name>`, `export`, `import`, `reset` | Presets, export, import, reset | Extra Owner |
+| `!whitelist add / remove / clear` | Edit the whitelist | Extra Owner |
+| `!backup restore <id>` | Restore a backup | Extra Owner |
+
+"Extra Owner" means an Extra Owner or the server owner.
+
 ## Customizing everything
 
 Every security module exposes the same commands. Over 220 settings in total.
@@ -111,7 +132,7 @@ A preset changes many settings at once and is owner-only. Export first if you wa
 
 ## Threat score and Beast Mode
 
-Detections add points: an AntiNuke trigger, raid mode, severe AutoMod hits, quarantine tampering, flagged joins and verification lockouts. When the score inside the **threat window** reaches the **threat threshold**, **Beast Mode** switches on:
+Detections add points: an AntiNuke trigger, raid mode, severe AutoMod hits and punishments, quarantine tampering, flagged joins, mass-mention bursts, abusive webhooks, verification lockouts and web verification results that look like a VPN or an alt account. When the score inside the **threat window** reaches the **threat threshold**, **Beast Mode** switches on:
 
 - AntiNuke limits are halved and strict mode is on.
 - AutoMod heat builds faster.
@@ -139,18 +160,18 @@ Aliases: `!panic`, `!slock`. Lockdown denies sending messages, reactions, thread
 !backup create [label]
 !backup list
 !backup info <id>
-!backup restore <id> [roles|channels|all] [repair]
+!backup restore <id> [roles|channels|bans|settings|all] [repair]
 !backup delete <id>
 !backup auto on
 ```
 
-A backup keeps roles, role permissions, categories, channels and their permission overwrites, the ban list (up to 1000) and a few server settings. **Restore only creates what is missing.** Nothing existing is deleted. Restore `roles`, `channels`, `bans`, `settings` or `all`. Add `repair` to also reset the permissions of roles that still exist. Members' role assignments and messages are not part of a backup. Restoring is owner-only.
+A backup keeps roles, role permissions, categories, channels and their permission overwrites, the ban list (up to 1000) and a few server settings. **Restore only creates what is missing.** Nothing existing is deleted. Restore `roles`, `channels`, `bans` (bans that went missing), `settings` (name, verification level, content filter, notifications and AFK timeout) or `all`. Add `repair` to also reset the permissions of roles that still exist. Members' role assignments and messages are not part of a backup. Restoring is owner-only.
 
 Automatic backups run every few hours (`security.backup_interval_hours`) and keep the newest few (`security.backup_keep`). Manual backups keep the newest 25.
 
 ## Extra protections
 
-All of these are off by default and switched on in the paranoid preset.
+All of these are off by default. The strict preset switches on impersonation filtering, invite tracking and webhook protection, and the paranoid preset switches on all of them.
 
 | Feature | Setting prefix | What it does |
 |---|---|---|
@@ -173,4 +194,5 @@ All of these are off by default and switched on in the paranoid preset.
 - The bot can only act on members and roles **below** its own top role.
 - Restores recreate objects, so channel and role IDs change.
 - Counts and threat scores are kept in memory and reset when the bot restarts.
-- Ban evasion and impersonation checks are heuristics: they compare avatars and names, not people. Soward cannot detect VPNs or alt accounts reliably.
+- Ban evasion and impersonation checks are heuristics: they compare avatars and names, not people.
+- VPN and alt detection only exist in the `web` verification type, which needs an IP intelligence provider for VPNs. See [Verification](/docs/verification#web-verification).

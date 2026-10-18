@@ -141,7 +141,16 @@ VERIFICATION_LEVELS: dict = {
     "button": 2,
     "captcha": 3,
     "manual": 4,
+    "web": 5,
 }
+
+WEB_VERIFY_TOKEN_TTL_SECONDS: int = 900
+WEB_VERIFY_PROVIDER: str = os.getenv("SOWARD_IPINTEL_PROVIDER", "none").lower()
+WEB_VERIFY_PROVIDER_KEY: str = os.getenv("SOWARD_IPINTEL_KEY", "")
+WEB_VERIFY_SALT: str = os.getenv("SOWARD_IP_SALT", "")
+WEB_VERIFY_TURNSTILE_SITE: str = os.getenv("SOWARD_TURNSTILE_SITE_KEY", "")
+WEB_VERIFY_TURNSTILE_SECRET: str = os.getenv("SOWARD_TURNSTILE_SECRET", "")
+WEB_VERIFY_BEHIND_PROXY: bool = os.getenv("SOWARD_BEHIND_PROXY", "") in ("1", "true", "yes")
 
 VERIFICATION_MAX_ATTEMPTS_DEFAULT: int = 3
 VERIFICATION_LOCKOUT_SECONDS: int = 300
@@ -269,6 +278,13 @@ LOG_EVENTS: list[str] = [
     "autorole_action",
     "nsfw_action",
     "ticket_action",
+    "warn_ladder",
+    "role_add",
+    "role_remove",
+    "fakeperm_grant",
+    "fakeperm_revoke",
+    "support_access_granted",
+    "support_access_revoked",
 ]
 
 LOG_CATEGORY_NAME: str = "soward-logs"
@@ -277,7 +293,7 @@ LOG_CATEGORIES: dict[str, dict] = {
     "mod": {
         "label": "Moderation",
         "channel_name": "mod-logs",
-        "events": ["ban", "softban", "unban", "kick", "mute", "unmute", "warn", "purge", "lockdown", "unlock", "slowmode"],
+        "events": ["ban", "softban", "unban", "kick", "mute", "unmute", "warn", "warn_ladder", "purge", "lockdown", "unlock", "slowmode", "role_add", "role_remove"],
     },
     "security": {
         "label": "Security",
@@ -296,6 +312,10 @@ LOG_CATEGORIES: dict[str, dict] = {
             "security_backup",
             "security_whitelist",
             "security_change",
+            "fakeperm_grant",
+            "fakeperm_revoke",
+            "support_access_granted",
+            "support_access_revoked",
         ],
     },
     "member": {

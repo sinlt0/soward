@@ -48,6 +48,32 @@ def _all_permission_nodes() -> list[str]:
     return sorted(discord.Permissions.VALID_FLAGS.keys())
 
 
+FAKEPERM_OWNER_NODES = {"administrator", "manage_guild", "manage_roles", "manage_channels", "manage_webhooks", "mention_everyone"}
+
+
+async def fakeperm_problem(guild: discord.Guild, actor: discord.abc.User, target_id: int, target_type: str, node: str, adding: bool) -> Optional[str]:
+    if node not in discord.Permissions.VALID_FLAGS:
+        return f"`{node}` is not a valid permission node. Use `fakepermplist` to see them."
+    if actor.id not in config.ALL_PRIVILEGED_IDS and not actor.guild_permissions.administrator:
+        return "You need the real Administrator permission to manage fake permissions."
+    if target_type == "role":
+        role = guild.get_role(target_id)
+        if role is None:
+            return "That role no longer exists."
+        if adding and role.is_default():
+            return "Fake permissions cannot be granted to @everyone."
+    else:
+        member = guild.get_member(target_id)
+        if adding and member is not None and member.bot:
+            return "Fake permissions cannot be granted to bots."
+        if adding and await security.is_quarantined(guild.id, target_id):
+            return "That member is quarantined. Release them first."
+    sensitive = node in FAKEPERM_OWNER_NODES
+    if adding and sensitive and await level_of(guild, actor) < LEVEL_OWNER:
+        return f"Only the server owner or an Extra Owner can grant `{node}`."
+    return None
+
+
 PERM_PAGE_SIZE = 10
 
 
@@ -252,6 +278,10 @@ class FakePermSetupLayout(discord.ui.LayoutView):
 
     async def _finish(self, interaction: discord.Interaction, action: str):
         e = emoji_manager.get
+        problem = await fakeperm_problem(interaction.guild, interaction.user, self.target_id, self.target_type, self.node, action == "grant")
+        if problem:
+            return await interaction.response.send_message(problem, ephemeral=True)
+        await bus.publish(LOG_EVENT, guild_id=self.guild_id, action="fakeperm_" + action, actor_id=interaction.user.id, detail=f"`{self.node}` for `{self.target_id}`")
         if action == "grant":
             await db.raw_execute(
                 "INSERT OR IGNORE INTO fakeperm_grants (guild_id, target_id, target_type, node, granted_by, created_at)"
@@ -970,11 +1000,20 @@ class Moderation(commands.Cog):
     @commands.command(name="fakeperm", help="Grant or revoke a bot-specific permission node.")
     @has_guild_permission("administrator")
     @commands.guild_only()
-    async def fakeperm(self, ctx: commands.Context, action: str, target: Union[discord.Member, discord.Role], node: str):
+    async def fakeperm(self, ctx: commands.Context, action: str, target: Union[discord.Member, discord.Role], node: Optional[str] = None):
         e = emoji_manager.get
         action = action.lower()
+        if action in ("grant", "revoke") and not node:
+            return await ctx.send(view=error_layout("Missing Node", f"Usage: `fakeperm {action} <member or role> <node>`. See `fakepermplist` for nodes."))
         target_type = "user" if isinstance(target, discord.Member) else "role"
         target_id = target.id
+        node = (node or "").lower()
+
+        if action in ("grant", "revoke"):
+            problem = await fakeperm_problem(ctx.guild, ctx.author, target_id, target_type, node, action == "grant")
+            if problem:
+                return await ctx.send(view=error_layout("Not Allowed", problem))
+            await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="fakeperm_" + action, actor_id=ctx.author.id, detail=f"`{node}` for `{target_id}`")
 
         if action == "grant":
             await db.raw_execute(
@@ -1008,6 +1047,14 @@ class Moderation(commands.Cog):
         await ctx.send(view=error_layout(
             "Command Renamed", f"Use `fakeperm` (singular) instead of `fakeperms`.\nExample: `fakeperm grant @user ban_members`"
         ))
+
+    @commands.Cog.listener()
+    async def on_guild_role_delete(self, role: discord.Role):
+        await db.raw_execute("DELETE FROM fakeperm_grants WHERE guild_id=? AND target_id=? AND target_type='role'", (role.guild.id, role.id))
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        await db.raw_execute("DELETE FROM fakeperm_grants WHERE guild_id=? AND target_id=? AND target_type='user'", (member.guild.id, member.id))
 
     @commands.command(name="fakepermplist", aliases=["plist"], help="View every valid permission node that can be used with fakeperm.")
     @has_guild_permission("administrator")

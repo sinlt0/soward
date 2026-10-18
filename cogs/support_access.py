@@ -86,7 +86,7 @@ class SupportAccess(commands.Cog):
 
         await bus.publish(
             LOG_EVENT, guild_id=ctx.guild.id, action="support_access_granted",
-            granted_by=ctx.author.id, role_id=role.id, member_count=len(granted_to),
+            actor_id=ctx.author.id, detail=f"Role <@&{role.id}> given to {len(granted_to)} account(s)",
         )
 
         body = (
@@ -111,7 +111,7 @@ class SupportAccess(commands.Cog):
             return await ctx.send(view=error_layout("Failed", f"Couldn't remove the support role: {ex}"))
 
         await guild_settings.delete(ctx.guild.id, "support_role_id")
-        await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="support_access_revoked", revoked_by=ctx.author.id)
+        await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="support_access_revoked", actor_id=ctx.author.id, detail="The support role was removed")
         await ctx.send(view=success_layout(f"{e('check')} Support Access Revoked", f"The **{SUPPORT_ROLE_NAME}** role has been removed."))
 
     @commands.command(name="supportstatus", help="Check whether Soward support access is currently active in this server.")

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Verify · {{ bot_name }}{% endblock %}
+{% block head %}
+{% if turnstile_site %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/verify.css') }}">
+{% endblock %}
+{% block content %}
+<div class="wrap verify">
+  <div class="verify__card" id="verify" data-token="{{ token }}" data-nonce="{{ pow_nonce }}" data-issued="{{ pow_issued }}" data-sig="{{ pow_sig }}" data-prefix="{{ pow_prefix }}" data-submit="{{ url_for('verify_submit', token=token) }}">
+    <h1>Verify for {{ guild_name }}</h1>
+    <p class="verify__lead">One quick check and you are in. Nothing to type.</p>
+    <div class="verify__status" id="verify-status" role="status" aria-live="polite">Ready when you are.</div>
+    {% if turnstile_site %}<div class="cf-turnstile" data-sitekey="{{ turnstile_site }}" data-theme="dark"></div>{% endif %}
+    <input class="verify__trap" type="text" id="verify-trap" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <button class="btn btn--primary verify__go" id="verify-go" type="button">Verify me</button>
+    <p class="verify__note">To spot VPNs and duplicate accounts, this page reads your IP address and some browser details. Only one-way hashes are stored, never the address itself, and server staff can see the result but not the address.</p>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/verify.js') }}" defer></script>
+{% endblock %}

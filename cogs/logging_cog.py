@@ -18,6 +18,10 @@ SECURITY_LABELS = {
     "security_backup": "Security backup",
     "security_whitelist": "Whitelist changed",
     "security_change": "Security setting changed",
+    "fakeperm_grant": "Fake permission granted",
+    "fakeperm_revoke": "Fake permission revoked",
+    "support_access_granted": "Support access granted",
+    "support_access_revoked": "Support access revoked",
 }
 
 
@@ -134,6 +138,7 @@ class Logging(commands.Cog):
             "mute": "Member muted", "unmute": "Member unmuted", "warn": "Member warned",
             "purge": "Messages purged", "lockdown": "Channel locked", "unlock": "Channel unlocked",
             "slowmode": "Slowmode changed",
+            "warn_ladder": "Warning ladder applied", "role_add": "Role added", "role_remove": "Role removed",
         }
 
         if action in MOD_ACTION_LABELS:

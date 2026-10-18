@@ -27,7 +27,12 @@
       "Moderation commands now protect the owner, Extra Owners and the bot, explain when Discord refuses an action, and skip pinned messages when purging",
       "Added massban, and role add and remove now refuse roles above you, dangerous roles (owner tier only) and quarantined members",
       "lockdownall and unlockall now use the server lockdown, so channels are restored exactly as they were",
-      "Quarantined members lose access to moderation and security commands, and the quarantine command can no longer target members at or above your tier"
+      "Quarantined members lose access to moderation and security commands, and the quarantine command can no longer target members at or above your tier",
+      "Added the web verification type: members pass a check on a web page, and the bot can refuse or flag VPNs and proxies and find likely alt accounts. Only hashes of addresses are kept",
+      "Added verification webinfo to review a member's web check",
+      "fakeperm now rejects unknown nodes, @everyone, bots and quarantined members, only lets the owner tier grant administrator and management nodes, logs every grant and clears grants when a role or member is removed",
+      "Rewrote the AntiNuke, AntiRaid, AutoMod, Verification, Security and Moderation guides to match the current commands, settings and defaults",
+      "Warning ladder, role changes, fake permission grants and support access now appear in your log channels"
     ]
   },
   {

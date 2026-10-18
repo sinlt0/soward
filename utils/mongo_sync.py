@@ -38,6 +38,8 @@ TABLE_KEYS: dict[str, list[str]] = {
     "security_backups": ["backup_id"],
     "security_lockdown": ["guild_id"],
     "pending_verification": ["guild_id", "user_id"],
+    "web_verify_tokens": ["token_hash"],
+    "web_verifications": ["guild_id", "user_id"],
     "dev_stats_state": ["id"],
     "guild_anime_daily_config": ["guild_id"],
     "anime_daily_history": ["guild_id", "media_id", "posted_at"],

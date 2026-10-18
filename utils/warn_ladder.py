@@ -41,5 +41,5 @@ async def apply(guild: discord.Guild, member: discord.Member) -> Optional[str]:
             await member.timeout(discord.utils.utcnow() + datetime.timedelta(seconds=seconds), reason=reason)
     except discord.HTTPException:
         return None
-    await bus.publish(LOG_EVENT, guild_id=gid, action="warn_ladder", user_id=member.id, reason=reason, action_taken=action)
+    await bus.publish(LOG_EVENT, guild_id=gid, action="warn_ladder", user_id=member.id, moderator_id=guild.me.id, reason=f"{reason} ({action})", case_id="N/A")
     return action

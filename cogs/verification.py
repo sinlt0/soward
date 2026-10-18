@@ -9,7 +9,7 @@ import discord
 from discord.ext import commands, tasks
 
 from utils import db, embed_templates, emoji_manager, guild_settings, incident, message_vars, security
-from utils import security_cmds, threat
+from utils import security_cmds, threat, web_verify
 from utils import security_settings as settings
 from utils.checks import has_guild_permission
 from utils.security_access import security_owner, security_staff
@@ -324,6 +324,22 @@ async def _handle_verify_click(interaction: discord.Interaction):
         challenge = CaptchaChallengeLayout(code)
         return await interaction.response.send_message(view=challenge, files=[captcha_file], ephemeral=True)
 
+    if level == config.VERIFICATION_LEVELS["web"]:
+        if not config.DASHBOARD_URL:
+            return await reply(f"{e('cross')} Not available", "Web verification is not set up on this bot. Ask a staff member to approve you.", 0xED4245)
+        token = await web_verify.create_token(guild.id, member.id)
+        view = discord.ui.LayoutView(timeout=None)
+        container = discord.ui.Container(accent_color=0x5865F2)
+        container.add_item(discord.ui.TextDisplay(
+            f"## {e('shield')} Verify on the web\nOpen the page below and finish the check. The link is yours alone and expires in "
+            f"{config.WEB_VERIFY_TOKEN_TTL_SECONDS // 60} minutes.\n-# The page reads your IP address and browser details to spot VPNs and duplicate accounts. Only hashes are kept."
+        ))
+        row = discord.ui.ActionRow()
+        row.add_item(discord.ui.Button(label="Open verification page", style=discord.ButtonStyle.link, url=f"{config.DASHBOARD_URL}/verify/{token}"))
+        container.add_item(row)
+        view.add_item(container)
+        return await interaction.response.send_message(view=view, ephemeral=True)
+
     if level == config.VERIFICATION_LEVELS["manual"]:
         await reply(f"{e('info')} Manual review", "Your verification request has been noted. A staff member will review and grant you access shortly.", 0x2B2D31)
         await bus.publish(
@@ -400,9 +416,73 @@ class Verification(commands.Cog):
         bot.add_view(VerificationPanelLayout())
         bot.add_view(VerificationPanelClassicView())
         self.pending_timeout_checker.start()
+        self.web_cleanup.start()
 
     def cog_unload(self):
         self.pending_timeout_checker.cancel()
+        self.web_cleanup.cancel()
+
+    @tasks.loop(hours=6)
+    async def web_cleanup(self):
+        await web_verify.purge_old()
+
+    @web_cleanup.before_loop
+    async def _before_web_cleanup(self):
+        await self.bot.wait_until_ready()
+
+    async def web_complete(self, token: str, ip: str, fingerprint: str) -> dict:
+        info = await web_verify.lookup_token(token)
+        if info is None:
+            return {"ok": False, "message": "This link has expired or was already used. Press Verify in the server again to get a new one."}
+        guild = self.bot.get_guild(info["guild_id"])
+        member = guild.get_member(info["user_id"]) if guild else None
+        if guild is None or member is None:
+            return {"ok": False, "message": "You are no longer in that server."}
+        level = await guild_settings.get(guild.id, "verification_level", config.VERIFICATION_LEVELS["none"])
+        if level != config.VERIFICATION_LEVELS["web"] or await security.is_quarantined(guild.id, member.id):
+            return {"ok": False, "message": "Verification is not available right now. Contact a staff member."}
+        if not await web_verify.burn_token(token):
+            return {"ok": False, "message": "This link was already used."}
+
+        result = await web_verify.analyse(guild.id, member.id, ip, fingerprint)
+        rank = {"none": 0, "flag": 1, "manual": 2, "deny": 3}
+        verdict, notes = "none", []
+
+        def escalate(action: str, note: str):
+            nonlocal verdict
+            notes.append(note)
+            if rank[action] > rank[verdict]:
+                verdict = action
+
+        if result["vpn"] and await settings.get(guild.id, "verification", "web_block_vpn"):
+            escalate(await settings.get(guild.id, "verification", "web_vpn_action"), "VPN, proxy or hosting network")
+            await threat.add(guild.id, "verify_vpn", str(member.id))
+        elif result["unknown"]:
+            unknown = await settings.get(guild.id, "verification", "web_unknown_action")
+            if unknown != "allow":
+                escalate(unknown, "IP check unavailable")
+        if result["alts"]:
+            escalate(await settings.get(guild.id, "verification", "web_alt_action"), "possible alt of " + ", ".join(f"<@{uid}>" for uid in result["alts"][:5]))
+            await threat.add(guild.id, "verify_alt", str(member.id))
+
+        detail = "web verification: " + ("; ".join(notes) if notes else "clean")
+        if verdict == "deny":
+            await web_verify.record(guild.id, member.id, result, "denied")
+            await bus.publish(LOG_EVENT, guild_id=guild.id, action="verification_action", user_id=member.id, detail=detail + " (denied)")
+            await _register_failure(guild, member)
+            if result["vpn"]:
+                return {"ok": False, "message": "Turn off your VPN or proxy, then press Verify in the server again."}
+            return {"ok": False, "message": "We could not verify this account automatically. Contact a staff member."}
+        if verdict == "manual":
+            await web_verify.record(guild.id, member.id, result, "manual")
+            await bus.publish(LOG_EVENT, guild_id=guild.id, action="verification_action", user_id=member.id, detail=detail + " (sent to staff, use approve or deny)")
+            return {"ok": True, "message": "Your check is done. A staff member will review it and grant you access shortly."}
+        if not await _complete_verification(guild, member):
+            return {"ok": False, "message": "You cannot verify right now. Contact a staff member."}
+        await web_verify.record(guild.id, member.id, result, "flagged" if verdict == "flag" else "verified")
+        if verdict == "flag":
+            await bus.publish(LOG_EVENT, guild_id=guild.id, action="verification_action", user_id=member.id, detail=detail + " (allowed)")
+        return {"ok": True, "message": f"You are verified in {guild.name}. You can close this tab."}
 
     async def _on_member_verified_cleanup(self, *, guild_id: int, user_id: int, **_):
         await db.raw_execute(
@@ -589,7 +669,7 @@ class Verification(commands.Cog):
 
         return [], message_vars.substitute(template_str, var_map)
 
-    @verification_group.command(name="type", help='Set the verification type: button, captcha, or manual.')
+    @verification_group.command(name="type", help='Set the verification type: button, captcha, manual or web.')
     @security_staff()
     async def verification_type(self, ctx: commands.Context, level: str):
         from utils.components import error_layout, success_layout
@@ -608,10 +688,17 @@ class Verification(commands.Cog):
             "button": "One click — members click Verify and are immediately granted the role.",
             "captcha": "Members click Verify, receive an ephemeral captcha image, and must type the code to pass.",
             "manual": "Members click Verify to signal intent; staff must run `approve @member` to grant access.",
+            "web": "Members click Verify, open a web page and pass a check there. The page spots VPNs and duplicate accounts. Needs the dashboard URL and, for VPN detection, an IP intelligence provider.",
         }
+        notes = ""
+        if level == "web":
+            if not config.DASHBOARD_URL:
+                notes += "\n\n**Not ready:** the bot has no dashboard URL (SOWARD_DASHBOARD_URL), so members cannot open the page."
+            if not web_verify.provider_ready():
+                notes += "\n\n**No VPN detection:** no IP intelligence provider is configured (SOWARD_IPINTEL_PROVIDER), so only alt matching will work."
         await ctx.send(view=success_layout(
             f"{e('check')} Verification type set to `{level}`",
-            descriptions.get(level, ""),
+            descriptions.get(level, "") + notes,
         ))
 
     @verification_group.command(name="role", help='Set the role granted after passing verification.')
@@ -747,6 +834,32 @@ class Verification(commands.Cog):
         await db.raw_execute("DELETE FROM pending_verification WHERE guild_id=? AND user_id=?", (ctx.guild.id, member.id))
         await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="verification_action", user_id=member.id, detail=f"denied by {ctx.author.id}")
         await ctx.send(view=success_layout(f"{e('check')} Denied", f"{member.mention} was removed."))
+
+    @verification_group.command(name="webinfo", aliases=["altcheck"], help="Show the stored web verification result for a member. No IP addresses are kept.")
+    @security_staff()
+    @commands.guild_only()
+    async def verification_webinfo(self, ctx: commands.Context, member: discord.Member):
+        import json
+        from utils.components import error_layout, info_layout
+        e = emoji_manager.get
+        row = await db.raw_fetchone("SELECT * FROM web_verifications WHERE guild_id=? AND user_id=?", (ctx.guild.id, member.id))
+        if row is None:
+            return await ctx.send(view=error_layout(f"{e('cross')} No record", f"{member.mention} has no web verification on file."))
+        alts = json.loads(row["alt_of"] or "[]")
+        sharing = await db.raw_fetch(
+            "SELECT user_id FROM web_verifications WHERE guild_id=? AND ip_hash=? AND user_id!=?", (ctx.guild.id, row["ip_hash"], member.id)
+        )
+        lines = [
+            f"**Outcome:** {row['outcome']}",
+            f"**VPN or proxy:** {'yes' if row['vpn'] else 'no'}",
+            f"**Country:** {row['country'] or 'unknown'}",
+            f"**Risk score:** {row['risk']}",
+            f"**Checked:** <t:{int(row['verified_at'])}:R>",
+            "**Flagged as alt of:** " + (", ".join("<@%d>" % u for u in alts) or "nobody"),
+            "**Others on the same address now:** " + (", ".join("<@%d>" % r["user_id"] for r in sharing) or "nobody"),
+            "-# Shared addresses can be households or schools. Treat this as a lead, not proof.",
+        ]
+        await ctx.send(view=info_layout(f"{e('shield')} Web verification for {member}", "\n".join(lines)))
 
     @commands.command(name="approve", help='Manually approve a member awaiting verification.')
     @security_staff()

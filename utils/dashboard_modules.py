@@ -184,7 +184,7 @@ MODULES: list[Module] = [
                _int("min_age", "Minimum account age (days)", GS("antiraid_min_age_seconds", config.ANTIRAID_MIN_ACCOUNT_AGE_SECONDS), 0, 365, scale=86400),
                _int("velocity_count", "Joins that trigger a raid", GS("antiraid_join_velocity_count", config.ANTIRAID_JOIN_VELOCITY_COUNT), 2, 200),
                _int("velocity_window", "Within this many seconds", GS("antiraid_join_velocity_window", config.ANTIRAID_JOIN_VELOCITY_WINDOW_SECONDS), 2, 300),
-               _bool("flag_no_avatar", "Flag accounts without an avatar", GS("antiraid_gate_noavatar_enabled", False)),
+               _bool("flag_no_avatar", "Flag accounts without an avatar", GS("antiraid_gate_noavatar_enabled", True)),
                _select("join_action", "Action on flagged joins", GS("antiraid_join_action", config.ANTIRAID_JOIN_ACTION), RAID_ACTIONS),
                _int("raid_duration", "Raid mode length (minutes)", GS("antiraid_raid_mode_duration", config.ANTIRAID_RAID_MODE_DURATION_SECONDS), 1, 1440, scale=60),
                _channel("alert_channel", "Alert channel", GS("antiraid_alert_channel_id")),

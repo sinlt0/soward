@@ -532,6 +532,28 @@ async def _bootstrap_sqlite() -> None:
             started_by TEXT,
             saved TEXT NOT NULL DEFAULT '[]'
         )""",
+        """CREATE TABLE IF NOT EXISTS web_verify_tokens (
+            token_hash TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            created_at REAL NOT NULL,
+            expires_at REAL NOT NULL,
+            used INTEGER NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS web_verifications (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            ip_hash TEXT NOT NULL,
+            fingerprint_hash TEXT,
+            vpn INTEGER NOT NULL DEFAULT 0,
+            country TEXT,
+            risk INTEGER NOT NULL DEFAULT 0,
+            outcome TEXT NOT NULL,
+            alt_of TEXT NOT NULL DEFAULT '[]',
+            verified_at REAL NOT NULL,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE INDEX IF NOT EXISTS idx_web_verifications_ip ON web_verifications (guild_id, ip_hash)""",
         """CREATE TABLE IF NOT EXISTS pending_verification (
             guild_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,

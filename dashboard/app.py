@@ -181,8 +181,10 @@ def create_app() -> Flask:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        if request.path.startswith(("/dashboard", "/api", "/login", "/callback")):
+        if request.path.startswith(("/dashboard", "/api", "/login", "/callback", "/verify")):
             response.headers["Cache-Control"] = "no-store"
+        if request.path.startswith("/verify"):
+            response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
     def render_error(status: int, title: str, message: str, action: Optional[tuple] = None):
@@ -333,6 +335,86 @@ def create_app() -> Flask:
     @app.route("/support")
     def support():
         return redirect(support_url) if support_url else redirect(url_for("docs_index"))
+
+    pow_seen: dict[str, float] = {}
+    verify_hits: dict[str, list] = {}
+    POW_PREFIX = "0000"
+
+    def client_ip() -> str:
+        if config.WEB_VERIFY_BEHIND_PROXY:
+            forwarded = request.headers.get("X-Forwarded-For", "")
+            if forwarded:
+                return forwarded.split(",")[-1].strip()
+        return request.remote_addr or ""
+
+    def pow_sign(nonce: str, issued: str) -> str:
+        return hmac.new(app.secret_key.encode(), f"pow|{nonce}|{issued}".encode(), hashlib.sha256).hexdigest()
+
+    def verify_limited(ip: str) -> bool:
+        now = time.time()
+        hits = [t for t in verify_hits.get(ip, []) if now - t < 60]
+        hits.append(now)
+        verify_hits[ip] = hits
+        if len(verify_hits) > 5000:
+            for key in [k for k, v in verify_hits.items() if not v or now - v[-1] > 60]:
+                verify_hits.pop(key, None)
+        return len(hits) > 10
+
+    @app.route("/verify/<token>")
+    def verify_page(token: str):
+        try:
+            info = ipc.get(f"/public/verify/{token}")
+        except BotUnavailable:
+            return render_error(503, "Bot is offline", "Verification is unavailable for a moment. Try again shortly.")
+        except BotError:
+            return render_error(400, "Link not valid", "This link is invalid, expired or already used. Press Verify in the server to get a new one.")
+        nonce = secrets.token_hex(12)
+        issued = str(int(time.time()))
+        return render_template(
+            "verify.html", token=token, guild_name=info.get("guild", "the server"),
+            pow_nonce=nonce, pow_issued=issued, pow_sig=pow_sign(nonce, issued), pow_prefix=POW_PREFIX,
+            turnstile_site=config.WEB_VERIFY_TURNSTILE_SITE,
+        )
+
+    @app.route("/verify/<token>", methods=["POST"])
+    def verify_submit(token: str):
+        ip = client_ip()
+        if not ip or verify_limited(ip):
+            return jsonify(ok=False, message="Too many attempts. Wait a minute and try again."), 429
+        data = request.get_json(silent=True) or {}
+        if data.get("website"):
+            return jsonify(ok=False, message="Check failed."), 400
+        nonce, issued, sig = str(data.get("nonce", "")), str(data.get("issued", "")), str(data.get("sig", ""))
+        counter = str(data.get("counter", ""))
+        if not (nonce and issued.isdigit() and hmac.compare_digest(sig, pow_sign(nonce, issued))):
+            return jsonify(ok=False, message="Check failed. Reload the page."), 400
+        age = time.time() - int(issued)
+        if age < 2 or age > 900 or nonce in pow_seen:
+            return jsonify(ok=False, message="Check failed. Reload the page."), 400
+        if not hashlib.sha256(f"{nonce}{counter}".encode()).hexdigest().startswith(POW_PREFIX):
+            return jsonify(ok=False, message="Check failed. Reload the page."), 400
+        pow_seen[nonce] = time.time()
+        for stale in [k for k, v in pow_seen.items() if time.time() - v > 900]:
+            pow_seen.pop(stale, None)
+        if config.WEB_VERIFY_TURNSTILE_SECRET:
+            try:
+                reply = requests.post(
+                    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                    data={"secret": config.WEB_VERIFY_TURNSTILE_SECRET, "response": str(data.get("turnstile", "")), "remoteip": ip},
+                    timeout=6,
+                ).json()
+            except (requests.RequestException, ValueError):
+                return jsonify(ok=False, message="The captcha service did not answer. Try again."), 502
+            if not reply.get("success"):
+                return jsonify(ok=False, message="The captcha was not accepted. Try again."), 400
+        fingerprint = str(data.get("fingerprint", ""))[:128]
+        try:
+            result = ipc.post(f"/public/verify/{token}", {"ip": ip, "fingerprint": fingerprint})
+        except BotUnavailable:
+            return jsonify(ok=False, message="The bot is offline. Try again shortly."), 503
+        except BotError as exc:
+            return jsonify(ok=False, message=exc.message), exc.status
+        return jsonify(ok=bool(result.get("ok")), message=result.get("message", ""))
 
     @app.route("/health")
     def health():

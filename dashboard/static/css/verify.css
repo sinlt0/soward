@@ -1,0 +1,11 @@
+.verify { display: flex; justify-content: center; padding-top: 72px; padding-bottom: 96px; }
+.verify__card { width: 100%; max-width: 460px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 32px; }
+.verify__card h1 { font: 700 26px/1.2 var(--font-display); margin: 0 0 8px; }
+.verify__lead { color: var(--dim); margin: 0 0 20px; }
+.verify__status { background: var(--ink-2); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 16px; color: var(--dim); }
+.verify__status[data-state="ok"] { border-color: var(--ok); color: var(--ok); }
+.verify__status[data-state="bad"] { border-color: var(--bad); color: #ff8a9b; }
+.verify__status[data-state="work"] { color: var(--text); }
+.verify__go { width: 100%; justify-content: center; margin-top: 12px; }
+.verify__note { color: var(--faint); font-size: 13px; line-height: 1.5; margin: 18px 0 0; }
+.verify__trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }

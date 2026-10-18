@@ -1,6 +1,6 @@
 ---
 title: Moderation
-description: Bans, kicks, timeouts, warnings, notes, channel locks and case history.
+description: Bans, kicks, timeouts, warnings and the warning ladder, notes, channel locks, roles, fake permissions and case history.
 order: 10
 group: Moderation
 ---
@@ -14,8 +14,10 @@ There is nothing to switch on. The commands work as soon as the bot is in your s
 ## Rules that apply to every action
 
 - You need the Discord permission listed for the command, or a fake permission granted with `!fakeperm` (see below). Administrators and the bot's owners are always allowed.
-- Members can only be moderated by someone whose top role is **higher** than theirs.
-- The bot also needs the matching permission, and its top role must be above the target's top role.
+- Members can only be moderated by someone whose top role is **higher** than theirs. The server owner and the bot's owners are exempt from this rule.
+- Nobody can moderate themselves, the bot or the server owner. **Extra Owners and the bot's owners are protected** from anyone below the Extra Owner tier, even if that person has a higher role. See [Security Center](/docs/security-center).
+- The bot also needs the matching permission, and its top role must be above the target's top role. When Discord refuses an action, the bot says so instead of failing silently.
+- **Quarantined moderators** cannot use moderation commands until the server owner or an Extra Owner releases them.
 - Reasons are optional. Without one the reason is saved as "No reason provided".
 - Durations combine numbers and units: `s` seconds, `m` minutes, `h` hours, `d` days, `w` weeks. Examples: `30m`, `2h`, `1d12h`.
 
@@ -65,7 +67,7 @@ Discord limits timeouts to 28 days.
 | `!note <member> <text>` | Saves a private moderator note about a member. | Manage Messages |
 | `!notes <member>` | Shows a member's notes, newest first (up to 10). | Manage Messages |
 
-Warnings do not trigger punishments on their own. They are a record for your team.
+You cannot warn yourself, the bot or a protected member. By default warnings are only a record. Turn on the **warning ladder** (`!automod set warn_ladder_enabled on`) and members who collect warnings are timed out, kicked or banned automatically at the counts you choose. Only warnings newer than the warning window (30 days) count, and the bot tells the channel when the ladder acts. `warn_on_punish` makes AutoMod punishments add warnings too. See [AutoMod](/docs/automod#warning-ladder).
 
 ## Case history and stats
 
@@ -80,8 +82,8 @@ Warnings do not trigger punishments on their own. They are a record for your tea
 
 | Command | What it does | Needs |
 | --- | --- | --- |
-| `!purge <amount> [member]` | Deletes up to 1000 recent messages in the current channel, optionally only from one member. Alias: `!clear`. | Manage Messages |
-| `!purgebots [amount]` | Deletes recent messages sent by bots. Default 50, maximum 1000. | Manage Messages |
+| `!purge <amount> [member]` | Deletes up to 1000 recent messages in the current channel, optionally only from one member. Pinned messages are kept. Alias: `!clear`. | Manage Messages |
+| `!purgebots [amount]` | Deletes recent messages sent by bots. Pinned messages are kept. Default 50, maximum 1000. | Manage Messages |
 
 Your command message is deleted and the result message disappears after a few seconds. Discord cannot bulk delete messages older than 14 days.
 
@@ -91,23 +93,25 @@ Your command message is deleted and the result message disappears after a few se
 | --- | --- | --- |
 | `!lockdown [channel] [reason]` | Stops `@everyone` from sending messages in a channel (the current one by default). Alias: `!lock`. | Manage Channels |
 | `!unlock [channel] [reason]` | Restores sending in a channel. | Manage Channels |
-| `!lockdownall [reason]` | Starts a server lockdown after you confirm. The channels' earlier settings are saved. | Administrator |
-| `!unlockall [reason]` | Lifts the lockdown and puts every channel back as it was. | Administrator |
+| `!lockdownall [reason]` | Starts a [server lockdown](/docs/security-center#server-lockdown) after you confirm. Every channel's earlier settings are saved. Same as `!serverlock on`. | Administrator |
+| `!unlockall [reason]` | Lifts the lockdown and puts every channel back as it was. If no lockdown is active it just unlocks channels that deny sending to everyone. | Administrator |
 | `!slowmode <seconds> [channel]` | Sets slowmode from 0 (off) to 21600 seconds. | Manage Channels |
 
 ## Nicknames and roles
 
 | Command | What it does | Needs |
 | --- | --- | --- |
-| `!nickname <member> [new nickname]` | Changes a nickname. Leave the name out to reset it. Alias: `!nick`. | Manage Nicknames |
+| `!nickname <member> [new nickname]` | Changes a nickname (up to 32 characters). Leave the name out to reset it. You can always change your own. Alias: `!nick`. | Manage Nicknames |
 | `!role add <member> <role>` | Gives a role. The role must be below both your top role and the bot's. Roles with dangerous permissions can only be given by the server owner or an Extra Owner. | Manage Roles |
-| `!role remove <member> <role>` | Takes a role away. | Manage Roles |
+| `!role remove <member> <role>` | Takes a role away. The same hierarchy rules apply, and the server owner's roles cannot be changed this way. | Manage Roles |
+
+Role commands refuse @everyone, roles managed by an integration and members who are quarantined (release them first). Every role change is logged.
 
 Running `!role` on its own shows a short usage hint.
 
 ## Fake permissions
 
-Fake permissions let you allow a specific member or role to use a moderation command without giving them the real Discord permission. For example, grant `ban_members` to a trusted role so it can use `!ban`, while the role does not get Ban Members in Discord itself. Granting `administrator` as a node allows every command.
+Fake permissions let you allow a specific member or role to use a moderation command without giving them the real Discord permission. For example, grant `ban_members` to a trusted role so it can use `!ban`, while the role does not get Ban Members in Discord itself. Granting `administrator` as a node allows every command that uses fake permissions, so only the server owner or an Extra Owner can do that.
 
 ```
 !fakeperm grant @Helpers manage_messages
@@ -121,9 +125,11 @@ Fake permissions let you allow a specific member or role to use a moderation com
 | --- | --- | --- |
 | `!fakeperm grant <member or role> <node>` | Grants a permission node. | Administrator |
 | `!fakeperm revoke <member or role> <node>` | Removes a granted node. | Administrator |
-| `!fakeperm list <member or role>` | Lists the nodes a member or role has. Note: you still need to type a node after the target, for example `!fakeperm list @Helpers x`. | Administrator |
+| `!fakeperm list <member or role>` | Lists the nodes a member or role has. | Administrator |
 | `!plist` | Shows every valid node with paging buttons. Full name: `!fakepermplist`. | Administrator |
 | `!fpsetup` | Guided setup with buttons and menus to grant or revoke. Full name: `!fakepermsetup`. | Administrator |
+
+Fake permissions follow these rules: the node must be a real Discord permission name, you need the real Administrator permission (a fake one is not enough), `administrator`, `manage_guild`, `manage_roles`, `manage_channels`, `manage_webhooks` and `mention_everyone` can only be granted by the server owner or an Extra Owner, and they cannot go to @everyone, bots or quarantined members. Grants are removed when the role is deleted or the member leaves, and every grant and revoke is logged.
 
 Nodes are Discord permission names such as `ban_members`, `kick_members`, `moderate_members`, `manage_messages`, `manage_channels`, `manage_roles` and `manage_nicknames`. `!warn` also accepts the node `warn`, so you can let someone warn without giving them Manage Messages.
 
@@ -146,18 +152,14 @@ The Moderation page on the web dashboard lets you:
 - Warn, timeout (up to 28 days), remove a timeout, kick, ban (optionally for a set time) and unban a member. You enter the member's user ID and a reason.
 - Browse recent cases and recent warnings, and delete a warning.
 
-Dashboard actions create the same cases and log entries as the commands and follow the same role rules. Purge, lockdown and slowmode stay as commands because they depend on a channel. Notes, `!masskick`, nicknames, roles and fake permissions are commands only.
-
-## Protection
-
-- The server owner, Owners and Extra Owners cannot be warned, muted, kicked or banned by anyone of a lower tier, and nobody can moderate themselves or the bot.
-- A quarantined member cannot use moderation or security commands until the owner or an Extra Owner releases them.
-- Role changes on a quarantined member are refused until they are released.
-- Warnings feed the optional [warning ladder](/docs/security-center), which can time out, kick or ban at set counts.
+Dashboard actions create the same cases and log entries as the commands and follow the same role and protection rules, including protection for Owners and Extra Owners. Purge, lockdown and slowmode stay as commands because they depend on a channel. Notes, `!masskick`, nicknames, roles and fake permissions are commands only.
 
 ## Troubleshooting
 
 - **"You cannot ... someone with a higher or equal role"**: your top role must be above the target's.
+- **"Owners and Extra Owners are protected"**: only the server owner and Extra Owners can act on them.
+- **"You are quarantined"**: a quarantined member cannot use moderation commands. The server owner or an Extra Owner can run `!release`.
 - **The command fails silently or Discord refuses it**: check that the bot has the permission and that its role sits above the target's role in Server Settings, then Roles.
-- **A member with a fake permission still cannot use a command**: the node must match the command's permission name, for example `ban_members` for `!ban`.
+- **A member with a fake permission still cannot use a command**: the node must match the command's permission name, for example `ban_members` for `!ban`. They also stop working while the member is quarantined.
+- **`!fakeperm grant` says Not Allowed**: you need the real Administrator permission, and `administrator`, `manage_guild`, `manage_roles`, `manage_channels`, `manage_webhooks` and `mention_everyone` can only be granted by the server owner or an Extra Owner.
 - **`!purge` does not delete old messages**: Discord only allows bulk deletion of messages newer than 14 days.

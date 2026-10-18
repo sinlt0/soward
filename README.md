@@ -20,7 +20,7 @@ Built by **Sinlt (辛特)** and the **Soward Team**.
 
 | Area | What you get |
 |---|---|
-| **Security stack** | AntiNuke (per-action thresholds and quarantine), AntiRaid (join-velocity detection, raid mode), heat-based AutoMod, Verification gate (button, captcha, manual) and AutoRole, all coordinated through a shared incident state (normal, elevated, lockdown) |
+| **Security stack** | Security Center (Owner, Extra Owner and Trusted Admin tiers, scoped whitelist, presets, server lockdown, backups and restore, threat score), AntiNuke (per-action limits, restore and quarantine), AntiRaid (join gate, impersonation and ban-evasion checks, invite tracking, raid mode), heat-based AutoMod with a warning ladder and Discord AutoMod sync, Verification (button, captcha, manual and web with VPN and alt detection) and AutoRole, all coordinated through a shared incident state |
 | **Moderation** | ban, kick, mute, warn, purge, tempban, softban, lockdown and slowmode, with a full case history |
 | **Logging** | Moderation, security, member, message and server logs routed to dedicated channels |
 | **Web dashboard** | Python/Flask site with Discord sign-in, a Dyno-style server page (prefix and core settings, searchable module grid with on/off switches, per-module forms, and create/edit/delete tools for panels, embeds, 24/7 lofi, giveaways, reaction roles, custom commands, alerts, rewards and moderation), audit log, categorised command list, docs, changelog, terms and privacy. Talks to the bot over a private Unix socket. Switch it on or off per server with `dashboard on/off` |
@@ -85,6 +85,10 @@ Manage Roles, Manage Channels, Ban/Kick Members and Moderate Members.
 | `SOWARD_CLIENT_ID` / `SOWARD_CLIENT_SECRET` | For dashboard sign-in | Discord OAuth2 credentials |
 | `SOWARD_DASHBOARD_URL` | For dashboard sign-in | Public site URL, no trailing slash |
 | `SOWARD_SESSION_SECRET` | Recommended | Signs dashboard session cookies |
+| `SOWARD_IPINTEL_PROVIDER` / `SOWARD_IPINTEL_KEY` | For VPN detection | `proxycheck` or `ipqs` with that service's API key. Used by the `web` verification type |
+| `SOWARD_IP_SALT` | Recommended with `web` verification | Secret mixed into the stored address hashes |
+| `SOWARD_BEHIND_PROXY` | If hosted behind a proxy | Set to `1` so the real visitor address is read from `X-Forwarded-For` |
+| `SOWARD_TURNSTILE_SITE_KEY` / `SOWARD_TURNSTILE_SECRET` | No | Adds a Cloudflare Turnstile widget to the verification page |
 | `SOWARD_SUPPORT_URL` | No | Support server link shown on the site |
 | `SOWARD_DEV_LOG_*_WEBHOOK`, `SOWARD_DEV_STATS_WEBHOOK` | No | Developer-only logging webhooks |
 

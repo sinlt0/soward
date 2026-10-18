@@ -11,8 +11,8 @@ Soward sorts events into five **categories**. Each category posts to its own cha
 
 | Category | Default channel | What it covers |
 | --- | --- | --- |
-| `mod` | `mod-logs` | Bans, softbans, unbans, kicks, mutes, unmutes, warnings, purges, lockdowns, unlocks, slowmode |
-| `security` | `security-logs` | AutoMod actions, AntiNuke actions and quarantines, AntiRaid actions and raid mode, verification events |
+| `mod` | `mod-logs` | Bans, softbans, unbans, kicks, mutes, unmutes, warnings, warning ladder actions, purges, channel lockdowns and unlocks, slowmode, role additions and removals |
+| `security` | `security-logs` | AutoMod actions, AntiNuke detections, quarantines and releases, AntiRaid actions and raid mode, verification and web verification results, Beast Mode, server lockdowns, backups, whitelist and security setting changes, fake permission grants and support access |
 | `member` | `member-logs` | Members joining and leaving, AutoRole actions |
 | `message` | `message-logs` | Edited, deleted and bulk-deleted messages |
 | `server` | `server-logs` | Channels and roles created or deleted, NSFW events, ticket events |
@@ -56,7 +56,7 @@ Each category contains several events. A category with a channel posts all of it
 !logging toggle message_edit
 ```
 
-Run the command again to enable the event. If you type an unknown name, the bot replies with the list of valid events. Event names include `ban`, `softban`, `unban`, `kick`, `mute`, `unmute`, `warn`, `purge`, `lockdown`, `unlock`, `slowmode`, `message_edit`, `message_delete`, `message_bulk_delete`, `member_join`, `member_leave`, `channel_create`, `channel_delete`, `role_create`, `role_delete`, `automod_action`, `antinuke_action`, `antinuke_quarantine`, `antiraid_action`, `antiraid_raid_mode`, `verification_action`, `autorole_action`, `nsfw_action` and `ticket_action`.
+Run the command again to enable the event. If you type an unknown name, the bot replies with the list of valid events. Event names include `ban`, `softban`, `unban`, `kick`, `mute`, `unmute`, `warn`, `warn_ladder`, `role_add`, `role_remove`, `purge`, `lockdown`, `unlock`, `slowmode`, `message_edit`, `message_delete`, `message_bulk_delete`, `member_join`, `member_leave`, `channel_create`, `channel_delete`, `role_create`, `role_delete`, `automod_action`, `antinuke_action`, `antinuke_triggered`, `antinuke_quarantine`, `antinuke_quarantine_release`, `antiraid_action`, `antiraid_raid_mode`, `verification_action`, `beast_mode`, `server_lockdown`, `security_backup`, `security_whitelist`, `security_change`, `fakeperm_grant`, `fakeperm_revoke`, `support_access_granted`, `support_access_revoked`, `autorole_action`, `nsfw_action` and `ticket_action`. The bot replies with the full list if you type a name it does not know.
 
 ## From the dashboard
 

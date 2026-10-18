@@ -14,6 +14,8 @@ POINTS = {
     "automod_punish": 1.0,
     "raid_join": 0.5,
     "verify_lockout": 1.0,
+    "verify_alt": 1.5,
+    "verify_vpn": 0.5,
     "quarantine_touch": 3.0,
 }
 
