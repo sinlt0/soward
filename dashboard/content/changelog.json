@@ -1,59 +1,354 @@
 [
   {
-    "version": "3.1.0",
+    "version": "3.1",
     "title": "Security Center",
     "date": "2026-10-16",
     "items": [
-      "Added the Security Center: Owner, Extra Owner and Trusted Admin tiers control who can change security settings, with a tier lock that is on by default",
-      "Added a global whitelist for members, roles and channels with per-system scopes",
-      "Added over 220 security settings with set, get, reset, add and remove commands in every security module",
-      "Added relaxed, balanced, strict and paranoid presets, plus settings export and import",
-      "AntiNuke now has short and hourly limits per action, restores deleted channels and roles, reverts permission escalation, and watches webhooks, vanity URL changes and bot additions",
-      "AntiRaid join gate filters each have their own action, with account-age cluster detection and a sweep of recent joins",
-      "AutoMod gained scam and IP logger link detection, caps, zalgo, emoji, duplicate and wall-of-text filters with adjustable weights",
-      "Verification has attempt limits, lockouts, cooldowns, secure captchas and a fail action",
-      "Added server lockdown, backups with restore, a threat score with Beast Mode and the securitycheck command",
-      "Fixed quarantine failing the second time a member was quarantined",
-      "Fixed reaction roles: unique and add_only modes now work, rr gate accepts off, rr create select works, posted panels update their reactions and menus, select panels can be attached, and rr post replaces the old message",
-      "Fixed custom commands: member text can no longer inject action tags, regex and case-sensitive triggers keep their case, message_edit triggers fire, tags work without a colon, and {if hasrole} works",
-      "Custom command role and moderation tags now refuse dangerous roles and protected members",
-      "Polls can close automatically with --duration or with pollend, and long options are counted correctly",
-      "Fixed alert announcements failing when a ping role was set, the ticket log error, leveling multiplier parsing, nbot errors and image checks, greeting DM fallback, AFK clearing on direct messages and the support access role check",
-      "Extra Owners can now release quarantined members, from the release command and the dashboard. Trusted Admins still cannot",
-      "AntiRaid can flag joins whose name nearly matches a staff member or a banned user, and can track invites and delete one that brought in several flagged joins",
-      "AutoMod can mirror banned words, mention limit and spam into Discord's built-in AutoMod with automod native sync",
-      "Added a warning ladder that times out, kicks or bans members who collect warnings, plus webhook message protection and a lockdown for mass-mention bursts",
-      "Backups now include bans and server settings, and can be restored automatically after an AntiNuke incident",
-      "Moderation commands now protect the owner, Extra Owners and the bot, explain when Discord refuses an action, and skip pinned messages when purging",
-      "Added massban, and role add and remove now refuse roles above you, dangerous roles (owner tier only) and quarantined members",
-      "lockdownall and unlockall now use the server lockdown, so channels are restored exactly as they were",
-      "Quarantined members lose access to moderation and security commands, and the quarantine command can no longer target members at or above your tier",
-      "Added the web verification type: members pass a check on a web page, and the bot can refuse or flag VPNs and proxies and find likely alt accounts. Only hashes of addresses are kept",
-      "Added verification webinfo to review a member's web check",
-      "fakeperm now rejects unknown nodes, @everyone, bots and quarantined members, only lets the owner tier grant administrator and management nodes, logs every grant and clears grants when a role or member is removed",
-      "Rewrote the AntiNuke, AntiRaid, AutoMod, Verification, Security and Moderation guides to match the current commands, settings and defaults",
-      "Warning ladder, role changes, fake permission grants and support access now appear in your log channels"
+      "Added the Security Center with Owner, Extra Owner and Trusted Admin tiers, a tier lock that is on by default, and a global whitelist with a scope for each system",
+      "Added security setup, one command that scans your server and configures protection, plus more than 220 security settings, four presets, and settings export and import",
+      "Added web verification with a link-based captcha and optional VPN and alt account detection, plus join checks for impersonators and returning banned members",
+      "Added AutoMod warning ladders, Discord's native AutoMod rules and webhook protection",
+      "Added Booster Perks: tier roles by boosts, and custom booster roles with settings for name, colour, icon, permissions and position",
+      "AntiNuke can now restore a server from its latest backup after an attack, and backups include bans and server settings",
+      "YouTube alerts now arrive within seconds of a new upload",
+      "Added server templates: build a full server from seven ready-made presets, including a Premium dating and social server with verified roles and ticket panels, or save your own server and share it with a code",
+      "Added Join to Create voice channels with owner controls, and reaction role panels can now use buttons"
     ]
   },
   {
-    "version": "3.0.0",
-    "title": "Web dashboard, new site and tickets overhaul",
+    "version": "3.0",
+    "title": "Web dashboard",
     "date": "2026-10-10",
     "items": [
-      "Added a web dashboard with Discord sign-in, per-server settings, module search and on/off switches",
-      "Dashboard can be switched on or off per server with the dashboard command, and globally by owners",
+      "Added a web dashboard with Discord sign-in and per-server settings",
+      "Added search and on or off switches for every module",
+      "The dashboard can create and edit ticket panels, giveaways, reaction roles, custom commands and alerts",
+      "The dashboard can manage embeds, greetings, leveling rewards and moderation actions",
       "Added an audit log of every change made from the dashboard",
-      "Dashboard can now create, edit, post and delete things, not just change settings: ticket panels, giveaways, reaction roles, custom commands, alerts, leveling rewards and multipliers, and moderation actions (warn, mute, kick, ban, unban)",
-      "Dashboard can manage embeds (create, edit, copy, rename, send, delete), pick an embed for each greeting, and run 24/7 lofi radio, 24/7 voice mode and custom stations",
-      "Commands page shows one category at a time with an All tab, live search, copy buttons and expand or collapse all",
-      "Documentation now covers every system, grouped by area, with search, an on-page contents list and copy buttons on commands",
-      "Dashboard redesign with a module sidebar, overview stats, on/off/pinned filters, tabbed module pages, sortable lists and better phone layouts",
-      "Rebuilt the website with a categorised command list, docs, changelog, team, terms and privacy pages",
-      "Tickets now support multiple panels (3 free, 10 premium) and multiple staff roles (10 free, 20 premium)",
-      "Added ticket forms, priorities, claiming, subjects, per-panel transcripts, auto-close and statistics",
-      "Added NSFW role-gated channels",
-      "Ticket welcome messages now ping the opener and staff roles",
-      "Fixed a database default that failed on older SQLite versions"
+      "Rebuilt the website with a categorized command list, documentation, changelog and legal pages",
+      "Tickets now support multiple panels and several staff roles per panel",
+      "Added YouTube and Twitch alerts for uploads and streams",
+      "Added a dashboard redesign with a sidebar, overview stats and a better phone layout"
+    ]
+  },
+  {
+    "version": "2.9",
+    "title": "Help and server tools",
+    "date": "2026-09-09",
+    "items": [
+      "The help menu now hides developer-only categories from regular members",
+      "Added command details with usage, aliases and permissions",
+      "Added the dashboard command to turn the web dashboard on or off for a server",
+      "Added NSFW channels that are limited to a role",
+      "Added the supportaccess command to give the Soward team temporary help, which you can end at any time with revokesupport",
+      "Added supportstatus to see whether support access is on",
+      "Added help lookup by command name, for example help ban",
+      "Added a variables list for every message template",
+      "Improved error messages across commands"
+    ]
+  },
+  {
+    "version": "2.8",
+    "title": "Music upgrades",
+    "date": "2026-08-10",
+    "items": [
+      "Added the lofi command for a constant radio stream",
+      "Added custom 24/7 lofi stations you can add for your server",
+      "Added move and remove commands for queue items",
+      "Added playnext to put a song at the front of the queue",
+      "Added a clearfilter command to remove every audio filter",
+      "Added Prev, Next, Shuffle and Clear buttons on the queue panel",
+      "Added the disconnect command, which also turns off 24/7 and lofi",
+      "The Now Playing card refreshes while a song plays",
+      "The music source can be set for the whole server"
+    ]
+  },
+  {
+    "version": "2.7",
+    "title": "Ticket upgrades",
+    "date": "2026-07-10",
+    "items": [
+      "Added multi-page ticket forms with up to five questions per page",
+      "Added ticket forms that ask the opener questions",
+      "Added priorities so urgent tickets stand out",
+      "Added automatic closing of inactive tickets",
+      "Added ticket statistics for staff",
+      "Added a transcript channel and transcripts sent to the person who opened the ticket",
+      "Added tickets named with a running number, such as ticket-0001",
+      "Added unclaim for tickets that need a different staff member",
+      "Ticket welcome messages now mention the opener and the staff roles"
+    ]
+  },
+  {
+    "version": "2.6",
+    "title": "Safer logging",
+    "date": "2026-06-10",
+    "items": [
+      "Added logs for AntiNuke actions, quarantine and quarantine release",
+      "Added logs for AutoMod actions",
+      "Added logs for support access being granted or revoked",
+      "Added logs for role add and remove commands",
+      "Added logs for fake permission changes",
+      "Added a separate Security log channel for sensitive events",
+      "Log messages now include who did what and when",
+      "Event names in logs are easier to read",
+      "Added logs for AntiNuke triggers, shown separately from the actions taken"
+    ]
+  },
+  {
+    "version": "2.5",
+    "title": "Permissions and roles",
+    "date": "2026-05-10",
+    "items": [
+      "Added fake permissions, a way to let members use commands without giving them Discord permissions",
+      "Added fakeperm setup commands and a list of what each member can use",
+      "Added automatic cleanup of fake permissions when a role or member is removed",
+      "Added role hierarchy checks to every moderation command",
+      "Added protection so moderators cannot act on the server owner or on staff above them",
+      "Added clearer messages that explain why an action was blocked",
+      "Added lockdownall and unlockall for every channel in the server",
+      "Added a protected set of sensitive permissions that only the server owner can grant through fake permissions",
+      "Added the fakeperm command to check or change a single permission node"
+    ]
+  },
+  {
+    "version": "2.4",
+    "title": "New message design and lockdown",
+    "date": "2026-04-14",
+    "items": [
+      "Soward now uses Discord's Components V2 for most messages instead of embeds, giving cleaner cards that read better on phones",
+      "Help, info, success and error replies now share one consistent look",
+      "Confirmation prompts now use buttons in the same card layout",
+      "Added server lockdown to lock every channel at once during an emergency, with channels you can skip and an automatic unlock time",
+      "Added automatic lockdown when AntiNuke or AntiRaid detects an attack",
+      "Added server backups of roles and channels",
+      "Added automatic backups on a schedule",
+      "Added backup restore for roles and channels",
+      "Added the securitycheck command, a score and a list of problems found in your setup"
+    ]
+  },
+  {
+    "version": "2.3",
+    "title": "Verification",
+    "date": "2026-03-10",
+    "items": [
+      "Added member verification with reaction, button, captcha and manual review modes",
+      "Added a gate role that is removed once a member verifies",
+      "Added a minimum account age before a member can verify",
+      "Added a limit on verification attempts",
+      "Added a pending timeout for members who never verify",
+      "Added staff approve and deny commands for manual review",
+      "Added a customizable verification message",
+      "Added a verification setup command that posts the panel for you",
+      "Added a verification settings view that shows the whole setup"
+    ]
+  },
+  {
+    "version": "2.2",
+    "title": "AntiRaid",
+    "date": "2026-02-08",
+    "items": [
+      "Added AntiRaid to detect and stop sudden floods of new members",
+      "Added join velocity detection that triggers when too many members join too fast",
+      "Added a minimum account age requirement for new members",
+      "Added name filters for joining accounts",
+      "Added a no-avatar filter",
+      "Added raid mode, which you can turn on by hand at any time",
+      "Added the option to raise Discord's verification level while raid mode is on",
+      "Added a sweep command that finds recent suspicious joins",
+      "Added an AntiRaid alert channel and log"
+    ]
+  },
+  {
+    "version": "2.1",
+    "title": "AntiNuke",
+    "date": "2026-01-08",
+    "items": [
+      "Added AntiNuke to protect a server from mass deletions and sudden permission changes",
+      "Added limits for channel, role, ban, kick and webhook actions, with a short and an hourly window",
+      "Added punishments that remove permissions, kick or ban whoever crosses a limit",
+      "Added trusted users who are allowed to exceed the limits",
+      "Added extra owners who can manage security with the server owner",
+      "Added bot blocking so unapproved bots cannot be added",
+      "Added quarantine, which removes access from a member until staff release them",
+      "Added an incident log that records what happened and what was done",
+      "Added an alert channel and owner alerts for security events"
+    ]
+  },
+  {
+    "version": "2.0",
+    "title": "AutoMod",
+    "date": "2025-12-09",
+    "items": [
+      "Added AutoMod to remove rule-breaking messages automatically",
+      "Added a banned words list with commands to add and remove words",
+      "Added invite link blocking with an allowed list",
+      "Added domain blocking and an allowed domain list",
+      "Added mention spam limits",
+      "Added a heat system that tracks repeat offenders and escalates the response",
+      "Added exemptions for roles, members and channels",
+      "Added a status command that shows every AutoMod setting at a glance",
+      "Added content filters for scam links, excessive caps, zalgo text, duplicate messages, emoji spam and attachments"
+    ]
+  },
+  {
+    "version": "1.9",
+    "title": "Custom commands and premium",
+    "date": "2025-11-09",
+    "items": [
+      "Added custom commands with text, embed or reaction responses",
+      "Added several responses per command and several trigger types",
+      "Added custom command cooldowns, restrictions and automatic message deletion",
+      "Added custom command groups to keep large collections organized",
+      "Added import and export of custom commands between servers",
+      "Added Soward Premium with redeemable keys and the claim command",
+      "Added higher ticket and embed limits for Premium servers",
+      "Added no-prefix mode for Premium users",
+      "Added Bot identity so Premium servers can give Soward its own name, avatar, banner and bio"
+    ]
+  },
+  {
+    "version": "1.8",
+    "title": "Community tools",
+    "date": "2025-10-09",
+    "items": [
+      "Added giveaways with start, end, cancel and reroll commands",
+      "Added giveaway requirements such as required roles and minimum account age",
+      "Added bonus entries for chosen roles",
+      "Added giveaway entry lists and detailed info for each giveaway",
+      "Added polls that members vote on with results shown when the poll ends",
+      "Added reaction roles with groups, role limits and several modes",
+      "Added locked and gated reaction roles that require another role first",
+      "Added an embed builder to create, preview, edit, duplicate and send embeds",
+      "Added saved embed templates you can reuse and rename"
+    ]
+  },
+  {
+    "version": "1.7",
+    "title": "Fun and social",
+    "date": "2025-09-09",
+    "items": [
+      "Added more than 40 social action commands such as hug, pat, wave and highfive",
+      "Added the ship command for a compatibility score between two people",
+      "Added truth or dare with separate truth and dare commands",
+      "Added the quote maker that turns a message into a styled image",
+      "Added quote styles, fonts and colors",
+      "Added anime and manga search with trending and random picks",
+      "Added anime recommendations by genre and a daily anime pick",
+      "Added the AFK command that tells people when you are away",
+      "Added afkcheck to see whether a member is AFK and how long they have been away"
+    ]
+  },
+  {
+    "version": "1.6",
+    "title": "Music",
+    "date": "2025-08-09",
+    "items": [
+      "Added music playback with play, pause, resume, skip, stop and a live queue",
+      "Added loop, shuffle, seek and volume controls",
+      "Added a now playing message with controls you can click",
+      "Added audio filters including bassboost and nightcore",
+      "Added saved playlists that follow you to any server",
+      "Added autoplay to keep music going when the queue ends",
+      "Added a choice of search source: YouTube, SoundCloud or Spotify",
+      "Added a search command that lets you choose from a list of results",
+      "Added 24/7 voice mode so the bot can stay in a voice channel"
+    ]
+  },
+  {
+    "version": "1.5",
+    "title": "Tickets",
+    "date": "2025-07-10",
+    "items": [
+      "Added support tickets opened from a button on a panel you post",
+      "Added ticket claiming so staff can show who is handling a ticket",
+      "Added staff roles that can see and manage tickets",
+      "Added ticket categories to keep open tickets organized",
+      "Added a one-ticket-per-member option and a limit on open tickets",
+      "Added ticket transcripts saved when a ticket closes",
+      "Added add and remove commands to bring people in or out of a ticket",
+      "Added ticket renaming and a subject field",
+      "Added a Close button that asks for an optional reason"
+    ]
+  },
+  {
+    "version": "1.4",
+    "title": "Logging",
+    "date": "2025-06-09",
+    "items": [
+      "Added server logs split into Moderation, Security, Member Activity, Messages and Server Changes",
+      "Added a logging setup command that creates the log channels for you",
+      "Added a different log channel for each category",
+      "Added per-event switches so a server logs only what it wants",
+      "Added message edit and delete logs",
+      "Added member join and leave logs",
+      "Added server logs for channels and roles that are created or deleted",
+      "Added moderation logs that show the moderator, reason and case number",
+      "Log entries now use a consistent layout that is easy to scan"
+    ]
+  },
+  {
+    "version": "1.3",
+    "title": "Leveling",
+    "date": "2025-05-10",
+    "items": [
+      "Added a leveling system with XP for chatting and time in voice channels, switched on per server",
+      "Added rank cards and a server leaderboard",
+      "Added level roles that are given automatically when a member reaches a level",
+      "Added role stacking so a server can choose between keeping all level roles or only the highest",
+      "Added XP multipliers for roles and channels",
+      "Added no-XP channels and roles for places where chatting should not count",
+      "Added customizable level-up announcements with variables",
+      "Added weekly and monthly leaderboard resets",
+      "Added setxp and resetxp for staff to correct a member's progress"
+    ]
+  },
+  {
+    "version": "1.2",
+    "title": "Greetings and autoroles",
+    "date": "2025-04-09",
+    "items": [
+      "Added welcome and leave messages with a channel, message text and variables for names and counts",
+      "Added embed greetings so welcome messages can use your own embed designs",
+      "Added a greetings test command to preview a message before members see it",
+      "Added the option to send the welcome message by direct message",
+      "Added automatic deletion of greeting messages after a set time",
+      "Added autoroles that are given to every new member",
+      "Added a join role delay so roles can be given a short time after someone joins",
+      "Added autorole sync to apply roles to members who joined earlier",
+      "Added a separate verify role that is given after a member passes verification"
+    ]
+  },
+  {
+    "version": "1.1",
+    "title": "Moderation toolkit",
+    "date": "2025-03-10",
+    "items": [
+      "Added tempban to ban a member for a set time and unban them automatically",
+      "Added softban to remove a member's recent messages without a lasting ban",
+      "Added purge with filters and purgebots to clear bot messages in one step",
+      "Added slowmode, plus lock and unlock for a single channel",
+      "Added nickname and role add or remove commands with role hierarchy checks",
+      "Added private moderator notes you can view with the notes command",
+      "Added case history so every action can be looked up with the cases command",
+      "Added modstats to see how active each moderator has been",
+      "Added masskick and massban for cleaning up after a problem, with a confirmation step"
+    ]
+  },
+  {
+    "version": "1.0",
+    "title": "Launch",
+    "date": "2025-02-08",
+    "items": [
+      "Soward launches with a customizable prefix for every server, set with the prefix command",
+      "Added a help menu that groups every command by category and shows details for each one",
+      "Added ping, uptime and about commands to check that the bot is healthy",
+      "Added userinfo and serverinfo for quick details about members and servers",
+      "Added avatar and servericon commands that show images at full size",
+      "Added roleinfo and channelinfo for permissions, creation dates and settings",
+      "Added ban, unban and kick with a reason recorded for every action",
+      "Added mute and unmute using Discord timeouts",
+      "Added warn, warnings, delwarn and warnclear to track warnings per member"
     ]
   }
 ]

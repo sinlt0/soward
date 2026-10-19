@@ -7,7 +7,7 @@ import aiohttp
 import discord
 from discord.ext import commands, tasks
 
-from utils import anilist_client, db, emoji_manager
+from utils import anilist_client, db, emoji_manager, nsfw
 from utils.checks import has_guild_permission
 from utils.components import error_layout, footer_block, info_layout, success_layout
 
@@ -81,12 +81,11 @@ def _strip_nsfw_flag(text: str) -> tuple[str, bool]:
     return stripped, False
 
 
-def _resolve_nsfw(requested: bool, channel: discord.abc.GuildChannel) -> tuple[bool, Optional[str]]:
+async def _resolve_nsfw(requested: bool, channel: discord.abc.GuildChannel) -> tuple[bool, Optional[str]]:
     if not requested:
         return False, None
-    is_nsfw = getattr(channel, "is_nsfw", lambda: False)()
-    if not is_nsfw:
-        return False, "NSFW results are only available in channels marked as NSFW in Discord's own channel settings."
+    if not await nsfw.is_nsfw_channel(channel):
+        return False, "NSFW results are only available in NSFW channels set up with `nsfw addchannel`, and the NSFW role must be set."
     return True, None
 
 
@@ -111,7 +110,7 @@ class Anime(commands.Cog):
     async def animesearch(self, ctx: commands.Context, *, title: str):
         e = emoji_manager.get
         title, nsfw_requested = _strip_nsfw_flag(title)
-        allow_adult, error = _resolve_nsfw(nsfw_requested, ctx.channel)
+        allow_adult, error = await _resolve_nsfw(nsfw_requested, ctx.channel)
         if error:
             return await ctx.send(view=error_layout("Can't Do That", error))
 
@@ -125,7 +124,7 @@ class Anime(commands.Cog):
     async def mangasearch(self, ctx: commands.Context, *, title: str):
         e = emoji_manager.get
         title, nsfw_requested = _strip_nsfw_flag(title)
-        allow_adult, error = _resolve_nsfw(nsfw_requested, ctx.channel)
+        allow_adult, error = await _resolve_nsfw(nsfw_requested, ctx.channel)
         if error:
             return await ctx.send(view=error_layout("Can't Do That", error))
 
@@ -139,7 +138,7 @@ class Anime(commands.Cog):
     async def animerecommend(self, ctx: commands.Context, *, title: str):
         e = emoji_manager.get
         title, nsfw_requested = _strip_nsfw_flag(title)
-        allow_adult, error = _resolve_nsfw(nsfw_requested, ctx.channel)
+        allow_adult, error = await _resolve_nsfw(nsfw_requested, ctx.channel)
         if error:
             return await ctx.send(view=error_layout("Can't Do That", error))
 
@@ -165,7 +164,7 @@ class Anime(commands.Cog):
         nsfw_requested = False
         if genre:
             genre, nsfw_requested = _strip_nsfw_flag(genre)
-        allow_adult, error = _resolve_nsfw(nsfw_requested, ctx.channel)
+        allow_adult, error = await _resolve_nsfw(nsfw_requested, ctx.channel)
         if error:
             return await ctx.send(view=error_layout("Can't Do That", error))
 
@@ -185,7 +184,7 @@ class Anime(commands.Cog):
         nsfw_requested = False
         if genre:
             genre, nsfw_requested = _strip_nsfw_flag(genre)
-        allow_adult, error = _resolve_nsfw(nsfw_requested, ctx.channel)
+        allow_adult, error = await _resolve_nsfw(nsfw_requested, ctx.channel)
         if error:
             return await ctx.send(view=error_layout("Can't Do That", error))
 
@@ -351,7 +350,7 @@ class Anime(commands.Cog):
         else:
             await ctx.send(view=success_layout(f"{e('check')} Ping Role Cleared", "Daily recommendations will no longer ping a role."))
 
-    @animedaily_group.command(name="nsfw", help="Toggle whether daily recommendations can include adult (18+) content. Requires the configured channel to be marked NSFW.")
+    @animedaily_group.command(name="nsfw", help="Toggle whether daily recommendations can include adult (18+) content. Requires the configured channel to be an NSFW channel set up with the nsfw commands.")
     @has_guild_permission("manage_guild")
     async def animedaily_nsfw(self, ctx: commands.Context):
         e = emoji_manager.get
@@ -363,10 +362,10 @@ class Anime(commands.Cog):
         new_value = not row["nsfw"]
 
         if new_value:
-            if not channel or not channel.is_nsfw():
+            if not channel or not await nsfw.is_nsfw_channel(channel):
                 return await ctx.send(view=error_layout(
                     "Channel Not NSFW",
-                    f"{channel.mention if channel else 'The configured channel'} must be marked as NSFW in Discord's channel settings before daily recommendations can include adult content.",
+                    f"{channel.mention if channel else 'The configured channel'} must be registered as an NSFW channel (`nsfw addchannel`) and locked to the NSFW role before daily recommendations can include adult content.",
                 ))
 
         await db.raw_execute(
@@ -405,7 +404,7 @@ class Anime(commands.Cog):
             if not channel:
                 continue
 
-            allow_adult = bool(config_row["nsfw"]) and channel.is_nsfw()
+            allow_adult = bool(config_row["nsfw"]) and await nsfw.is_nsfw_channel(channel)
 
             media = await anilist_client.discover_random(
                 self.session, config_row["media_type"], config_row["genre_filter"],

@@ -73,6 +73,7 @@ Plain Administrators can only view while the tier lock is on.
 | `!whitelist list`, `scopes` (alias `!wl`) | View the whitelist | Trusted Admin |
 | `!serverlock`, `!backup`, `!securitycheck` | Lockdown, backups, scan | Trusted Admin |
 | `!security lock <on/off>` | The tier lock | Extra Owner |
+| `!security setup [preview\|preset]` | Scan the server and set up protection automatically | Extra Owner |
 | `!security preset <name>`, `export`, `import`, `reset` | Presets, export, import, reset | Extra Owner |
 | `!whitelist add / remove / clear` | Edit the whitelist | Extra Owner |
 | `!backup restore <id>` | Restore a backup | Extra Owner |
@@ -113,6 +114,34 @@ An hourly limit of `0` turns the hourly check off.
 ### Join gate
 
 AntiRaid filters (account age, no avatar, advertising names, blocked name patterns, suspicious score) each have their own on/off switch and their own action: `timeout`, `kick`, `ban` or `quarantine`. Use `default` to follow the general join action. See `!antiraid settings`.
+
+## Automatic setup
+
+`!security setup` looks at your server and configures protection for you. It is the fastest way to get a sensible setup, and you can change anything afterwards.
+
+```
+!security setup preview
+!security setup
+!security setup strict
+```
+
+**What it looks at:** member count, how many people joined this week, your busiest hour of joins, how many of this week's joiners have accounts under 7 days old, how many accounts and bots hold Administrator, whether the server is a public community, how many moderation cases you had in the last 30 days, and weekly activity when leveling is on. Join statistics come from the members Soward can see, so a very large server may show approximate numbers.
+
+**What it does:**
+
+1. Scores your risk from those signals and picks a preset: `relaxed` for small, low-risk servers, `balanced` for most, `strict` for busy or public ones, `paranoid` for high-risk ones. Name a preset yourself to override the choice.
+2. Tunes a few values to your server. A busy server gets a higher raid trigger so normal join waves do not count as a raid, and backup frequency follows your size.
+3. Creates the log channels and points the security log and alerts at them, unless you already have them.
+4. Creates a **Quarantined** role that cannot see any channel and makes it Soward's quarantine role, unless you already have one.
+5. Takes a first backup of roles, channels, bans and settings if you have none.
+
+Soward shows the plan with **Confirm** and **Cancel** buttons and changes nothing until you confirm. `preview` shows the plan only.
+
+**What it leaves alone:** verification. Switching verification on changes how every new member joins, so setup only recommends a type and tells you the command. It also reports things it cannot fix, such as Administrator bots, Discord's 2FA requirement for moderators, and Soward's role being too low.
+
+When it finishes, Soward sends your settings from before the run as a JSON file. `!security import` with that file attached restores the custom values you had. Run `!securitycheck` afterwards to see your score.
+
+Setup needs the server owner, an Extra Owner, and the Manage Roles, Manage Channels and Manage Webhooks permissions for the bot. Steps that need a missing permission are skipped and listed.
 
 ## Presets
 

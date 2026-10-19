@@ -55,7 +55,7 @@ Ratings:
 | --- | --- |
 | `pg` | Mild |
 | `pg13` | Default when you give no rating |
-| `r` | Adult. Only works in channels marked as NSFW in Discord's channel settings |
+| `r` | Adult. Only works in registered [NSFW channels](/docs/nsfw) |
 
 Under each question there is an **Another one** button that replaces it with a new one of the same kind and rating. Anyone who can see the message can press it, and the "Requested by" line then shows who pressed it. The button stops working after about 2 minutes, and you can run the command again for a new one.
 

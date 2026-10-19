@@ -146,7 +146,6 @@ async def lock_channel(channel, role: discord.Role, snapshots: dict, reason: str
     created = entry is None
     if created:
         entry = {
-            "nsfw": channel.nsfw,
             "everyone": _view(channel, guild.default_role),
             "role_id": role.id,
             "role": _view(channel, role),
@@ -166,8 +165,6 @@ async def lock_channel(channel, role: discord.Role, snapshots: dict, reason: str
             await _set_view(channel, me, True, reason)
         await _set_view(channel, role, True, reason)
         await _set_view(channel, guild.default_role, False, reason)
-        if not channel.nsfw:
-            await channel.edit(nsfw=True, reason=reason)
     except Exception:
         if created:
             try:

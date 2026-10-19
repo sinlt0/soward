@@ -7,7 +7,7 @@ group: Community
 
 ## How alerts work
 
-An alert is a **subscription**: one YouTube channel or one Twitch streamer, tied to the channel where the bot posts. The bot checks every subscription every 2 minutes.
+An alert is a **subscription**: one YouTube channel or one Twitch streamer, tied to the channel where the bot posts. YouTube channels are announced within seconds of a new upload when instant notifications are active, and every subscription also has a polling fallback. Twitch streamers are checked every 2 minutes.
 
 | Platform | The bot posts when |
 | --- | --- |
@@ -18,11 +18,25 @@ Notes:
 
 - When you subscribe to a YouTube channel, its current newest video is remembered and does not trigger an alert. Only videos posted after that do.
 - When you subscribe to a Twitch streamer who is already live, the bot announces the stream at its next check.
-- Each check looks at the newest YouTube video only. If a channel posts two videos within the same 2 minutes, only the newest one is announced.
+- With instant notifications every new upload is announced on its own. In polling mode a check looks at the newest YouTube video only, so two videos posted between checks announce only the newest.
+- Scheduled livestreams and premieres are announced when they actually go live, not when they are scheduled.
+- Videos that were published more than 12 hours before the notification arrived (for example an old video whose title was edited) are not announced.
 - The same video or stream is never announced twice for one subscription.
 - Alerts need API keys that the bot's host sets up. If they are missing, adding a subscription shows "The bot owner has not set up a YouTube API key" or "...Twitch API credentials".
 
 Every alert command needs **Manage Server** (or the matching fake permission, see [moderation](/docs/moderation)), except `alerts variables`, which anyone can use. Bot owners are always allowed. To add a subscription from a command the bot also needs the **Embed Links** permission in your server.
+
+## Instant YouTube notifications
+
+When the bot's host has a public dashboard address set, the bot subscribes to each watched YouTube channel through YouTube's push system (WebSub). YouTube then tells the bot about a new upload within seconds, which also means no YouTube API quota is spent waiting for it.
+
+- `!alerts list` marks each YouTube subscription as **instant** or **polling**.
+- A channel is on **polling** until YouTube confirms the push subscription, which normally takes a few seconds after you add it.
+- Push subscriptions are renewed automatically before they expire.
+- If a push is missed or the host was offline, the **fallback check** still catches the newest video: every 15 minutes for channels on instant mode, every 2 minutes for channels still on polling.
+- The same video is never announced twice, even if both paths see it.
+
+Bot owners can run `!alerts websub` to see every watched channel with its lease expiry and last push time, and `!alerts websub resync` to ask YouTube to confirm every subscription again.
 
 ## Quick start
 
@@ -56,6 +70,7 @@ You can also run `!alerts` on its own to open an interactive menu with buttons f
 | `!alerts youtube remove <ID>` | Removes a subscription by ID. | Manage Server |
 | `!alerts twitch add <username> <#channel>` | Subscribes to a Twitch streamer. | Manage Server |
 | `!alerts twitch remove <ID>` | Removes a subscription by ID. | Manage Server |
+| `!alerts websub [resync]` | Shows instant-notification status for every watched channel. | Bot owner |
 | `!alerts list` | Lists all subscriptions with their IDs, platforms and channels. | Manage Server |
 | `!alerts role <ID> [role]` | Sets the role to mention for this subscription. Run it without a role to stop pinging. | Manage Server |
 | `!alerts message <ID> <text>` | Sets a custom message for this subscription and shows a preview. | Manage Server |

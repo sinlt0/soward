@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hmac
 import logging
 import os
@@ -165,7 +166,7 @@ async def command_catalog(request: web.Request) -> web.Response:
     bot = _bot(request)
     categories: dict[str, dict] = {}
     for command in sorted(bot.walk_commands(), key=lambda c: c.qualified_name):
-        if command.hidden:
+        if command.hidden or command.qualified_name.split(" ")[0] in ("jsk", "jishaku"):
             continue
         cog = command.cog
         category = getattr(cog, "category", None) or command.cog_name or "Other"
@@ -354,12 +355,42 @@ async def public_verify_complete(request: web.Request) -> web.Response:
     return web.json_response(result)
 
 
+async def public_websub_verify(request: web.Request) -> web.Response:
+    cog = _bot(request).get_cog("Alerts")
+    if cog is None:
+        return _err("Unavailable.", 503)
+    query = request.query
+    challenge = await cog.websub_verify(
+        query.get("hub.mode", ""), query.get("hub.topic", ""), query.get("hub.challenge", ""), query.get("hub.lease_seconds", "")
+    )
+    if challenge is None:
+        return _err("Not found.", 404)
+    return web.json_response({"challenge": challenge})
+
+
+async def public_websub_push(request: web.Request) -> web.Response:
+    from utils import websub
+    cog = _bot(request).get_cog("Alerts")
+    if cog is None or not websub.enabled():
+        return _err("Unavailable.", 503)
+    body = await request.json()
+    raw = str(body.get("body", "")).encode("utf-8")
+    if len(raw) > config.WEBSUB_MAX_BODY_BYTES or not websub.signature_valid(raw, str(body.get("signature", ""))):
+        return _err("Invalid signature.", 403)
+    entries = websub.parse_feed(raw)
+    if entries:
+        asyncio.create_task(cog.handle_websub_push(entries))
+    return web.json_response({"ok": True})
+
+
 def build_app(bot: commands.Bot, secret: str) -> web.Application:
     app = web.Application(middlewares=[_auth, _http_errors])
     app["bot"] = bot
     app["secret"] = secret
     app.router.add_get("/public/verify/{token}", public_verify_info)
     app.router.add_post("/public/verify/{token}", public_verify_complete)
+    app.router.add_get("/public/websub/youtube", public_websub_verify)
+    app.router.add_post("/public/websub/youtube", public_websub_push)
     app.router.add_get("/status", status)
     app.router.add_get("/commands", command_catalog)
     app.router.add_get("/team", team)

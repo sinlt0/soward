@@ -109,6 +109,13 @@ On `select` panels `unique`, `add_only`, `remove_only`, `reversed`, `verify` and
 - After you add or remove a role or change the panel mode on a posted select panel, both the role list and the menu on the message update on their own.
 - `!rr attach <panel> <message ID>` puts a select menu on one of the bot's own messages. Menus cannot be added to other people's messages.
 
+## Button panels
+
+- Each role is a button. Press it to get the role, press it again to remove it. Nothing else on the message changes.
+- Role groups, required roles, blocked roles, locking, the panel mode and binding modes all work. With panel mode `unique` pressing a button swaps the old role for the new one.
+- Buttons keep working after a restart. A button panel holds up to 25 roles.
+- Choose the type when you create the panel, or from the dashboard.
+
 ## Limits
 
 | Limit | Value |

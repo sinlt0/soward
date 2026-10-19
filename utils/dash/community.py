@@ -204,7 +204,7 @@ async def giveaway_reroll(ctx: ActionContext, payload: dict) -> list:
 
 RR_BINDING_MODES = ("normal", "unique", "verify", "reversed", "add_only", "remove_only")
 RR_PANEL_MODES = ("toggle", "add_only", "unique")
-RR_TYPES = ("reaction", "select")
+RR_TYPES = ("reaction", "select", "button")
 
 
 async def _panel(ctx: ActionContext, panel_id) -> dict:
@@ -268,7 +268,7 @@ async def panels_section(guild: discord.Guild) -> dict:
         "rr_panels", "Panels", ["ID", "Type", "Title", "Channel", "Roles", "State"], rows, "No panels yet.",
         description="Add roles to a panel, then post it in a channel.",
         buttons=[button("rr_panel_create", "Create panel", [
-            fld("panel_type", "Type", "select", options=[("reaction", "Reactions"), ("select", "Select menu")]),
+            fld("panel_type", "Type", "select", options=[("reaction", "Reactions"), ("select", "Select menu"), ("button", "Buttons")]),
             fld("title", "Title", "text", value="Reaction Roles", maxlen=100),
             fld("description", "Description", "textarea", value="React below to receive a role.", maxlen=500),
         ], style="primary", title="Create panel", submit="Create")],
@@ -349,7 +349,7 @@ async def rr_panel_edit(ctx: ActionContext, payload: dict) -> list:
 
 @action("reaction_roles", "rr_panel_post")
 async def rr_panel_post(ctx: ActionContext, payload: dict) -> list:
-    from cogs.reaction_roles import RoleSelectView, append_role_list, build_panel_embed, get_bindings
+    from cogs.reaction_roles import append_role_list, build_panel_embed, get_bindings, panel_view
 
     panel = await _panel(ctx, payload.get("id"))
     channel = need_channel(ctx.guild, payload.get("values") or {}, "channel", "Channel")
@@ -367,8 +367,9 @@ async def rr_panel_post(ctx: ActionContext, payload: dict) -> list:
             except discord.HTTPException:
                 pass
     try:
-        if panel["panel_type"] == "select":
-            message = await channel.send(embed=embed, view=RoleSelectView(ctx.guild, panel, bindings))
+        view = panel_view(ctx.guild, panel, bindings)
+        if view is not None:
+            message = await channel.send(embed=embed, view=view)
         else:
             message = await channel.send(embed=embed)
             for binding in bindings:

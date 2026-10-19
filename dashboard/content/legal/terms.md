@@ -70,5 +70,3 @@ We may update these Terms. The date at the top of the page shows the latest revi
 ## 14. Contact
 
 Questions about these Terms can be sent through the support server linked on this site.
-
-> These Terms are a starting template written for this project. They are not legal advice. Have a qualified lawyer review them before relying on them.

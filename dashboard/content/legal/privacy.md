@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-10
+updated: 2026-10-18
 ---
 
 This Privacy Policy explains what {BOT_NAME} collects, why, and how it is handled. It covers the Discord bot, the web dashboard and this website.
@@ -13,6 +13,7 @@ This Privacy Policy explains what {BOT_NAME} collects, why, and how it is handle
 - leveling data such as XP, level and role rewards per member
 - ticket panels, ticket records (opener, claimer, status, priority, subject, intake answers) and transcripts generated when a ticket closes
 - AFK status and message, custom commands, reaction role setups, giveaway entries, alert subscriptions and NSFW channel role setups
+- security settings, whitelists, quarantine records and server backups (roles, channels, bans and settings) when a server uses the Security Center
 - premium status and expiry for a server or user
 - Discord IDs (users, servers, channels, roles, messages) that connect the data above to Discord objects
 
@@ -21,6 +22,8 @@ The bot reads messages in channels it can see in order to run commands, AutoMod,
 **When you sign in to the dashboard**, Discord shares your user ID, username, avatar and the list of servers you are in with your permission level in each (scopes `identify` and `guilds`). We use the server list only to decide which servers you can manage. It is held in server memory for the length of your session and is not written to the database.
 
 **Dashboard changes** are written to an audit log with your Discord ID, display name, the module changed, a short summary and the time. Server managers can view it in the dashboard.
+
+**When a server uses web verification**, the member opens a one-time link and completes a short check on our website. We receive the member's IP address and a browser fingerprint, and we store only salted, one-way hashes of them together with the server, the member, the result and the time. The raw IP address is not stored. The address is sent to an IP intelligence provider so VPN and proxy connections can be detected, and the check may use Cloudflare Turnstile. Hashes let the server's staff see whether several accounts verified from the same connection. They cannot be turned back into an IP address.
 
 We do not collect email addresses, phone numbers, passwords or payment details.
 
@@ -40,12 +43,14 @@ Data is stored in a SQLite database on the host that runs the bot. If the operat
 
 - **Discord** processes your account and server activity under its own [Privacy Policy](https://discord.com/privacy).
 - **Hosting and database providers** store and serve the data on our behalf.
+- An **IP intelligence provider** (proxycheck.io or IPQualityScore, depending on how the bot is configured) receives the IP address during web verification to report whether it is a VPN, proxy or hosting address.
+- **Cloudflare Turnstile** may be used on the verification page to confirm a visitor is human.
 - Optional features can contact **YouTube**, **Twitch** or music sources when a server uses them. Only the queries needed for that feature are sent.
 - Fonts on this site are loaded from Google Fonts.
 
 ## 6. Retention
 
-Server data is kept while the bot is in the server. Moderation cases, tickets and levels stay until deleted by server staff or removed with the server's data. Dashboard audit log entries are kept until the server's data is removed. Sessions expire automatically.
+Server data is kept while the bot is in the server. Moderation cases, tickets and levels stay until deleted by server staff or removed with the server's data. Dashboard audit log entries are kept until the server's data is removed. Web verification records are deleted after 90 days by default, and servers can choose a different period. Sessions expire automatically.
 
 ## 7. Removing data
 
@@ -62,5 +67,3 @@ We may update this policy. The date at the top shows the latest revision.
 ## 10. Contact
 
 Questions can be sent through the support server linked on this site.
-
-> This Privacy Policy is a starting template written for this project. It is not legal advice. Have a qualified lawyer review it, and adjust it to match how your own deployment actually stores data.

@@ -82,6 +82,7 @@ Manage Roles, Manage Channels, Ban/Kick Members and Moderate Members.
 | `SOWARD_LAVALINK_NODES` | No | JSON list of nodes, overrides the four above |
 | `SOWARD_SPOTIFY_CLIENT_ID` / `_SECRET` | No | Enables Spotify search |
 | `SOWARD_YOUTUBE_API_KEY`, `SOWARD_TWITCH_CLIENT_ID` / `_SECRET` | No | Alerts cog |
+| `SOWARD_WEBSUB`, `SOWARD_WEBSUB_CALLBACK`, `SOWARD_WEBSUB_SECRET` | No | Instant YouTube push. Callback defaults to `SOWARD_DASHBOARD_URL` + `/websub/youtube` (must be public https); secret defaults to the IPC secret |
 | `SOWARD_CLIENT_ID` / `SOWARD_CLIENT_SECRET` | For dashboard sign-in | Discord OAuth2 credentials |
 | `SOWARD_DASHBOARD_URL` | For dashboard sign-in | Public site URL, no trailing slash |
 | `SOWARD_SESSION_SECRET` | Recommended | Signs dashboard session cookies |

@@ -781,6 +781,99 @@ async def _bootstrap_sqlite() -> None:
             updated_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (platform, target_id)
         )""",
+        """CREATE TABLE IF NOT EXISTS websub_subscriptions (
+            channel_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL DEFAULT 'pending',
+            requested_at REAL NOT NULL DEFAULT 0,
+            lease_expires REAL NOT NULL DEFAULT 0,
+            last_push_at REAL NOT NULL DEFAULT 0,
+            last_error TEXT
+        )""",
+        """CREATE TABLE IF NOT EXISTS server_templates (
+            code TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            owner_id INTEGER NOT NULL,
+            source_guild_id INTEGER,
+            visibility TEXT NOT NULL DEFAULT 'private',
+            data TEXT NOT NULL,
+            uses INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL DEFAULT 0,
+            updated_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS jtc_hubs (
+            channel_id INTEGER PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            category_id INTEGER,
+            name_template TEXT NOT NULL DEFAULT '{user}''s room',
+            user_limit INTEGER NOT NULL DEFAULT 0,
+            bitrate INTEGER NOT NULL DEFAULT 0,
+            created_by INTEGER,
+            created_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS jtc_channels (
+            channel_id INTEGER PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            hub_id INTEGER NOT NULL,
+            owner_id INTEGER NOT NULL,
+            created_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS jtc_prefs (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            name TEXT,
+            user_limit INTEGER,
+            locked INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS booster_config (
+            guild_id INTEGER PRIMARY KEY,
+            enabled INTEGER NOT NULL DEFAULT 0,
+            tier_mode TEXT NOT NULL DEFAULT 'count',
+            stack_mode TEXT NOT NULL DEFAULT 'highest',
+            base_role_id INTEGER,
+            grace_hours INTEGER NOT NULL DEFAULT 0,
+            custom_enabled INTEGER NOT NULL DEFAULT 0,
+            custom_min INTEGER NOT NULL DEFAULT 1,
+            allow_name INTEGER NOT NULL DEFAULT 1,
+            allow_color INTEGER NOT NULL DEFAULT 1,
+            allow_icon INTEGER NOT NULL DEFAULT 1,
+            allow_hoist INTEGER NOT NULL DEFAULT 0,
+            allow_perms INTEGER NOT NULL DEFAULT 0,
+            position_mode TEXT NOT NULL DEFAULT 'below',
+            position_ref_id INTEGER,
+            cooldown_hours INTEGER NOT NULL DEFAULT 1,
+            name_filter INTEGER NOT NULL DEFAULT 1,
+            max_name_len INTEGER NOT NULL DEFAULT 32,
+            remove_on_unboost INTEGER NOT NULL DEFAULT 1,
+            restore_on_reboost INTEGER NOT NULL DEFAULT 1
+        )""",
+        """CREATE TABLE IF NOT EXISTS booster_tiers (
+            guild_id INTEGER NOT NULL,
+            boosts INTEGER NOT NULL,
+            role_id INTEGER NOT NULL,
+            PRIMARY KEY (guild_id, boosts)
+        )""",
+        """CREATE TABLE IF NOT EXISTS booster_members (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            boost_count INTEGER NOT NULL DEFAULT 1,
+            boosting_since REAL NOT NULL DEFAULT 0,
+            ended_at REAL,
+            updated_at REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS booster_roles (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            role_id INTEGER,
+            name TEXT,
+            color INTEGER NOT NULL DEFAULT 0,
+            hoist INTEGER NOT NULL DEFAULT 0,
+            perms INTEGER NOT NULL DEFAULT 0,
+            last_edit REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
         """CREATE TABLE IF NOT EXISTS alert_sent_log (
             subscription_id TEXT NOT NULL,
             content_id TEXT NOT NULL,

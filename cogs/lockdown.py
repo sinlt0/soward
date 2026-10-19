@@ -562,7 +562,7 @@ class Lockdown(commands.Cog):
             issues.append((2, "AntiRaid is off"))
         if not await settings.get(guild.id, "automod", "enabled"):
             issues.append((1, "AutoMod is off"))
-        if not await settings.get(guild.id, "verification", "enabled"):
+        if not await settings.get(guild.id, "verification", "level"):
             issues.append((1, "Verification is off"))
         if await settings.get(guild.id, "antinuke", "admin_bypass"):
             issues.append((2, "Administrator bypass is on, a hacked admin account would not be stopped"))

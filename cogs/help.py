@@ -9,8 +9,9 @@ COMMANDS_PER_PAGE = 8
 CATEGORY_DESCRIPTIONS = {
     "Moderation": "Ban, kick, mute, warn, purge, and case logging.",
     "Config": "Server setup and protection systems.",
-    "Engagement": "Giveaways, alerts, and other ways to engage your members.",
+    "Engagement": "Giveaways, alerts, Join to Create voice channels and other ways to engage your members.",
     "Tickets": "Support ticket panels, claiming, transcripts, and staff tools.",
+    "Server": "Server presets and templates: build a full server in one command or save your own.",
     "Music": "Voice channel music playback and queueing.",
     "Utility": "Server and user information commands.",
     "Premium": "Premium activation and no-prefix settings.",

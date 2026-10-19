@@ -50,7 +50,7 @@ Genre names are not case sensitive. An unknown genre shows the full list.
 
 ### Adult content
 
-Results hide adult (18+) titles by default. To include them, add the word `nsfw` at the end of the command, for example `!animesearch some title nsfw`. This only works in channels marked as NSFW in Discord's channel settings. In other channels the bot refuses.
+Results hide adult (18+) titles by default. To include them, add the word `nsfw` at the end of the command, for example `!animesearch some title nsfw`. This only works in an [NSFW channel](/docs/nsfw) set up with `!nsfw addchannel`, with the NSFW role set. In other channels the bot refuses.
 
 ## Daily recommendation
 
@@ -77,7 +77,7 @@ All `!animedaily` commands need **Manage Server** (or a fake permission granted 
 | `!animedaily genre <genre>` | Limits picks to one genre. Use `any` to clear it. | Manage Server |
 | `!animedaily time <HH:MM or HH>` | Sets the post time in UTC, for example `9:40` or `14`. | Manage Server |
 | `!animedaily role [role]` | Sets a role to ping with each post. Run without a role to clear it. | Manage Server |
-| `!animedaily nsfw` | Toggles adult content in the daily post. The channel must be marked NSFW. | Manage Server |
+| `!animedaily nsfw` | Toggles adult content in the daily post. The channel must be a registered NSFW channel. | Manage Server |
 
 ### Daily defaults and timing
 
@@ -85,7 +85,7 @@ All `!animedaily` commands need **Manage Server** (or a fake permission granted 
 - Genre: any.
 - Post time: 12:00 UTC.
 - Ping role: none.
-- Adult content: off. It is also skipped whenever the channel is not marked NSFW.
+- Adult content: off. It is also skipped whenever the channel is not a registered NSFW channel.
 - The bot checks every 15 minutes, so a post can arrive up to about 15 minutes after the set time.
 - It posts at most once per UTC day. If you enable it after the set time has already passed, the first post comes soon, within about 15 minutes.
 - Times are always UTC. Convert from your own time zone.

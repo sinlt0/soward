@@ -1,14 +1,15 @@
+import io
 from typing import Optional
 
 import discord
 from discord.ext import commands
 
 import config
-from utils import db, emoji_manager, security, security_cmds, threat
+from utils import db, emoji_manager, security, security_autosetup, security_cmds, threat
 from utils import security_settings as settings
 from utils import security_whitelist as whitelist
 from utils.checks import has_guild_permission
-from utils.components import error_layout, info_layout, success_layout
+from utils.components import ConfirmLayout, error_layout, info_layout, success_layout
 from utils.events_bus import LOG_EVENT, bus
 from utils.security_access import LEVEL_NAMES, level_of, security_owner, security_staff
 
@@ -114,6 +115,44 @@ class SecurityHub(commands.Cog):
         await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="security_change", actor_id=ctx.author.id, detail=f"Tier lock turned {'on' if toggle else 'off'}.")
         text = "Only the owner, Extra Owners and Trusted Admins can change security settings." if toggle else "Administrators can now change security settings. Critical switches stay owner-only."
         await ctx.send(view=success_layout(f"{e('check')} Tier lock {'on' if toggle else 'off'}", text))
+
+    @security_group.command(name="setup", aliases=["autosetup", "auto"], help="Scan the server and set up security automatically. Add `preview` to see the plan only, or a preset name (relaxed, balanced, strict, paranoid) to choose the level yourself.")
+    @security_owner()
+    @commands.guild_only()
+    async def security_setup(self, ctx: commands.Context, mode: Optional[str] = None):
+        e = emoji_manager.get
+        word = (mode or "").lower()
+        preview = word in ("preview", "plan", "dry", "dryrun")
+        force = word if word in settings.PRESETS else ""
+        if word and not preview and not force:
+            return await ctx.send(view=error_layout("Unknown option", "Use `security setup`, `security setup preview`, or `security setup <relaxed|balanced|strict|paranoid>`."))
+        async with ctx.typing():
+            analysis = await security_autosetup.analyse(ctx.guild)
+            plan = await security_autosetup.build_plan(ctx.guild, analysis, force)
+        body = security_autosetup.summary(analysis, plan)
+        if preview:
+            await ctx.send(view=info_layout(f"{e('shield')} Security setup preview", body + "\n\n-# Run `security setup` to apply this."))
+            return await security_cmds.chunked(ctx, f"{e('info')} Recommendations", plan["recommendations"]) if plan["recommendations"] else None
+
+        confirm = ConfirmLayout(f"{e('shield')} Security setup", body, author_id=ctx.author.id, timeout=120.0)
+        message = await ctx.send(view=confirm)
+        await confirm.wait()
+        if not confirm.value:
+            return await message.edit(view=error_layout("Cancelled", "Nothing was changed."))
+
+        await message.edit(view=info_layout(f"{e('shield')} Setting up security", "Applying changes. This can take a minute on large servers."))
+        try:
+            done, failed, before = await security_autosetup.apply(self.bot, ctx.guild, ctx.author.id, plan)
+        except Exception as exc:
+            return await message.edit(view=error_layout("Setup failed", f"Stopped part-way: {exc}"))
+        lines = [f"- {line}" for line in done] + [f"- **Failed:** {line}" for line in failed]
+        await message.edit(view=success_layout(f"{e('check')} Security setup complete", "\n".join(lines)[:3500]))
+        if plan["recommendations"]:
+            await security_cmds.chunked(ctx, f"{e('info')} Recommended next steps", [f"- {line}" for line in plan["recommendations"]])
+        await ctx.send(
+            content="Your settings before setup. Run `security import` with this file attached to put your earlier custom values back.",
+            file=discord.File(io.BytesIO(before.encode()), filename=f"soward-security-before-{ctx.guild.id}.json"),
+        )
 
     @security_group.command(name="preset", aliases=["presets"], help="Apply a protection preset: relaxed, balanced, strict or paranoid. Run without a name to compare them.")
     @security_owner()

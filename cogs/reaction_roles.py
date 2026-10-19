@@ -1,5 +1,6 @@
 import time
 import uuid
+import zlib
 from typing import Optional
 
 import discord
@@ -11,7 +12,7 @@ from utils.components import ConfirmLayout, error_layout, info_layout, success_l
 from utils.events_bus import LOG_EVENT, bus
 
 BINDING_MODES = ("normal", "unique", "verify", "reversed", "binding", "add_only", "remove_only")
-PANEL_TYPES = ("reaction", "select")
+PANEL_TYPES = ("reaction", "select", "button")
 
 BINDING_MODE_DESCRIPTIONS = {
     "normal": "React to add the role, unreact to remove it.",
@@ -132,6 +133,46 @@ class RoleSelectView(discord.ui.View):
         self.add_item(RoleSelectMenu(guild, panel, bindings))
 
 
+class RoleButton(discord.ui.Button):
+    def __init__(self, panel: dict, binding: dict, role: Optional[discord.Role]):
+        label = (binding["label"] or (role.name if role else "Role"))[:80]
+        emoji = None
+        try:
+            parsed = discord.PartialEmoji.from_str(binding["emoji"])
+            if parsed.id or parsed.name:
+                emoji = parsed
+        except Exception:
+            emoji = None
+        super().__init__(
+            label=label,
+            emoji=emoji,
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"rr:btn:{panel['panel_id']}:{zlib.crc32(binding['emoji'].encode()):08x}",
+        )
+        self.binding_key = binding["emoji"]
+
+    async def callback(self, interaction: discord.Interaction):
+        cog: "ReactionRoles" = interaction.client.get_cog("ReactionRoles")
+        await cog.handle_button_click(interaction, self.binding_key)
+
+
+class RoleButtonView(discord.ui.View):
+    def __init__(self, guild: discord.Guild, panel: dict, bindings: list[dict]):
+        super().__init__(timeout=None)
+        for binding in bindings[:25]:
+            self.add_item(RoleButton(panel, binding, guild.get_role(binding["role_id"])))
+
+
+def panel_view(guild: discord.Guild, panel: dict, bindings: list[dict]) -> Optional[discord.ui.View]:
+    if not bindings:
+        return None
+    if panel["panel_type"] == "select":
+        return RoleSelectView(guild, panel, bindings)
+    if panel["panel_type"] == "button":
+        return RoleButtonView(guild, panel, bindings)
+    return None
+
+
 class ReactionRoles(commands.Cog):
     category = "Config"
     submodule = True
@@ -140,15 +181,16 @@ class ReactionRoles(commands.Cog):
         self.bot = bot
 
     async def cog_load(self):
-        panels = await db.raw_fetch("SELECT * FROM reaction_role_panels WHERE panel_type='select' AND message_id IS NOT NULL")
+        panels = await db.raw_fetch("SELECT * FROM reaction_role_panels WHERE panel_type IN ('select', 'button') AND message_id IS NOT NULL")
         for panel in panels:
             panel = dict(panel)
             guild = self.bot.get_guild(panel["guild_id"])
             if not guild:
                 continue
             bindings = await get_bindings(panel["panel_id"])
-            if bindings:
-                self.bot.add_view(RoleSelectView(guild, panel, bindings))
+            view = panel_view(guild, panel, bindings)
+            if view is not None:
+                self.bot.add_view(view)
 
     @commands.group(name="reactionrole", aliases=["rr"], invoke_without_command=True, help="Manage advanced reaction role panels.")
     @has_guild_permission("manage_roles")
@@ -200,7 +242,7 @@ class ReactionRoles(commands.Cog):
             (panel_id, ctx.guild.id, embed_name, "Reaction Roles", "React below to receive a role.", panel_type, ctx.author.id, time.time()),
         )
 
-        emoji_note = "" if panel_type == "reaction" else " (emoji is just an internal label for select panels, not shown to users)"
+        emoji_note = "" if panel_type == "reaction" else " (for select panels the emoji is only an internal label, for button panels it is the button icon)"
         body = (
             f"Panel `{panel_id}` created as a **{panel_type}** panel" + (f" using embed template `{embed_name}`." if embed_name else " with a default look.") +
             f"\n\nNext: `rr addrole {panel_id} <emoji> <role>`{emoji_note}, then `rr post {panel_id} #channel` when ready.\n"
@@ -230,8 +272,8 @@ class ReactionRoles(commands.Cog):
 
         current = await get_bindings(panel["panel_id"])
         existing_count = len([b for b in current if b["emoji"] != emoji])
-        if existing_count >= (25 if panel["panel_type"] == "select" else 20):
-            return await ctx.send(view=error_layout("Limit Reached", f"A {panel['panel_type']} panel can have at most {25 if panel['panel_type'] == 'select' else 20} role bindings."))
+        if existing_count >= (20 if panel["panel_type"] == "reaction" else 25):
+            return await ctx.send(view=error_layout("Limit Reached", f"A {panel['panel_type']} panel can have at most {20 if panel['panel_type'] == 'reaction' else 25} role bindings."))
 
         await db.raw_execute(
             "INSERT INTO reaction_role_bindings (panel_id, emoji, role_id, label) VALUES (?, ?, ?, ?)"
@@ -434,6 +476,54 @@ class ReactionRoles(commands.Cog):
         else:
             await ctx.send(view=success_layout(f"{e('check')} Gate Cleared", f"{gate_type.title()} role requirement removed from {scope_text}."))
 
+    async def post_panel(self, guild: discord.Guild, panel: dict, target_channel: discord.abc.Messageable) -> discord.Message:
+        bindings = await get_bindings(panel["panel_id"])
+        embed = await build_panel_embed(guild, panel)
+        await append_role_list(embed, panel["panel_id"])
+
+        if panel["channel_id"] and panel["message_id"]:
+            old_channel = guild.get_channel(panel["channel_id"])
+            if old_channel:
+                try:
+                    old_message = await old_channel.fetch_message(panel["message_id"])
+                    await old_message.delete()
+                except discord.HTTPException:
+                    pass
+
+        view = panel_view(guild, panel, bindings)
+        if view is not None:
+            message = await target_channel.send(embed=embed, view=view)
+        else:
+            message = await target_channel.send(embed=embed)
+            for binding in bindings:
+                await message.add_reaction(binding["emoji"])
+
+        await db.raw_execute(
+            "UPDATE reaction_role_panels SET channel_id=?, message_id=? WHERE panel_id=?",
+            (target_channel.id, message.id, panel["panel_id"]),
+        )
+        return message
+
+    async def create_panel(
+        self, guild: discord.Guild, channel: discord.abc.Messageable, *, creator_id: int, embed_name: Optional[str],
+        panel_type: str, mode: str, max_roles: int, bindings: list[dict],
+    ) -> str:
+        panel_id = new_panel_id()
+        await db.raw_execute(
+            "INSERT INTO reaction_role_panels (panel_id, guild_id, embed_name, fallback_title, fallback_description, mode, panel_type, max_roles, created_by, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (panel_id, guild.id, embed_name, "Self Roles", "Pick your roles below.", mode, panel_type, max_roles, creator_id, time.time()),
+        )
+        for binding in bindings:
+            await db.raw_execute(
+                "INSERT INTO reaction_role_bindings (panel_id, emoji, role_id, label) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT(panel_id, emoji) DO UPDATE SET role_id=excluded.role_id, label=excluded.label",
+                (panel_id, binding["emoji"], binding["role_id"], binding.get("label")),
+            )
+        panel = await get_panel(panel_id)
+        await self.post_panel(guild, panel, channel)
+        return panel_id
+
     @rr_group.command(name="post", help="Post a panel as a brand-new message. Usage: rr post <panel_id> [#channel]")
     @has_guild_permission("manage_roles")
     async def rr_post(self, ctx: commands.Context, panel_id: str, channel: Optional[discord.TextChannel] = None):
@@ -447,32 +537,10 @@ class ReactionRoles(commands.Cog):
             return await ctx.send(view=error_layout("No Roles", "Add at least one role with `rr addrole` before posting."))
 
         target_channel = channel or ctx.channel
-        embed = await build_panel_embed(ctx.guild, panel)
-        await append_role_list(embed, panel["panel_id"])
-
-        if panel["channel_id"] and panel["message_id"]:
-            old_channel = ctx.guild.get_channel(panel["channel_id"])
-            if old_channel:
-                try:
-                    old_message = await old_channel.fetch_message(panel["message_id"])
-                    await old_message.delete()
-                except discord.HTTPException:
-                    pass
-
         try:
-            if panel["panel_type"] == "select":
-                message = await target_channel.send(embed=embed, view=RoleSelectView(ctx.guild, panel, bindings))
-            else:
-                message = await target_channel.send(embed=embed)
-                for binding in bindings:
-                    await message.add_reaction(binding["emoji"])
+            await self.post_panel(ctx.guild, panel, target_channel)
         except discord.HTTPException as ex:
             return await ctx.send(view=error_layout("Failed", f"Couldn't post the panel: {ex}"))
-
-        await db.raw_execute(
-            "UPDATE reaction_role_panels SET channel_id=?, message_id=? WHERE panel_id=?",
-            (target_channel.id, message.id, panel["panel_id"]),
-        )
         await ctx.send(view=success_layout(f"{e('check')} Panel Posted", f"Posted in {target_channel.mention}."))
 
     @rr_group.command(name="attach", help="Attach a panel to an already-existing message instead of posting a new one. Usage: rr attach <panel_id> <message_id> [#channel]")
@@ -533,8 +601,8 @@ class ReactionRoles(commands.Cog):
             embed = await build_panel_embed(guild, panel)
             await append_role_list(embed, panel["panel_id"])
             kwargs["embed"] = embed
-        if panel["panel_type"] == "select" and message.author.id == self.bot.user.id:
-            kwargs["view"] = RoleSelectView(guild, panel, bindings) if bindings else None
+        if panel["panel_type"] in ("select", "button") and message.author.id == self.bot.user.id:
+            kwargs["view"] = panel_view(guild, panel, bindings)
         try:
             if kwargs:
                 await message.edit(**kwargs)
@@ -677,6 +745,48 @@ class ReactionRoles(commands.Cog):
         if not parts:
             parts.append("No roles selected.")
         await interaction.response.send_message(f"{e('check')} " + "\n".join(parts), ephemeral=True)
+
+    async def handle_button_click(self, interaction: discord.Interaction, emoji_key: str) -> None:
+        e = emoji_manager.get
+        panel = await get_panel_by_message(interaction.message.id)
+        if not panel:
+            return await interaction.response.send_message("This panel is no longer active.", ephemeral=True)
+        if panel["locked"]:
+            return await interaction.response.send_message("This panel is currently locked.", ephemeral=True)
+
+        guild = interaction.guild
+        member = interaction.user
+        binding = await get_binding(panel["panel_id"], emoji_key)
+        role = guild.get_role(binding["role_id"]) if binding else None
+        if not binding or not role:
+            return await interaction.response.send_message("That role is no longer available.", ephemeral=True)
+        if not await self._check_gate(member, binding["required_role_id"], binding["blacklist_role_id"]) or not await self._check_gate(member, panel["required_role_id"], panel["blacklist_role_id"]):
+            return await interaction.response.send_message(f"{e('cross')} You do not meet the requirements for {role.mention}.", ephemeral=True)
+
+        mode = effective_mode(panel, binding)
+        has_role = role in member.roles
+        try:
+            if has_role and mode not in ("add_only", "verify"):
+                await member.remove_roles(role, reason=f"Button role: panel {panel['panel_id']}")
+                return await interaction.response.send_message(f"{e('check')} Removed {role.mention}.", ephemeral=True)
+            if has_role:
+                return await interaction.response.send_message(f"You already have {role.mention}.", ephemeral=True)
+            if mode in ("remove_only", "reversed"):
+                return await interaction.response.send_message("That role cannot be added from this panel.", ephemeral=True)
+            if mode == "unique":
+                bindings = await get_bindings(panel["panel_id"])
+                others = [r for r in member.roles if r.id in {b["role_id"] for b in bindings} and r.id != role.id]
+                if others:
+                    await member.remove_roles(*others, reason=f"Button role: panel {panel['panel_id']} (unique)")
+            elif not await self._enforce_max_roles(member, panel):
+                return await interaction.response.send_message(f"{e('cross')} You can hold at most {panel['max_roles']} role(s) from this panel. Remove one first.", ephemeral=True)
+            if binding["group_id"]:
+                await self._enforce_group(guild, member, panel, role.id, binding["group_id"])
+            await member.add_roles(role, reason=f"Button role: panel {panel['panel_id']}")
+            await bus.publish(LOG_EVENT, guild_id=guild.id, action="reaction_role_granted", user_id=member.id, role_id=role.id, panel_id=panel["panel_id"])
+            await interaction.response.send_message(f"{e('check')} Added {role.mention}.", ephemeral=True)
+        except discord.HTTPException:
+            await interaction.response.send_message(f"{e('cross')} I could not change that role. My role may be below it.", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):

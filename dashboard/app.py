@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 
 import markdown
 import requests
-from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, session, url_for
 from markupsafe import Markup
 
 import config
@@ -415,6 +415,27 @@ def create_app() -> Flask:
         except BotError as exc:
             return jsonify(ok=False, message=exc.message), exc.status
         return jsonify(ok=bool(result.get("ok")), message=result.get("message", ""))
+
+    @app.route("/websub/youtube", methods=["GET", "POST"])
+    def websub_youtube():
+        try:
+            if request.method == "GET":
+                keys = ("hub.mode", "hub.topic", "hub.challenge", "hub.lease_seconds")
+                query = urlencode({k: request.args.get(k, "") for k in keys if request.args.get(k)})
+                reply = ipc.get(f"/public/websub/youtube?{query}")
+                return Response(str(reply.get("challenge", "")), mimetype="text/plain")
+            if (request.content_length or 0) > config.WEBSUB_MAX_BODY_BYTES:
+                return Response("Too large.", status=413)
+            raw = request.get_data(cache=False)
+            ipc.post("/public/websub/youtube", {
+                "body": raw.decode("utf-8", "replace"),
+                "signature": request.headers.get("X-Hub-Signature", ""),
+            })
+            return Response("", status=204)
+        except BotUnavailable:
+            return Response("Unavailable.", status=503)
+        except BotError as exc:
+            return Response(exc.message, status=exc.status if exc.status in (403, 404) else 502)
 
     @app.route("/health")
     def health():

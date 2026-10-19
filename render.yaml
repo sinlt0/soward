@@ -21,6 +21,10 @@ services:
         sync: false
       - key: SOWARD_LAVALINK_SECURE
         sync: false
+      - key: SOWARD_WEBSUB
+        value: "1"
+      - key: SOWARD_WEBSUB_SECRET
+        generateValue: true
       - key: SOWARD_YOUTUBE_API_KEY
         sync: false
       - key: SOWARD_TWITCH_CLIENT_ID

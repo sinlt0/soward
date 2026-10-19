@@ -71,6 +71,33 @@ class YouTubeClient:
             "published_at": item["snippet"]["publishedAt"],
         }
 
+    async def get_videos(self, video_ids: list[str]) -> dict[str, dict]:
+        if not video_ids:
+            return {}
+        params = {"part": "snippet,liveStreamingDetails", "id": ",".join(video_ids[:50]), "key": config.YOUTUBE_API_KEY}
+        async with self.session.get(f"{YOUTUBE_API_BASE}/videos", params=params) as resp:
+            if resp.status != 200:
+                return {}
+            data = await resp.json()
+
+        out = {}
+        for item in data.get("items", []):
+            snippet = item["snippet"]
+            thumbs = snippet.get("thumbnails", {})
+            details = item.get("liveStreamingDetails", {})
+            out[item["id"]] = {
+                "video_id": item["id"],
+                "channel_id": snippet.get("channelId", ""),
+                "channel_title": snippet.get("channelTitle", ""),
+                "title": snippet.get("title", ""),
+                "thumbnail": thumbs.get("high", thumbs.get("default", {})).get("url", ""),
+                "url": f"https://www.youtube.com/watch?v={item['id']}",
+                "published_at": snippet.get("publishedAt", ""),
+                "broadcast": snippet.get("liveBroadcastContent", "none"),
+                "scheduled_start": details.get("scheduledStartTime", ""),
+            }
+        return out
+
     async def is_live(self, video_id: str) -> bool:
         params = {"part": "snippet", "id": video_id, "key": config.YOUTUBE_API_KEY}
         async with self.session.get(f"{YOUTUBE_API_BASE}/videos", params=params) as resp:

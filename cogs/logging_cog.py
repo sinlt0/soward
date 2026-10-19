@@ -373,43 +373,45 @@ class Logging(commands.Cog):
         view = await LoggingOverviewLayout.create(ctx.author.id, ctx.guild.id)
         await ctx.send(view=view)
 
-    @logging_group.command(name="setup", help="Auto-create a logging category with a channel per event group.")
-    @has_guild_permission("administrator")
-    @commands.bot_has_permissions(manage_channels=True, manage_webhooks=True)
-    async def log_setup(self, ctx: commands.Context):
-        e = emoji_manager.get
-
-        existing_category = discord.utils.get(ctx.guild.categories, name=config.LOG_CATEGORY_NAME)
-        category = existing_category or await ctx.guild.create_category(
+    async def provision_channels(self, guild: discord.Guild) -> list[str]:
+        existing_category = discord.utils.get(guild.categories, name=config.LOG_CATEGORY_NAME)
+        category = existing_category or await guild.create_category(
             config.LOG_CATEGORY_NAME,
             overwrites={
-                ctx.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                ctx.guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_webhooks=True),
+                guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_webhooks=True),
             },
         )
 
         created_lines = []
         for category_key, meta in config.LOG_CATEGORIES.items():
-            existing_row = await self._get_category_row(ctx.guild.id, category_key)
+            existing_row = await self._get_category_row(guild.id, category_key)
             if existing_row:
-                channel = ctx.guild.get_channel(int(existing_row["channel_id"]))
+                channel = guild.get_channel(int(existing_row["channel_id"]))
                 if channel:
                     created_lines.append(f"`{meta['channel_name']}` — already set up")
                     continue
 
             channel = discord.utils.get(category.channels, name=meta["channel_name"])
             if not channel:
-                channel = await ctx.guild.create_text_channel(meta["channel_name"], category=category)
+                channel = await guild.create_text_channel(meta["channel_name"], category=category)
 
             webhook = await channel.create_webhook(name=f"{config.BOT_NAME} Logs")
             await db.raw_execute(
                 "INSERT INTO log_channels (guild_id, category, channel_id, webhook_url) VALUES (?, ?, ?, ?)"
                 " ON CONFLICT(guild_id, category) DO UPDATE SET channel_id=excluded.channel_id, webhook_url=excluded.webhook_url",
-                (ctx.guild.id, category_key, channel.id, webhook.url),
+                (guild.id, category_key, channel.id, webhook.url),
             )
-            self._webhook_cache.pop((ctx.guild.id, category_key), None)
+            self._webhook_cache.pop((guild.id, category_key), None)
             created_lines.append(f"{channel.mention} — **{meta['label']}**")
+        return created_lines
 
+    @logging_group.command(name="setup", help="Auto-create a logging category with a channel per event group.")
+    @has_guild_permission("administrator")
+    @commands.bot_has_permissions(manage_channels=True, manage_webhooks=True)
+    async def log_setup(self, ctx: commands.Context):
+        e = emoji_manager.get
+        created_lines = await self.provision_channels(ctx.guild)
         body = "\n".join(created_lines)
         await ctx.send(view=self._make_log_view(SUCCESS,
             f"## {e('logging_cat')} Logging setup complete\n{body}\n\n"

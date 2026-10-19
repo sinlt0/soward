@@ -1,5 +1,8 @@
+import asyncio
+import logging
 import time
 import uuid
+from datetime import datetime
 from typing import Optional
 
 import aiohttp
@@ -7,11 +10,21 @@ import discord
 from discord.ext import commands, tasks
 
 import config
-from utils import db, emoji_manager, guild_settings
+from utils import db, emoji_manager, guild_settings, websub
 from utils.alert_clients import TwitchClient, YouTubeClient
-from utils.checks import has_guild_permission
+from utils.checks import has_guild_permission, is_owner
 from utils.colors import ERROR, NEUTRAL, SUCCESS
 from utils.components import ConfirmLayout, error_layout, footer_block, info_layout, success_layout
+
+
+log = logging.getLogger(__name__)
+
+
+def _parse_iso(value: str) -> float:
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
 
 
 YOUTUBE_VARIABLES = {
@@ -40,12 +53,11 @@ def _layout(title: str, body: str, *, color: int = NEUTRAL, thumbnail: Optional[
     view = discord.ui.LayoutView(timeout=None)
     container = discord.ui.Container(accent_color=color)
 
+    container.add_item(discord.ui.TextDisplay(f"## {title}\n{body}"))
     if thumbnail:
-        section = discord.ui.Section(accessory=discord.ui.Thumbnail(media=thumbnail))
-        section.add_item(discord.ui.TextDisplay(f"## {title}\n{body}"))
-        container.add_item(section)
-    else:
-        container.add_item(discord.ui.TextDisplay(f"## {title}\n{body}"))
+        gallery = discord.ui.MediaGallery()
+        gallery.add_item(media=thumbnail)
+        container.add_item(gallery)
 
     container.add_item(discord.ui.Separator())
     for item in footer_block():
@@ -272,6 +284,7 @@ class SetupTargetModal(discord.ui.Modal, title="Set Up Alert"):
                         " ON CONFLICT(platform, target_id) DO UPDATE SET last_video_id=excluded.last_video_id, updated_at=excluded.updated_at",
                         (target_id, latest["video_id"], time.time()),
                     )
+                await self.cog._ensure_push(target_id)
 
             await channel_interaction.response.edit_message(
                 content=None,
@@ -324,6 +337,9 @@ class Alerts(commands.Cog):
         self._session: Optional[aiohttp.ClientSession] = None
         self._youtube: Optional[YouTubeClient] = None
         self._twitch: Optional[TwitchClient] = None
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._upcoming: dict[str, tuple[str, float]] = {}
+        self._fallback_seen: dict[str, float] = {}
 
     async def cog_load(self):
         self._session = aiohttp.ClientSession()
@@ -331,9 +347,13 @@ class Alerts(commands.Cog):
         self._twitch = TwitchClient(self._session)
         self.poll_youtube.start()
         self.poll_twitch.start()
+        self.check_upcoming.start()
+        self.websub_maintain.start()
 
     def cog_unload(self):
         self.poll_youtube.cancel()
+        self.check_upcoming.cancel()
+        self.websub_maintain.cancel()
         self.poll_twitch.cancel()
         if self._session:
             self.bot.loop.create_task(self._session.close())
@@ -380,14 +400,176 @@ class Alerts(commands.Cog):
             return True
         try:
             if sub["ping_role_id"] or sub["custom_message"]:
-                await channel.send(
-                    content=plain_message[:2000],
-                    allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
-                )
-            await channel.send(view=view)
+                combined = discord.ui.LayoutView(timeout=None)
+                top = plain_message if sub["custom_message"] else f"<@&{sub['ping_role_id']}>"
+                combined.add_item(discord.ui.TextDisplay(top[:2000]))
+                for item in list(view.children):
+                    combined.add_item(item)
+                view = combined
+            await channel.send(
+                view=view,
+                allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False),
+            )
         except discord.HTTPException:
             return False
         return True
+
+    def _channel_lock(self, channel_id: str) -> asyncio.Lock:
+        lock = self._locks.get(channel_id)
+        if lock is None:
+            lock = self._locks[channel_id] = asyncio.Lock()
+        return lock
+
+    async def _set_last_video(self, channel_id: str, video_id: str):
+        await db.raw_execute(
+            "INSERT INTO alert_state (platform, target_id, last_video_id, updated_at) VALUES ('youtube', ?, ?, ?)"
+            " ON CONFLICT(platform, target_id) DO UPDATE SET last_video_id=excluded.last_video_id, updated_at=excluded.updated_at",
+            (channel_id, video_id, time.time()),
+        )
+
+    async def _announce_youtube(self, channel_subs: list, channel_id: str, channel_title: str, video: dict, kind: str):
+        for sub in channel_subs:
+            enabled = sub["live_enabled"] if kind == "live" else sub["upload_enabled"]
+            if not enabled:
+                continue
+            if await self._already_sent(sub["subscription_id"], video["video_id"]):
+                continue
+
+            variables = {
+                "channel_name": channel_title,
+                "channel_url": f"https://www.youtube.com/channel/{channel_id}",
+                "video_title": video["title"],
+                "video_url": video["url"],
+                "video_thumbnail": video["thumbnail"],
+                "kind": "livestream" if kind == "live" else "video",
+            }
+            plain = await self._build_message(dict(sub), variables)
+            title_prefix = "New Livestream" if kind == "live" else "New Upload"
+            view = _layout(
+                f"{title_prefix} — {channel_title}",
+                f"{video['title']}\n\n{video['url']}",
+                color=SUCCESS,
+                thumbnail=video["thumbnail"],
+            )
+            if await self._announce(dict(sub), view, plain):
+                await self._mark_sent(sub["subscription_id"], video["video_id"])
+
+    async def _youtube_subs_for(self, channel_id: str) -> list:
+        return await db.raw_fetch(
+            "SELECT * FROM alert_subscriptions WHERE platform='youtube' AND target_id=?", (channel_id,)
+        )
+
+    async def _handle_video(self, channel_id: str, video: dict, from_push: bool):
+        async with self._channel_lock(channel_id):
+            subs = await self._youtube_subs_for(channel_id)
+            if not subs:
+                return
+            broadcast = video.get("broadcast", "none")
+            if broadcast == "upcoming":
+                self._upcoming[video["video_id"]] = (channel_id, time.time())
+                return
+            kind = "live" if broadcast == "live" else "upload"
+            if kind == "upload" and from_push:
+                published = _parse_iso(video.get("published_at", ""))
+                if published and time.time() - published > config.ALERT_UPLOAD_MAX_AGE:
+                    return
+            title = video.get("channel_title") or subs[0]["target_name"] or channel_id
+            await self._announce_youtube(subs, channel_id, title, video, kind)
+            await self._set_last_video(channel_id, video["video_id"])
+
+    async def handle_websub_push(self, entries: list[dict]):
+        if not entries or not self._youtube:
+            return
+        ids = list({e["video_id"] for e in entries})
+        videos = await self._youtube.get_videos(ids)
+        for entry in entries:
+            await websub.mark_push(entry["channel_id"])
+            video = videos.get(entry["video_id"])
+            if not video:
+                continue
+            try:
+                await self._handle_video(entry["channel_id"], video, True)
+            except Exception:
+                log.error("WebSub push handling failed", exc_info=True)
+
+    async def websub_verify(self, mode: str, topic: str, challenge: str, lease: str) -> Optional[str]:
+        channel_id = websub.channel_from_topic(topic)
+        if not channel_id or not challenge or len(challenge) > 200:
+            return None
+        wanted = bool(await self._youtube_subs_for(channel_id))
+        row = await websub.get_row(channel_id)
+        if mode == "subscribe":
+            if not wanted and row is None:
+                return None
+            seconds = int(lease) if lease.isdigit() else config.WEBSUB_LEASE_SECONDS
+            await websub.mark_active(channel_id, seconds)
+            return challenge
+        if mode == "unsubscribe":
+            if wanted:
+                return None
+            await websub.forget(channel_id)
+            return challenge
+        return None
+
+    @tasks.loop(seconds=config.ALERT_UPCOMING_CHECK_INTERVAL)
+    async def check_upcoming(self):
+        if not self._upcoming or not self._youtube:
+            return
+        now = time.time()
+        for video_id, (_, since) in list(self._upcoming.items()):
+            if now - since > config.ALERT_UPCOMING_MAX_AGE:
+                self._upcoming.pop(video_id, None)
+        ids = list(self._upcoming.keys())
+        for i in range(0, len(ids), 50):
+            try:
+                videos = await self._youtube.get_videos(ids[i:i + 50])
+            except Exception:
+                continue
+            for video_id in ids[i:i + 50]:
+                video = videos.get(video_id)
+                channel_id = self._upcoming[video_id][0]
+                if not video:
+                    self._upcoming.pop(video_id, None)
+                    continue
+                if video["broadcast"] == "upcoming":
+                    continue
+                self._upcoming.pop(video_id, None)
+                if video["broadcast"] == "live":
+                    try:
+                        await self._handle_video(channel_id, video, False)
+                    except Exception:
+                        log.error("Upcoming stream handling failed", exc_info=True)
+
+    @check_upcoming.before_loop
+    async def _before_check_upcoming(self):
+        await self.bot.wait_until_ready()
+
+    @tasks.loop(seconds=config.WEBSUB_RENEW_INTERVAL)
+    async def websub_maintain(self):
+        if not websub.enabled() or not config.YOUTUBE_API_KEY or not self._session:
+            return
+        subs = await db.raw_fetch("SELECT DISTINCT target_id FROM alert_subscriptions WHERE platform='youtube'")
+        wanted = {r["target_id"] for r in subs}
+        rows = await websub.all_rows()
+        now = time.time()
+        for channel_id in wanted:
+            if websub.needs_subscribe(rows.get(channel_id), now):
+                await websub.subscribe(self._session, channel_id)
+                await asyncio.sleep(1)
+        for channel_id in set(rows) - wanted:
+            await websub.unsubscribe(self._session, channel_id)
+            await asyncio.sleep(1)
+
+    @websub_maintain.before_loop
+    async def _before_websub_maintain(self):
+        await self.bot.wait_until_ready()
+
+    async def _ensure_push(self, channel_id: str):
+        if websub.enabled() and self._session:
+            try:
+                await websub.subscribe(self._session, channel_id)
+            except Exception:
+                log.error("WebSub subscribe failed", exc_info=True)
 
     @tasks.loop(seconds=config.ALERT_POLL_INTERVAL)
     async def poll_youtube(self):
@@ -402,59 +584,40 @@ class Alerts(commands.Cog):
         for sub in subs:
             channels.setdefault(sub["target_id"], []).append(sub)
 
+        push_rows = await websub.all_rows() if websub.enabled() else {}
+        now = time.time()
         for channel_id, channel_subs in channels.items():
+            if websub.push_live(push_rows.get(channel_id), now):
+                if not self._fallback_due(channel_id, now):
+                    continue
+                self._fallback_seen[channel_id] = now
             try:
-                state = await db.raw_fetchone(
-                    "SELECT * FROM alert_state WHERE platform='youtube' AND target_id=?", (channel_id,)
-                )
-                resolved = await self._youtube.resolve_channel_id(channel_id)
-                if not resolved:
-                    continue
+                async with self._channel_lock(channel_id):
+                    state = await db.raw_fetchone(
+                        "SELECT * FROM alert_state WHERE platform='youtube' AND target_id=?", (channel_id,)
+                    )
+                    latest = await self._youtube.get_latest_upload("UU" + channel_id[2:])
+                    if not latest:
+                        continue
 
-                latest = await self._youtube.get_latest_upload(resolved["uploads_playlist_id"])
-                if not latest:
-                    continue
+                    last_video_id = state["last_video_id"] if state else None
+                    if state is not None and latest["video_id"] != last_video_id:
+                        videos = await self._youtube.get_videos([latest["video_id"]])
+                        video = videos.get(latest["video_id"])
+                        if video is not None:
+                            if video["broadcast"] == "upcoming":
+                                self._upcoming[video["video_id"]] = (channel_id, time.time())
+                            else:
+                                kind = "live" if video["broadcast"] == "live" else "upload"
+                                title = video["channel_title"] or channel_subs[0]["target_name"] or channel_id
+                                await self._announce_youtube(channel_subs, channel_id, title, video, kind)
 
-                is_first_check = state is None
-                last_video_id = state["last_video_id"] if state else None
-
-                if not is_first_check and latest["video_id"] != last_video_id:
-                    is_live_video = await self._youtube.is_live(latest["video_id"])
-                    kind = "live" if is_live_video else "upload"
-
-                    for sub in channel_subs:
-                        enabled = sub["live_enabled"] if kind == "live" else sub["upload_enabled"]
-                        if not enabled:
-                            continue
-                        if await self._already_sent(sub["subscription_id"], latest["video_id"]):
-                            continue
-
-                        variables = {
-                            "channel_name": resolved["title"],
-                            "channel_url": f"https://www.youtube.com/channel/{resolved['channel_id']}",
-                            "video_title": latest["title"],
-                            "video_url": latest["url"],
-                            "video_thumbnail": latest["thumbnail"],
-                            "kind": "livestream" if kind == "live" else "video",
-                        }
-                        plain = await self._build_message(dict(sub), variables)
-                        title_prefix = "New Livestream" if kind == "live" else "New Upload"
-                        view = _layout(
-                            f"{title_prefix} — {resolved['title']}",
-                            f"{latest['title']}\n\n{latest['url']}",
-                            color=SUCCESS,
-                            thumbnail=latest["thumbnail"],
-                        )
-                        if await self._announce(dict(sub), view, plain):
-                            await self._mark_sent(sub["subscription_id"], latest["video_id"])
-
-                await db.raw_execute(
-                    "INSERT INTO alert_state (platform, target_id, last_video_id, updated_at) VALUES ('youtube', ?, ?, ?)"
-                    " ON CONFLICT(platform, target_id) DO UPDATE SET last_video_id=excluded.last_video_id, updated_at=excluded.updated_at",
-                    (channel_id, latest["video_id"], time.time()),
-                )
+                    await self._set_last_video(channel_id, latest["video_id"])
             except Exception:
                 continue
+
+    def _fallback_due(self, channel_id: str, now: float) -> bool:
+        return now - self._fallback_seen.get(channel_id, 0) >= config.ALERT_YOUTUBE_FALLBACK_INTERVAL
 
     @poll_youtube.before_loop
     async def _before_poll_youtube(self):
@@ -572,6 +735,7 @@ class Alerts(commands.Cog):
                 " ON CONFLICT(platform, target_id) DO UPDATE SET last_video_id=excluded.last_video_id, updated_at=excluded.updated_at",
                 (resolved["channel_id"], latest["video_id"], time.time()),
             )
+        await self._ensure_push(resolved["channel_id"])
 
         await ctx.send(view=success_layout(
             f"{e('check')} Subscribed",
@@ -650,11 +814,48 @@ class Alerts(commands.Cog):
         if not subs:
             return await ctx.send(view=info_layout(f"{e('info')} Subscriptions", "No subscriptions configured."))
 
+        rows = await websub.all_rows() if websub.enabled() else {}
+        now = time.time()
+
+        def mode(sub) -> str:
+            if sub["platform"] != "youtube":
+                return ""
+            return " · instant" if websub.push_live(rows.get(sub["target_id"]), now) else " · polling"
+
         lines = [
-            f"`{s['subscription_id']}` — **{s['platform'].title()}** · {s['target_name'] or s['target_id']} → <#{s['announce_channel_id']}>"
+            f"`{s['subscription_id']}` — **{s['platform'].title()}** · {s['target_name'] or s['target_id']} → <#{s['announce_channel_id']}>{mode(s)}"
             for s in subs
         ]
         await ctx.send(view=info_layout(f"{e('info')} Subscriptions ({len(subs)})", "\n".join(lines)))
+
+    @alerts_group.command(name="websub", help="Show YouTube instant-notification status for every watched channel. Bot owners only.")
+    @is_owner()
+    async def alerts_websub(self, ctx: commands.Context, action: Optional[str] = None):
+        e = emoji_manager.get
+        if not websub.enabled():
+            return await ctx.send(view=error_layout(
+                "WebSub Disabled",
+                "Set `SOWARD_DASHBOARD_URL` (or `SOWARD_WEBSUB_CALLBACK`) to a public https address and make sure `SOWARD_IPC_SECRET` is set. Alerts use polling until then.",
+            ))
+        subs = await db.raw_fetch("SELECT DISTINCT target_id FROM alert_subscriptions WHERE platform='youtube'")
+        channels = [r["target_id"] for r in subs]
+        if action and action.lower() == "resync":
+            for channel_id in channels:
+                await websub.subscribe(self._session, channel_id)
+            return await ctx.send(view=success_layout(f"{e('check')} Resync Sent", f"Re-requested {len(channels)} subscription(s) from the hub. Confirmations arrive in a few seconds."))
+        rows = await websub.all_rows()
+        now = time.time()
+        lines = []
+        for channel_id in channels:
+            row = rows.get(channel_id)
+            if websub.push_live(row, now):
+                last = f"<t:{int(row['last_push_at'])}:R>" if row["last_push_at"] else "no push yet"
+                lines.append(f"`{channel_id}` — instant · lease ends <t:{int(row['lease_expires'])}:R> · last push {last}")
+            else:
+                reason = f" ({row['last_error']})" if row and row["last_error"] else ""
+                lines.append(f"`{channel_id}` — polling{reason}")
+        body = "\n".join(lines) or "No YouTube channels are being watched."
+        await ctx.send(view=info_layout(f"{e('info')} WebSub Status", f"{body}\n\n-# `alerts websub resync` re-requests every subscription."))
 
     @alerts_group.command(name="variables", aliases=["vars"], help="Show all available message template variables.")
     @has_guild_permission("manage_guild")

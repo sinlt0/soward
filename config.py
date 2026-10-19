@@ -40,7 +40,7 @@ SQLITE_PATH: str = str(DATA_DIR / "soward.db")
 
 DEFAULT_PREFIX: str = "!"
 BOT_NAME: str = "Soward"
-BOT_VERSION: str = "3.0.0"
+BOT_VERSION: str = "3.1"
 DEVELOPER_USER_ID: int = 1181137505505001544
 
 OWNER_IDS: list[int] = _devs_data.get("owner_ids", [DEVELOPER_USER_ID])
@@ -64,6 +64,18 @@ TWITCH_CLIENT_ID: str = os.getenv("SOWARD_TWITCH_CLIENT_ID", "")
 TWITCH_CLIENT_SECRET: str = os.getenv("SOWARD_TWITCH_CLIENT_SECRET", "")
 
 ALERT_POLL_INTERVAL: int = 120
+ALERT_YOUTUBE_FALLBACK_INTERVAL: int = 900
+ALERT_UPCOMING_CHECK_INTERVAL: int = 60
+ALERT_UPCOMING_MAX_AGE: int = 259200
+ALERT_UPLOAD_MAX_AGE: int = 43200
+WEBSUB_HUB_URL: str = "https://pubsubhubbub.appspot.com/subscribe"
+WEBSUB_LEASE_SECONDS: int = 864000
+WEBSUB_RENEW_BEFORE_SECONDS: int = 172800
+WEBSUB_RENEW_INTERVAL: int = 1800
+WEBSUB_PENDING_RETRY_SECONDS: int = 900
+WEBSUB_MAX_BODY_BYTES: int = 65536
+WEBSUB_ENABLED_FLAG: bool = os.getenv("SOWARD_WEBSUB", "1") not in ("0", "false", "no")
+WEBSUB_SECRET: str = os.getenv("SOWARD_WEBSUB_SECRET", "") or os.getenv("SOWARD_IPC_SECRET", "")
 ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM: int = 5
 
 EMBED_TEMPLATE_MAX_FREE: int = 100
@@ -376,6 +388,7 @@ HELP_HIDDEN_CATEGORIES: set[str] = {
     "Premium",
     "GlobalNoPrefix",
     "Dev",
+    "Jishaku",
 }
 
 LOFI_STREAM_URL: str = "https://www.youtube.com/watch?v=jfKfPfyJRdk"
@@ -399,6 +412,27 @@ TICKET_LIMITS: dict = {
     "premium": {"panels": 10, "staff_roles": 20, "categories": 10, "questions": 10, "active": 250},
 }
 TICKET_MODAL_PAGE_SIZE: int = 5
+JTC_HUBS_FREE: int = 2
+JTC_HUBS_PREMIUM: int = 10
+JTC_MAX_ACTIVE_PER_GUILD: int = 150
+JTC_CREATE_COOLDOWN: float = 6.0
+JTC_DEFAULT_NAME: str = "{user}'s room"
+JTC_CATEGORY_NAME: str = "Temporary Voice"
+JTC_HUB_NAME: str = "Join to Create"
+JTC_SWEEP_SECONDS: int = 300
+BOOSTER_SWEEP_SECONDS: int = 900
+BOOSTER_MAX_COUNT: int = 99
+BOOSTER_MAX_TIERS: int = 15
+BOOSTER_ICON_MAX_BYTES: int = 262144
+BOOSTER_ROLE_CAP: int = 245
+BOOSTER_BACKFILL_LIMIT: int = 3000
+BOOSTER_SAFE_PERMS: tuple = (
+    "change_nickname", "embed_links", "attach_files", "use_external_emojis", "use_external_stickers", "add_reactions",
+    "create_public_threads", "send_messages_in_threads", "stream", "use_voice_activation", "use_soundboard", "use_external_sounds",
+)
+BOOSTER_PRESET_TIERS: tuple = (
+    (1, "Rich", 0xF1C40F), (2, "Wealthy", 0xF39C12),
+)
 TICKET_FORM_SESSION_TTL: int = 600
 TICKET_CATEGORY_CHANNEL_CAP: int = 50
 TICKET_LIST_LIMIT: int = 15
@@ -411,5 +445,6 @@ DASHBOARD_AUDIT_PAGE_SIZE: int = 25
 DASHBOARD_LIST_LIMIT: int = 25
 DASHBOARD_RESTART_DELAY_SECONDS: int = 5
 DASHBOARD_URL: str = os.getenv("SOWARD_DASHBOARD_URL", "").rstrip("/")
+WEBSUB_CALLBACK_URL: str = os.getenv("SOWARD_WEBSUB_CALLBACK", "") or (DASHBOARD_URL + "/websub/youtube" if DASHBOARD_URL else "")
 DASHBOARD_ADDON_ENABLED: bool = bool(_DASH_ADDON.get("dashboard", True))
 DASHBOARD_PORT: int = _addon_port(_DASH_ADDON.get("dashboard_port"), _addon_port(os.getenv("PORT"), 8080))

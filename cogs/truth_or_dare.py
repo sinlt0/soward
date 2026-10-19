@@ -5,7 +5,7 @@ import aiohttp
 import discord
 from discord.ext import commands
 
-from utils import emoji_manager
+from utils import emoji_manager, nsfw
 from utils.components import error_layout, footer_block
 
 API_BASE = "https://api.truthordarebot.xyz/v1"
@@ -83,7 +83,7 @@ class TruthOrDare(commands.Cog):
         view.add_item(container)
         return view
 
-    def _resolve_rating(self, requested: Optional[str], channel: discord.abc.GuildChannel) -> tuple[Optional[str], Optional[str]]:
+    async def _resolve_rating(self, requested: Optional[str], channel: discord.abc.GuildChannel) -> tuple[Optional[str], Optional[str]]:
         if requested is None:
             return "pg13", None
 
@@ -92,9 +92,8 @@ class TruthOrDare(commands.Cog):
             return None, f"Invalid rating `{requested}`. Choose from: {', '.join(f'`{r}`' for r in VALID_RATINGS)}"
 
         if requested == "r":
-            is_nsfw = getattr(channel, "is_nsfw", lambda: False)()
-            if not is_nsfw:
-                return None, "The `r` rating is only available in channels marked as NSFW in Discord's own channel settings."
+            if not await nsfw.is_nsfw_channel(channel):
+                return None, "The `r` rating is only available in NSFW channels set up with `nsfw addchannel`."
 
         return requested, None
 
@@ -102,7 +101,7 @@ class TruthOrDare(commands.Cog):
     @commands.guild_only()
     @commands.cooldown(1, 2.0, commands.BucketType.user)
     async def truth(self, ctx: commands.Context, rating: Optional[str] = None):
-        resolved_rating, error = self._resolve_rating(rating, ctx.channel)
+        resolved_rating, error = await self._resolve_rating(rating, ctx.channel)
         if error:
             return await ctx.send(view=error_layout("Can't Do That", error))
 
@@ -116,7 +115,7 @@ class TruthOrDare(commands.Cog):
     @commands.guild_only()
     @commands.cooldown(1, 2.0, commands.BucketType.user)
     async def dare(self, ctx: commands.Context, rating: Optional[str] = None):
-        resolved_rating, error = self._resolve_rating(rating, ctx.channel)
+        resolved_rating, error = await self._resolve_rating(rating, ctx.channel)
         if error:
             return await ctx.send(view=error_layout("Can't Do That", error))
 
@@ -130,7 +129,7 @@ class TruthOrDare(commands.Cog):
     @commands.guild_only()
     @commands.cooldown(1, 2.0, commands.BucketType.user)
     async def tod(self, ctx: commands.Context, rating: Optional[str] = None):
-        resolved_rating, error = self._resolve_rating(rating, ctx.channel)
+        resolved_rating, error = await self._resolve_rating(rating, ctx.channel)
         if error:
             return await ctx.send(view=error_layout("Can't Do That", error))
 

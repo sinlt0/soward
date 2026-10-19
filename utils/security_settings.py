@@ -449,10 +449,12 @@ PRESETS: dict[str, dict[str, Any]] = {
 }
 
 
-async def apply_preset(guild_id: int, name: str) -> list[str]:
+async def apply_preset(guild_id: int, name: str, skip: tuple = ()) -> list[str]:
     values = PRESETS[name]
     changed = []
     for path, value in values.items():
+        if path.split(".", 1)[0] in skip:
+            continue
         setting = _REGISTRY[path]
         if setting.kind == "enum":
             value = parse_scalar(setting, value)
