@@ -19,6 +19,8 @@ import config
 MAX_COMMANDS_PER_GUILD = 100
 MAX_GROUPS_PER_GUILD = 20
 MAX_RESPONSES_PER_COMMAND = 10
+MAX_MENU_OPTIONS = 25
+MENU_PREFIX = "ccm:"
 
 
 def _cc_body(fields: dict) -> str:
@@ -250,6 +252,123 @@ class CustomCommands(commands.Cog):
     async def _delete_group(self, guild_id: int, name: str):
         await db.raw_execute("DELETE FROM custom_command_groups WHERE guild_id=? AND name=?", (guild_id, name))
 
+    def _menu_view(self, cmd: CustomCommand) -> Optional[discord.ui.View]:
+        options = cmd.menu["options"]
+        if not options:
+            return None
+        select = discord.ui.Select(
+            custom_id=f"{MENU_PREFIX}{cmd.numeric_id}",
+            placeholder=(cmd.menu["placeholder"] or "Make a selection")[:150],
+            options=[
+                discord.SelectOption(
+                    label=opt["label"][:100], value=str(i), description=(opt.get("description") or None),
+                    emoji=(opt.get("emoji") or None),
+                )
+                for i, opt in enumerate(options[:MAX_MENU_OPTIONS])
+            ],
+        )
+        view = discord.ui.View(timeout=None)
+        view.add_item(select)
+        return view
+
+    def _menu_kwargs(self, cmd: CustomCommand) -> dict:
+        view = self._menu_view(cmd)
+        return {"view": view} if view is not None else {}
+
+    async def post_command(self, guild: discord.Guild, trigger: str, channel) -> Optional[discord.Message]:
+        await self._ensure_loaded(guild.id)
+        cmd = self._get_commands(guild.id).get(trigger.lower())
+        if cmd is None or not cmd.enabled:
+            return None
+        var_map = {
+            "server": guild.name, "serverid": str(guild.id), "membercount": str(guild.member_count),
+            "channel": channel.mention, "channelname": channel.name, "channelid": str(channel.id),
+        }
+        raw = cc_engine.substitute_variables(cmd.get_response(), var_map, guild, None)
+        clean, _, _, embed_data = await cc_engine.process_actions(raw, None, self.bot, guild=guild, channel=channel)
+        kwargs = self._menu_kwargs(cmd)
+        if cmd.embed or embed_data:
+            return await channel.send(embed=_build_embed_from_data(cmd, clean, embed_data), **kwargs)
+        if clean:
+            return await channel.send(clean, allowed_mentions=MENTIONS, **kwargs)
+        return None
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        if interaction.type is not discord.InteractionType.component or interaction.guild is None:
+            return
+        data = interaction.data or {}
+        custom_id = str(data.get("custom_id", ""))
+        if not custom_id.startswith(MENU_PREFIX) or not custom_id[len(MENU_PREFIX):].isdigit():
+            return
+        values = data.get("values") or []
+        if not values or not str(values[0]).isdigit():
+            return
+        guild = interaction.guild
+        await self._ensure_loaded(guild.id)
+        numeric_id = int(custom_id[len(MENU_PREFIX):])
+        cmd = next((c for c in self._get_commands(guild.id).values() if c.numeric_id == numeric_id), None)
+        member = interaction.user
+        if cmd is None or not isinstance(member, discord.Member):
+            return
+        index = int(values[0])
+        options = cmd.menu["options"]
+        if index >= len(options):
+            return
+        option = options[index]
+        view = self._menu_view(cmd)
+        try:
+            if view is not None:
+                await interaction.response.edit_message(view=view)
+            else:
+                await interaction.response.defer()
+        except discord.HTTPException:
+            return
+        if not cmd.enabled:
+            return await interaction.followup.send("This menu is turned off.", ephemeral=True)
+        remaining = cmd.check_cooldown(member.id) if cmd.cooldown else 0
+        if remaining > 0:
+            return await interaction.followup.send(f"Try again in {remaining:.0f}s.", ephemeral=True)
+        cmd.apply_cooldown(member.id)
+        channel = interaction.channel
+        var_map = {
+            "user": member.mention, "username": member.display_name, "userid": str(member.id),
+            "server": guild.name, "serverid": str(guild.id), "membercount": str(guild.member_count),
+            "channel": channel.mention if channel else "", "channelname": getattr(channel, "name", ""), "channelid": str(getattr(channel, "id", "")),
+            "option": option["label"],
+            "msglink": interaction.message.jump_url if interaction.message else "",
+            "msgid": str(interaction.message.id) if interaction.message else "",
+        }
+        linked = self._get_commands(guild.id).get(str(option.get("link") or "").lower()) if option.get("link") else None
+        if linked is not None and linked.enabled:
+            raw = cc_engine.substitute_variables(linked.get_response(), var_map, guild, member)
+            clean, _, _, embed_data = await cc_engine.process_actions(raw, None, self.bot, guild=guild, member=member, channel=channel)
+            try:
+                await interaction.followup.send(embed=_build_embed_from_data(linked, clean, embed_data), ephemeral=True, **self._menu_kwargs(linked))
+            except discord.HTTPException:
+                pass
+            cmd.uses += 1
+            return await self._save_command(guild.id, cmd)
+        raw = cc_engine.substitute_variables(option.get("response", ""), var_map, guild, member)
+        clean, _, channel_sends, embed_data = await cc_engine.process_actions(raw, None, self.bot, guild=guild, member=member, channel=channel)
+        title = embed_data.get("title") or option.get("title")
+        if title:
+            embed_data["title"] = title
+        try:
+            if embed_data:
+                await interaction.followup.send(embed=_build_embed_from_data(cmd, clean, embed_data), ephemeral=True)
+            else:
+                await interaction.followup.send(clean or "Done.", ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        except discord.HTTPException:
+            pass
+        for ch, msg in channel_sends:
+            try:
+                await ch.send(msg, allowed_mentions=MENTIONS)
+            except discord.HTTPException:
+                pass
+        cmd.uses += 1
+        await self._save_command(guild.id, cmd)
+
     @tasks.loop(minutes=1)
     async def interval_loop(self):
         now = time.time()
@@ -278,9 +397,9 @@ class CustomCommands(commands.Cog):
                 if clean or embed_data:
                     try:
                         if cmd.embed or embed_data:
-                            await channel.send(embed=_build_embed_from_data(cmd, clean, embed_data))
+                            await channel.send(embed=_build_embed_from_data(cmd, clean, embed_data), **self._menu_kwargs(cmd))
                         else:
-                            await channel.send(clean, allowed_mentions=MENTIONS)
+                            await channel.send(clean, allowed_mentions=MENTIONS, **self._menu_kwargs(cmd))
                     except discord.HTTPException:
                         pass
                 for ch, msg in channel_sends:
@@ -339,9 +458,9 @@ class CustomCommands(commands.Cog):
                 da = delete_after or cmd.delete_response_after or None
                 try:
                     if cmd.embed or embed_data:
-                        await channel.send(embed=_build_embed_from_data(cmd, clean, embed_data), delete_after=da)
+                        await channel.send(embed=_build_embed_from_data(cmd, clean, embed_data), delete_after=da, **self._menu_kwargs(cmd))
                     else:
-                        await channel.send(clean, delete_after=da, allowed_mentions=MENTIONS)
+                        await channel.send(clean, delete_after=da, allowed_mentions=MENTIONS, **self._menu_kwargs(cmd))
                 except discord.HTTPException:
                     pass
             for ch, msg in channel_sends:
@@ -458,9 +577,9 @@ class CustomCommands(commands.Cog):
             if clean_response or embed_data:
                 try:
                     if cmd.embed or embed_data:
-                        await message.channel.send(embed=_build_embed_from_data(cmd, clean_response, embed_data), delete_after=da)
+                        await message.channel.send(embed=_build_embed_from_data(cmd, clean_response, embed_data), delete_after=da, **self._menu_kwargs(cmd))
                     else:
-                        await message.channel.send(clean_response, delete_after=da, allowed_mentions=MENTIONS)
+                        await message.channel.send(clean_response, delete_after=da, allowed_mentions=MENTIONS, **self._menu_kwargs(cmd))
                 except discord.HTTPException:
                     pass
 
@@ -880,9 +999,9 @@ class CustomCommands(commands.Cog):
 
         if clean or embed_data:
             if cmd.embed or embed_data:
-                await ctx.send(embed=_build_embed_from_data(cmd, clean, embed_data), delete_after=da)
+                await ctx.send(embed=_build_embed_from_data(cmd, clean, embed_data), delete_after=da, **self._menu_kwargs(cmd))
             else:
-                await ctx.send(clean, delete_after=da, allowed_mentions=MENTIONS)
+                await ctx.send(clean, delete_after=da, allowed_mentions=MENTIONS, **self._menu_kwargs(cmd))
         for ch, msg in channel_sends:
             try:
                 await ch.send(msg, allowed_mentions=MENTIONS)
@@ -1086,6 +1205,155 @@ class CustomCommands(commands.Cog):
             await self._delete_command(ctx.guild.id, trigger)
         self._cache[ctx.guild.id] = {}
         await msg.edit(view=success_layout(f"{e('check')} Purged", f"Deleted all **{count}** custom command(s)."))
+
+    @cc_group.group(name="menu", invoke_without_command=True, help="Attach a dropdown menu to a custom command.")
+    @has_guild_permission("manage_guild")
+    async def cc_menu(self, ctx: commands.Context):
+        e = emoji_manager.get
+        prefix = await get_guild_prefix(ctx.guild.id)
+        await ctx.send(view=info_layout(
+            f"{e('settings')} Command Menus",
+            f"`{prefix}cc menu add <trigger> \"<label>\" \"<description>\" <response>` Add an option. Use `-` for no description.\n"
+            f"`{prefix}cc menu edit <trigger> <number> <response>` Change what an option says or does.\n"
+            f"`{prefix}cc menu title <trigger> <number> <title>` Give the reply an embed title.\n"
+            f"`{prefix}cc menu emoji <trigger> <number> <emoji>` Set an option emoji.\n"
+            f"`{prefix}cc menu placeholder <trigger> <text>` Set the text shown on the dropdown.\n"
+            f"`{prefix}cc menu remove <trigger> <number>` / `{prefix}cc menu clear <trigger>` / `{prefix}cc menu list <trigger>`\n\n"
+            "The command's message gets a dropdown. Picking an option sends its response only to the member who picked it. Responses can use variables and action tags such as `{togglerole:Role}`.",
+        ))
+
+    async def _menu_target(self, ctx: commands.Context, trigger: str) -> Optional[CustomCommand]:
+        await self._ensure_loaded(ctx.guild.id)
+        cmd = self._get_commands(ctx.guild.id).get(trigger.lower())
+        if cmd is None:
+            await ctx.send(view=error_layout("Not Found", f"Command `{trigger.lower()}` not found."))
+        return cmd
+
+    @cc_menu.command(name="add", help="Add a menu option. Usage: cc menu add <trigger> \"<label>\" \"<description>\" <response>")
+    @has_guild_permission("manage_guild")
+    async def ccm_add(self, ctx: commands.Context, trigger: str, label: str, description: str, *, response: str):
+        e = emoji_manager.get
+        cmd = await self._menu_target(ctx, trigger)
+        if cmd is None:
+            return
+        if len(cmd.menu["options"]) >= MAX_MENU_OPTIONS:
+            return await ctx.send(view=error_layout("Limit Reached", f"A menu can have {MAX_MENU_OPTIONS} options."))
+        if not label.strip() or len(label) > 100 or len(description) > 100:
+            return await ctx.send(view=error_layout("Too Long", "Labels and descriptions must be 100 characters or fewer."))
+        if len(response) > 4000:
+            return await ctx.send(view=error_layout("Too Long", "Response must be under 4000 characters."))
+        cmd.menu["options"].append({"label": label.strip(), "description": "" if description.strip() == "-" else description.strip(), "emoji": "", "title": "", "response": response})
+        await self._save_command(ctx.guild.id, cmd)
+        await ctx.send(view=success_layout(f"{e('check')} Option Added", f"`{cmd.trigger}` now has **{len(cmd.menu['options'])}** menu option(s)."))
+
+    async def _menu_option(self, ctx: commands.Context, trigger: str, number: int):
+        cmd = await self._menu_target(ctx, trigger)
+        if cmd is None:
+            return None, None
+        if not 1 <= number <= len(cmd.menu["options"]):
+            await ctx.send(view=error_layout("Not Found", f"`{cmd.trigger}` has {len(cmd.menu['options'])} menu option(s)."))
+            return None, None
+        return cmd, cmd.menu["options"][number - 1]
+
+    @cc_menu.command(name="edit", help="Change the response of a menu option.")
+    @has_guild_permission("manage_guild")
+    async def ccm_edit(self, ctx: commands.Context, trigger: str, number: int, *, response: str):
+        e = emoji_manager.get
+        cmd, option = await self._menu_option(ctx, trigger, number)
+        if option is None:
+            return
+        if len(response) > 4000:
+            return await ctx.send(view=error_layout("Too Long", "Response must be under 4000 characters."))
+        option["response"] = response
+        await self._save_command(ctx.guild.id, cmd)
+        await ctx.send(view=success_layout(f"{e('check')} Option Updated", f"Option **{number}** of `{cmd.trigger}` updated."))
+
+    @cc_menu.command(name="title", help="Set the embed title of a menu option's reply.")
+    @has_guild_permission("manage_guild")
+    async def ccm_title(self, ctx: commands.Context, trigger: str, number: int, *, title: str):
+        e = emoji_manager.get
+        cmd, option = await self._menu_option(ctx, trigger, number)
+        if option is None:
+            return
+        option["title"] = "" if title.strip() == "-" else title.strip()[:256]
+        await self._save_command(ctx.guild.id, cmd)
+        await ctx.send(view=success_layout(f"{e('check')} Title Set", f"Option **{number}** of `{cmd.trigger}` now replies with an embed titled `{option['title'] or 'none'}`."))
+
+    @cc_menu.command(name="emoji", help="Set the emoji of a menu option.")
+    @has_guild_permission("manage_guild")
+    async def ccm_emoji(self, ctx: commands.Context, trigger: str, number: int, emoji: str):
+        e = emoji_manager.get
+        cmd, option = await self._menu_option(ctx, trigger, number)
+        if option is None:
+            return
+        if emoji != "-" and emoji.isascii() and not emoji.startswith("<"):
+            return await ctx.send(view=error_layout("Invalid Emoji", "Use a normal emoji or a custom emoji from this server, or `-` to remove it."))
+        option["emoji"] = "" if emoji == "-" else emoji
+        await self._save_command(ctx.guild.id, cmd)
+        await ctx.send(view=success_layout(f"{e('check')} Emoji Set", f"Option **{number}** of `{cmd.trigger}` updated."))
+
+    @cc_menu.command(name="link", help="Make a menu option open another command's embed and menu privately. Use - to unlink.")
+    @has_guild_permission("manage_guild")
+    async def ccm_link(self, ctx: commands.Context, trigger: str, number: int, target: str):
+        e = emoji_manager.get
+        cmd, option = await self._menu_option(ctx, trigger, number)
+        if option is None:
+            return
+        if target == "-":
+            option.pop("link", None)
+        else:
+            other = self._get_commands(ctx.guild.id).get(target.lower())
+            if other is None:
+                return await ctx.send(view=error_layout("Not Found", f"Command `{target.lower()}` not found."))
+            option["link"] = other.trigger
+        await self._save_command(ctx.guild.id, cmd)
+        await ctx.send(view=success_layout(f"{e('check')} Link Set", f"Option **{number}** of `{cmd.trigger}` {'now opens `' + option['link'] + '`' if option.get('link') else 'is no longer linked'}."))
+
+    @cc_menu.command(name="placeholder", help="Set the text shown on the dropdown.")
+    @has_guild_permission("manage_guild")
+    async def ccm_placeholder(self, ctx: commands.Context, trigger: str, *, text: str):
+        e = emoji_manager.get
+        cmd = await self._menu_target(ctx, trigger)
+        if cmd is None:
+            return
+        cmd.menu["placeholder"] = text.strip()[:150]
+        await self._save_command(ctx.guild.id, cmd)
+        await ctx.send(view=success_layout(f"{e('check')} Placeholder Set", f"`{cmd.trigger}` dropdown now says `{cmd.menu['placeholder']}`."))
+
+    @cc_menu.command(name="remove", aliases=["delete"], help="Remove a menu option.")
+    @has_guild_permission("manage_guild")
+    async def ccm_remove(self, ctx: commands.Context, trigger: str, number: int):
+        e = emoji_manager.get
+        cmd, option = await self._menu_option(ctx, trigger, number)
+        if option is None:
+            return
+        cmd.menu["options"].pop(number - 1)
+        await self._save_command(ctx.guild.id, cmd)
+        await ctx.send(view=success_layout(f"{e('check')} Option Removed", f"`{cmd.trigger}` has **{len(cmd.menu['options'])}** menu option(s) left."))
+
+    @cc_menu.command(name="clear", help="Remove the whole menu from a command.")
+    @has_guild_permission("manage_guild")
+    async def ccm_clear(self, ctx: commands.Context, trigger: str):
+        e = emoji_manager.get
+        cmd = await self._menu_target(ctx, trigger)
+        if cmd is None:
+            return
+        cmd.menu = {"placeholder": "", "options": []}
+        await self._save_command(ctx.guild.id, cmd)
+        await ctx.send(view=success_layout(f"{e('check')} Menu Cleared", f"`{cmd.trigger}` no longer has a menu."))
+
+    @cc_menu.command(name="list", help="Show the menu options of a command.")
+    @has_guild_permission("manage_guild")
+    async def ccm_list(self, ctx: commands.Context, trigger: str):
+        e = emoji_manager.get
+        cmd = await self._menu_target(ctx, trigger)
+        if cmd is None:
+            return
+        options = cmd.menu["options"]
+        if not options:
+            return await ctx.send(view=info_layout(f"{e('settings')} Menu", f"`{cmd.trigger}` has no menu options."))
+        lines = [f"**{i}.** {opt.get('emoji') or ''} {opt['label']} - `{(opt.get('response') or '')[:60]}`" for i, opt in enumerate(options, 1)]
+        await ctx.send(view=info_layout(f"{e('settings')} Menu for {cmd.trigger}", "\n".join(lines)[:3900]))
 
     @cc_group.group(name="group", invoke_without_command=True, help="Custom command group management.")
     @has_guild_permission("manage_guild")

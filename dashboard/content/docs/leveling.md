@@ -67,6 +67,7 @@ All of these need **Manage Server** (or the matching fake permission, see [moder
 | `!leveling disable` | Pauses XP. Saved XP and settings are kept. | Manage Server |
 | `!leveling channel <#channel>` | Sets the level-up channel and switches the announce mode to `channel`. | Manage Server |
 | `!leveling announce <channel\|dm\|off>` | Sends level-ups in the channel, by direct message, or not at all. | Manage Server |
+| `!leveling card <on\|off>` | Turns the level-up card image on or off. It is on by default. | Manage Server |
 | `!leveling message <text>` | Sets the level-up message and shows a preview. | Manage Server |
 | `!leveling setxp <member> <amount>` | Sets a member's total XP. Their level is recalculated. Negative numbers become 0. | Manage Server |
 | `!leveling resetxp <member>` | Sets a member's XP and level to 0. | Manage Server |
@@ -83,6 +84,8 @@ All of these need **Manage Server** (or the matching fake permission, see [moder
 | `!leveling monthlyreset` | Turns the automatic monthly leaderboard reset on or off. | Manage Server |
 
 ## Level-up messages
+
+Level-ups are sent as a Components V2 message with a level-up card under your text. The card shows the avatar, the old and new level, a progress bar to the next level, total XP and rank. `!rank` also shows its card in the same style.
 
 The default message is `{user} just reached **level {level}**!`. Change it with `!leveling message`. Set where it goes with `!leveling channel` or `!leveling announce`.
 

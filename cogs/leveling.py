@@ -9,7 +9,7 @@ from discord.ext import commands, tasks
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 import config
-from utils import db, emoji_manager, message_vars, security, xp_engine
+from utils import db, emoji_manager, guild_settings, message_vars, security, xp_engine
 from utils.checks import has_guild_permission
 from utils.colors import ERROR, NEUTRAL, SUCCESS
 from utils.components import ConfirmLayout, error_layout, footer_block, info_layout, success_layout
@@ -98,7 +98,7 @@ class Leveling(commands.Cog):
         stat_label_font = _load_font(14)
 
         text_x = 230
-        draw.text((text_x, 60), member.display_name[:22], font=name_font, fill=(240, 240, 245))
+        draw.text((text_x, 60), member.name[:22], font=name_font, fill=(240, 240, 245))
         draw.text((text_x, 100), f"Rank #{rank_position}", font=sub_font, fill=(160, 160, 168))
 
         level = xp_row["level"]
@@ -124,6 +124,68 @@ class Leveling(commands.Cog):
         buf.seek(0)
         return discord.File(buf, "rank-card.png")
 
+    async def _avatar_image(self, member: discord.Member, size: int) -> Optional[Image.Image]:
+        try:
+            async with self._session.get(member.display_avatar.replace(size=256).url, timeout=aiohttp.ClientTimeout(total=5)) as r:
+                data = await r.read()
+            image = Image.open(io.BytesIO(data)).convert("RGBA")
+            return ImageOps.fit(image, (size, size), method=Image.Resampling.LANCZOS)
+        except Exception:
+            return None
+
+    async def _generate_levelup_card(self, member: discord.Member, result: dict, rank_position: str) -> discord.File:
+        W, H = 900, 300
+        accent = member.top_role.color
+        accent_rgb = accent.to_rgb() if accent.value != 0 else (138, 99, 255)
+        canvas = Image.new("RGB", (W, H), (20, 20, 26))
+        draw = ImageDraw.Draw(canvas)
+        for x in range(W):
+            blend = x / W
+            draw.line([(x, 0), (x, H)], fill=tuple(int(20 + (c - 20) * blend * 0.3) for c in accent_rgb))
+        draw.rounded_rectangle([14, 14, W - 14, H - 14], 24, outline=accent_rgb, width=3)
+
+        size = 170
+        avatar = await self._avatar_image(member, size)
+        if avatar is not None:
+            canvas.paste(avatar, (50, 65), _circle_mask(size))
+        draw.ellipse([48, 63, 50 + size + 2, 65 + size + 2], outline=accent_rgb, width=5)
+
+        title_font = _load_font(24, bold=True)
+        name_font = _load_font(34, bold=True)
+        level_font = _load_font(76, bold=True)
+        label_font = _load_font(18)
+        text_x = 260
+        draw.text((text_x, 42), "LEVEL UP!", font=title_font, fill=accent_rgb)
+        draw.text((text_x, 78), member.name[:20], font=name_font, fill=(244, 244, 248))
+        draw.text((text_x, 128), f"{result['old_level']}", font=level_font, fill=(130, 130, 142))
+        old_w = draw.textlength(f"{result['old_level']}", font=level_font)
+        arrow_x = text_x + old_w + 24
+        draw.polygon([(arrow_x, 160), (arrow_x + 34, 160), (arrow_x + 34, 148), (arrow_x + 60, 170), (arrow_x + 34, 192), (arrow_x + 34, 180), (arrow_x, 180)], fill=accent_rgb)
+        draw.text((arrow_x + 84, 128), f"{result['new_level']}", font=level_font, fill=(244, 244, 248))
+
+        into_level, needed = xp_engine.xp_progress(result["total_xp"], result["new_level"])
+        bar_x, bar_y, bar_w, bar_h = text_x, 240, 560, 16
+        draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], bar_h // 2, fill=(45, 45, 54))
+        pct = min(into_level / needed, 1.0) if needed else 0
+        if pct > 0:
+            draw.rounded_rectangle([bar_x, bar_y, bar_x + max(int(bar_w * pct), bar_h), bar_y + bar_h], bar_h // 2, fill=accent_rgb)
+        draw.text((bar_x, bar_y - 26), f"{result['total_xp']:,} XP  ·  Rank #{rank_position}", font=label_font, fill=(180, 180, 190))
+
+        buf = io.BytesIO()
+        canvas.save(buf, format="PNG")
+        buf.seek(0)
+        return discord.File(buf, "levelup.png")
+
+    @staticmethod
+    def _card_layout(text: str, filename: str, accent: int) -> discord.ui.LayoutView:
+        view = discord.ui.LayoutView(timeout=None)
+        container = discord.ui.Container(accent_color=accent)
+        if text:
+            container.add_item(discord.ui.TextDisplay(text))
+        container.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(f"attachment://{filename}")))
+        view.add_item(container)
+        return view
+
     async def _announce_level_up(self, guild: discord.Guild, member: discord.Member, result: dict, guild_config: dict):
         mode = guild_config["announce_mode"]
         if mode == "off":
@@ -145,10 +207,28 @@ class Leveling(commands.Cog):
             "rank": str(rank_row["rank"] if rank_row else "?"),
         })
         text = message_vars.substitute(template, var_map)
+        use_card = await guild_settings.get(guild.id, "lvl_card", True)
+        accent = member.top_role.color.value or 0x8A63FF
+        mentions = discord.AllowedMentions(users=[member], roles=False, everyone=False)
+
+        async def deliver(target):
+            if use_card:
+                try:
+                    card = await self._generate_levelup_card(member, result, var_map["rank"])
+                    return await target.send(view=self._card_layout(text, "levelup.png", accent), file=card, allowed_mentions=mentions)
+                except discord.HTTPException:
+                    pass
+                except Exception:
+                    pass
+            view = discord.ui.LayoutView(timeout=None)
+            container = discord.ui.Container(accent_color=accent)
+            container.add_item(discord.ui.TextDisplay(text))
+            view.add_item(container)
+            return await target.send(view=view, allowed_mentions=mentions)
 
         if mode == "dm":
             try:
-                await member.send(text)
+                await deliver(member)
             except discord.HTTPException:
                 pass
             return
@@ -156,7 +236,7 @@ class Leveling(commands.Cog):
         channel = guild.get_channel(guild_config["announce_channel_id"]) if guild_config["announce_channel_id"] else None
         if channel:
             try:
-                await channel.send(text)
+                await deliver(channel)
             except discord.HTTPException:
                 pass
 
@@ -288,7 +368,7 @@ class Leveling(commands.Cog):
         rank_position = rank_row["rank"] if rank_row else 1
 
         card = await self._generate_rank_card(member, dict(row), rank_position)
-        await ctx.send(file=card)
+        await ctx.send(view=self._card_layout("", "rank-card.png", member.top_role.color.value or 0x8A63FF), file=card)
 
     @commands.command(name="leaderboard", aliases=["lb", "top"], help="View the XP leaderboard for this server.")
     @commands.guild_only()
@@ -328,7 +408,7 @@ class Leveling(commands.Cog):
             f"**Role reward mode:** `{cfg['role_stack_mode']}`\n"
             f"**Announce mode:** `{cfg['announce_mode']}`\n"
             f"**Weekly reset:** {'On' if cfg['weekly_reset_enabled'] else 'Off'} · **Monthly reset:** {'On' if cfg['monthly_reset_enabled'] else 'Off'}\n\n"
-            "-# Subcommands: `enable` `disable` `channel` `setxp` `resetxp` `levelrole` `multiplier` `noxp` `announce`"
+            "-# Subcommands: `enable` `disable` `channel` `setxp` `resetxp` `levelrole` `multiplier` `noxp` `announce` `card`"
         )
         await ctx.send(view=info_layout(f"{e('settings')} Leveling Configuration", body))
 
@@ -392,6 +472,15 @@ class Leveling(commands.Cog):
         preview_vars.update({k: f"[{k}]" for k in message_vars.DEFAULT_VARIABLE_DOCS})
         preview = message_vars.substitute(message, preview_vars)
         await ctx.send(view=success_layout(f"{e('check')} Message Updated", f"**Preview:**\n{preview}"))
+
+    @leveling_group.command(name="card", help="Turn the level-up card image on or off. Usage: leveling card <on|off>")
+    @has_guild_permission("manage_guild")
+    async def lvl_card(self, ctx: commands.Context, state: str):
+        e = emoji_manager.get
+        if state.lower() not in ("on", "off"):
+            return await ctx.send(view=error_layout("Invalid Option", "Use `on` or `off`."))
+        await guild_settings.set(ctx.guild.id, "lvl_card", state.lower() == "on")
+        await ctx.send(view=success_layout(f"{e('check')} Level-Up Card", f"The level-up card is now **{state.lower()}**."))
 
     @leveling_group.command(name="variables", aliases=["vars"], help="Show all available level-up message variables.")
     async def lvl_variables(self, ctx: commands.Context):

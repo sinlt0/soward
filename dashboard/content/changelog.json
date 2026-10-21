@@ -1,5 +1,20 @@
 [
   {
+    "version": "3.2",
+    "title": "Community",
+    "date": "2026-10-21",
+    "items": [
+      "Added birthdays: members save a day and month, Soward announces it, gives a birthday role for the day and lists upcoming birthdays",
+      "Added anonymous confessions with a Confess button, numbered posts, an optional staff log, and blocking a sender by confession number without revealing them",
+      "Added suggestions with voting buttons and approve, deny, consider and implement reviews",
+      "Added the starboard, which copies messages with enough reactions to a channel",
+      "Added dropdown menus to custom commands, including linked sub menus, and custom commands in server templates",
+      "The Dating v2 template now uses custom commands for rules and self roles and sets up birthdays, confessions and suggestions",
+      "Added counting, a daily Wordle with stats and a leaderboard, would you rather, never have I ever, rizz and icebreaker commands, and a daily question autopost",
+      "Level-up messages now use Components V2 with a level-up card"
+    ]
+  },
+  {
     "version": "3.1",
     "title": "Security Center",
     "date": "2026-10-16",

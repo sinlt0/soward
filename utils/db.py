@@ -583,6 +583,89 @@ async def _bootstrap_sqlite() -> None:
             posted_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
             PRIMARY KEY (guild_id, media_id, posted_at)
         )""",
+        """CREATE TABLE IF NOT EXISTS counting_state (
+            guild_id INTEGER PRIMARY KEY,
+            current INTEGER NOT NULL DEFAULT 0,
+            last_user_id INTEGER,
+            high_score INTEGER NOT NULL DEFAULT 0,
+            total_ruined INTEGER NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS counting_users (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            correct INTEGER NOT NULL DEFAULT 0,
+            ruined INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS wordle_games (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            day INTEGER NOT NULL,
+            guesses TEXT NOT NULL DEFAULT '',
+            status INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (guild_id, user_id, day)
+        )""",
+        """CREATE TABLE IF NOT EXISTS wordle_stats (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            played INTEGER NOT NULL DEFAULT 0,
+            won INTEGER NOT NULL DEFAULT 0,
+            streak INTEGER NOT NULL DEFAULT 0,
+            max_streak INTEGER NOT NULL DEFAULT 0,
+            last_won_day INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS birthdays (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            month INTEGER NOT NULL,
+            day INTEGER NOT NULL,
+            last_announced INTEGER,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS confessions (
+            guild_id INTEGER NOT NULL,
+            number INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            channel_id INTEGER NOT NULL,
+            message_id INTEGER NOT NULL,
+            content TEXT,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (guild_id, number)
+        )""",
+        """CREATE TABLE IF NOT EXISTS confession_bans (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            banned_at REAL NOT NULL,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS suggestions (
+            guild_id INTEGER NOT NULL,
+            number INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            channel_id INTEGER NOT NULL,
+            message_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            reason TEXT,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (guild_id, number)
+        )""",
+        """CREATE TABLE IF NOT EXISTS suggestion_votes (
+            guild_id INTEGER NOT NULL,
+            number INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            vote INTEGER NOT NULL,
+            PRIMARY KEY (guild_id, number, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS starboard_posts (
+            guild_id INTEGER NOT NULL,
+            message_id INTEGER NOT NULL,
+            channel_id INTEGER NOT NULL,
+            star_message_id INTEGER NOT NULL,
+            stars INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (guild_id, message_id)
+        )""",
         """CREATE TABLE IF NOT EXISTS member_afk (
             guild_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,

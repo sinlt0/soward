@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 import secrets
 import time
 import uuid
@@ -155,6 +156,63 @@ def _setting_allowed(key: str, foreign: bool) -> bool:
     if foreign and key in FOREIGN_SKIP_SETTINGS:
         return False
     return True
+
+
+CC_RUNTIME_KEYS = ("uses", "numeric_id", "interval_next_run", "reaction_message_id", "group")
+CC_ROLE_LISTS = ("allowed_roles", "denied_roles")
+CC_CHANNEL_LISTS = ("allowed_channels", "denied_channels")
+CC_SAFE_TAGS = {"togglerole", "addrole", "removerole", "settitle", "setcolor", "setfooter", "setthumbnail", "setimage", "addfield", "noresponse", "deleteafter"}
+MAX_COMMANDS = 100
+
+
+async def _snapshot_commands(guild: discord.Guild, role_keys: dict, channel_keys: dict) -> list:
+    out = []
+    for row in await db.raw_fetch("SELECT trigger, data FROM custom_commands WHERE guild_id=? LIMIT ?", (guild.id, MAX_COMMANDS)):
+        try:
+            data = json.loads(row["data"])
+        except ValueError:
+            continue
+        for key in CC_RUNTIME_KEYS:
+            data.pop(key, None)
+        for key in CC_ROLE_LISTS:
+            data[key] = [_tok("role", role_keys[i]) for i in data.get(key, []) if i in role_keys]
+        for key in CC_CHANNEL_LISTS:
+            data[key] = [_tok("channel", channel_keys[i]) for i in data.get(key, []) if i in channel_keys]
+        interval = data.get("interval_channel")
+        data["interval_channel"] = _tok("channel", channel_keys[interval]) if interval in channel_keys else None
+        out.append({"trigger": row["trigger"], "data": data})
+    return out
+
+
+def _command_texts(data: dict) -> list[str]:
+    menu = data.get("menu") or {}
+    return [str(r) for r in data.get("responses", [])] + [str(o.get("response", "")) for o in menu.get("options", []) if isinstance(o, dict)]
+
+
+def _command_safe(data: dict) -> bool:
+    from utils import cc_engine
+    if data.get("trigger_type", "command") != "command":
+        return False
+    for text in _command_texts(data):
+        for match in cc_engine.ACTION_PATTERN.finditer(text):
+            if match.group(1).lower() not in CC_SAFE_TAGS:
+                return False
+    return True
+
+
+def _validate_commands(commands: Any) -> None:
+    if not isinstance(commands, list) or len(commands) > MAX_COMMANDS:
+        raise ValueError("This template has too many custom commands.")
+    for spec in commands:
+        if not isinstance(spec, dict) or not isinstance(spec.get("trigger"), str) or not isinstance(spec.get("data"), dict):
+            raise ValueError("This template is damaged.")
+        menu = spec["data"].get("menu") or {}
+        options = menu.get("options", []) if isinstance(menu, dict) else None
+        if options is None or not isinstance(options, list) or len(options) > 25:
+            raise ValueError("This template is damaged.")
+        for option in options:
+            if not isinstance(option, dict) or not isinstance(option.get("label"), str) or not option["label"].strip():
+                raise ValueError("This template is damaged.")
 
 
 async def snapshot(guild: discord.Guild) -> dict:
@@ -331,6 +389,7 @@ async def snapshot(guild: discord.Guild) -> dict:
         "embeds": embeds,
         "panels": panels,
         "tickets": ticket_specs,
+        "commands": await _snapshot_commands(guild, role_keys, channel_keys),
         "prefix": prefix_row["prefix"] if prefix_row else None,
     }
     if len(json.dumps(data)) > MAX_BYTES:
@@ -354,6 +413,7 @@ def validate(data: Any) -> dict:
         total += len(cat.get("channels", [])) + (1 if cat.get("name") else 0)
     if total > MAX_CHANNELS + 50:
         raise ValueError("This template has too many channels.")
+    _validate_commands(data.get("commands") or [])
     for spec in roles:
         if not isinstance(spec, dict) or not isinstance(spec.get("name"), str) or not spec.get("key"):
             raise ValueError("This template is damaged.")
@@ -374,6 +434,7 @@ def summary_counts(data: dict) -> dict:
         "embeds": len(data.get("embeds", [])),
         "panels": len(data.get("panels", [])) + len(data.get("tickets", [])),
         "messages": len(data.get("messages", [])),
+        "commands": len(data.get("commands", [])),
     }
 
 
@@ -409,13 +470,40 @@ def _build_overwrites(guild: discord.Guild, spec: dict, rmap: dict) -> dict:
     return out
 
 
+CALL_TIMEOUT = 90.0
+MAX_STALLS = 3
+
+
+class Stalled(Exception):
+    pass
+
+
+def _err(exc: Exception) -> str:
+    if isinstance(exc, asyncio.TimeoutError):
+        return "Discord did not answer in time (rate limited)"
+    return str(exc)[:80]
+
+
+async def _timed(coro, report: "Report"):
+    try:
+        result = await asyncio.wait_for(coro, CALL_TIMEOUT)
+    except asyncio.TimeoutError:
+        report.stalls += 1
+        if report.stalls >= MAX_STALLS:
+            raise Stalled()
+        raise
+    report.stalls = 0
+    return result
+
+
 class Report:
     def __init__(self):
+        self.stalls = 0
         self.lines: list[str] = []
         self.failed: list[str] = []
         self.rmap: dict[str, int] = {}
         self.cmap: dict[str, int] = {}
-        self.counts = {"kicked_bots": 0, "deleted_channels": 0, "deleted_roles": 0, "roles": 0, "roles_reused": 0, "channels": 0, "channels_reused": 0, "settings": 0, "embeds": 0, "panels": 0, "messages": 0}
+        self.counts = {"kicked_bots": 0, "deleted_channels": 0, "deleted_roles": 0, "roles": 0, "roles_reused": 0, "channels": 0, "channels_reused": 0, "commands": 0, "settings": 0, "embeds": 0, "panels": 0, "messages": 0}
 
     def ok(self, line: str):
         self.lines.append(line)
@@ -451,27 +539,38 @@ async def _apply_roles(guild: discord.Guild, specs: list, foreign: bool, rmap: d
         if not me.guild_permissions.administrator:
             perms = discord.Permissions(perms.value & me.guild_permissions.value)
         try:
-            role = await guild.create_role(
+            role = await _timed(guild.create_role(
                 name=spec["name"][:100], colour=discord.Colour(int(spec.get("color", 0) or 0)), hoist=bool(spec.get("hoist")),
                 mentionable=bool(spec.get("mentionable")), permissions=perms, reason="Soward server template",
-            )
-        except discord.HTTPException as exc:
-            report.fail(f"Role **{spec['name']}**: {str(exc)[:80]}")
+            ), report)
+        except (discord.HTTPException, asyncio.TimeoutError) as exc:
+            report.fail(f"Role **{spec['name']}**: {_err(exc)}")
             continue
         created.append(role)
         rmap[spec["key"]] = role.id
         report.counts["roles"] += 1
         await asyncio.sleep(0.3)
-    if created:
-        top = me.top_role.position
-        base = max(1, top - len(created))
-        order = {}
-        for index, role in enumerate(reversed(created)):
-            order[role] = min(top - 1, base + index) if top > 1 else 1
-        try:
-            await guild.edit_role_positions(positions=order, reason="Soward server template")
-        except discord.HTTPException:
-            report.fail("Roles were created but could not be moved into order. Drag them into place in Server Settings")
+    wanted_ids = [rmap[spec["key"]] for spec in specs if spec["key"] in rmap]
+    if not wanted_ids:
+        return
+    try:
+        fresh = await asyncio.wait_for(guild.fetch_roles(), CALL_TIMEOUT)
+    except (discord.HTTPException, asyncio.TimeoutError):
+        report.fail("Roles were created but could not be moved into order. Drag them into place in Server Settings")
+        return
+    by_id = {r.id: r for r in fresh}
+    mine = {r.id for r in me.roles}
+    top = max((r.position for r in fresh if r.id in mine), default=0)
+    ordered = [by_id[i] for i in wanted_ids if i in by_id and by_id[i].position < top and not by_id[i].managed]
+    if not ordered:
+        return
+    positions = {role: top - 1 - index for index, role in enumerate(ordered) if top - 1 - index >= 1}
+    if len(positions) < len(ordered):
+        report.fail("Soward's role is too low to order every role. Move it to the top in Server Settings and apply roles again")
+    try:
+        await asyncio.wait_for(guild.edit_role_positions(positions=positions, reason="Soward server template"), CALL_TIMEOUT)
+    except (discord.HTTPException, asyncio.TimeoutError):
+        report.fail("Roles were created but could not be moved into order. Drag them into place in Server Settings")
 
 
 def _norm_name(name: str, kind: str) -> str:
@@ -487,13 +586,13 @@ async def _apply_channels(guild: discord.Guild, categories: list, rmap: dict, cm
             category = existing_categories.get(cat["name"].lower())
             if category is None:
                 try:
-                    category = await guild.create_category(
+                    category = await _timed(guild.create_category(
                         cat["name"][:100], overwrites=_build_overwrites(guild, cat_ow, rmap), reason="Soward server template",
-                    )
+                    ), report)
                     existing_categories[cat["name"].lower()] = category
                     await asyncio.sleep(0.3)
-                except discord.HTTPException as exc:
-                    report.fail(f"Category **{cat['name']}**: {str(exc)[:80]}")
+                except (discord.HTTPException, asyncio.TimeoutError) as exc:
+                    report.fail(f"Category **{cat['name']}**: {_err(exc)}")
                     continue
             if cat.get("key"):
                 cmap[cat["key"]] = category.id
@@ -528,34 +627,36 @@ async def _apply_channels(guild: discord.Guild, categories: list, rmap: dict, cm
             try:
                 if kind in ("text", "announcement"):
                     try:
-                        created = await guild.create_text_channel(
+                        created = await _timed(guild.create_text_channel(
                             ch["name"][:100], category=category, topic=topic, slowmode_delay=slow, overwrites=overwrites,
                             news=(kind == "announcement"), reason=reason,
-                        )
+                        ), report)
                     except discord.HTTPException:
                         if kind != "announcement":
                             raise
-                        created = await guild.create_text_channel(
+                        created = await _timed(guild.create_text_channel(
                             ch["name"][:100], category=category, topic=topic, slowmode_delay=slow, overwrites=overwrites, reason=reason,
-                        )
+                        ), report)
                 elif kind == "voice":
-                    created = await guild.create_voice_channel(
+                    created = await _timed(guild.create_voice_channel(
                         ch["name"][:100], category=category, user_limit=int(ch.get("user_limit") or 0), overwrites=overwrites, reason=reason,
-                    )
+                    ), report)
                 elif kind == "stage":
                     try:
-                        created = await guild.create_stage_channel(ch["name"][:100], category=category, overwrites=overwrites, reason=reason)
+                        created = await _timed(guild.create_stage_channel(ch["name"][:100], category=category, overwrites=overwrites, reason=reason), report)
                     except discord.HTTPException:
-                        created = await guild.create_voice_channel(ch["name"][:100], category=category, overwrites=overwrites, reason=reason)
+                        created = await _timed(guild.create_voice_channel(ch["name"][:100], category=category, overwrites=overwrites, reason=reason), report)
                 elif kind == "forum":
                     try:
-                        created = await guild.create_forum(ch["name"][:100], category=category, topic=topic, overwrites=overwrites, reason=reason)
+                        created = await _timed(guild.create_forum(ch["name"][:100], category=category, topic=topic, overwrites=overwrites, reason=reason), report)
                     except discord.HTTPException:
-                        created = await guild.create_text_channel(
+                        created = await _timed(guild.create_text_channel(
                             ch["name"][:100], category=category, topic=topic, overwrites=overwrites, reason=reason,
-                        )
-            except discord.HTTPException as exc:
-                report.fail(f"Channel **{ch['name']}**: {str(exc)[:80]}")
+                        ), report)
+            except (discord.HTTPException, asyncio.TimeoutError) as exc:
+                report.fail(f"Channel **{ch['name']}**: {_err(exc)}")
+                continue
+            if created is None:
                 continue
             cmap[ch["key"]] = created.id
             report.counts["channels"] += 1
@@ -722,7 +823,105 @@ async def _apply_logs(bot, guild: discord.Guild, data: dict, rmap: dict, cmap: d
         await asyncio.sleep(0.3)
 
 
-async def _apply_content(bot, guild: discord.Guild, data: dict, rmap: dict, cmap: dict, actor_id: int, report: Report):
+async def _apply_commands(bot, guild: discord.Guild, data: dict, rmap: dict, cmap: dict, foreign: bool, actor_id: int, report: Report):
+    specs = data.get("commands") or []
+    if not specs:
+        return
+    cog = bot.get_cog("CustomCommands")
+    if cog is None:
+        report.fail("Custom commands: the custom commands module is not loaded")
+        return
+    from utils.cc_engine import CustomCommand
+    await cog._ensure_loaded(guild.id)
+    existing = cog._cache.setdefault(guild.id, {})
+    for spec in specs[:MAX_COMMANDS]:
+        trigger = str(spec["trigger"]).lower()[:50]
+        if not trigger or trigger in existing:
+            continue
+        if bot.get_command(trigger):
+            report.fail(f"Custom command **{trigger}**: the name is already a bot command")
+            continue
+        if len(existing) >= MAX_COMMANDS:
+            report.fail("Custom commands: the server limit was reached")
+            break
+        raw = dict(spec["data"])
+        if foreign and not _command_safe(raw):
+            report.fail(f"Custom command **{trigger}**: skipped because another server's template can only add safe commands")
+            continue
+        for key in CC_ROLE_LISTS + CC_CHANNEL_LISTS:
+            resolved = [_resolve(token, rmap, cmap) for token in raw.get(key, [])]
+            raw[key] = [i for i in resolved if i is not DROP]
+        raw["responses"] = [_command_text_tokens(str(t), cmap) for t in raw.get("responses", [])]
+        menu = raw.get("menu")
+        if isinstance(menu, dict):
+            raw["menu"] = {**menu, "options": [
+                {**o, "response": _command_text_tokens(str(o.get("response", "")), cmap)} for o in menu.get("options", []) if isinstance(o, dict)]}
+        interval = _resolve(raw.get("interval_channel"), rmap, cmap) if raw.get("interval_channel") else None
+        raw["interval_channel"] = None if interval is DROP else interval
+        raw["numeric_id"] = cog._alloc_id()
+        raw["trigger_text"] = raw.get("trigger_text") or trigger
+        raw["uses"] = 0
+        raw["group"] = None
+        command = CustomCommand(trigger, raw)
+        existing[trigger] = command
+        await cog._save_command(guild.id, command, created_by=actor_id)
+        report.counts["commands"] += 1
+
+
+def _command_text_tokens(text: str, cmap: dict) -> str:
+    def swap(match):
+        resolved = _resolve({"$channel": match.group(1)}, {}, cmap)
+        return "" if resolved is DROP else f"<#{resolved}>"
+    return re.sub(r"\{\{channel:([\w-]+)\}\}", swap, text)
+
+
+async def _post_confess_panel(guild: discord.Guild, channel, report: Report):
+    from cogs.confessions import BUTTON_ID, panel_view
+    try:
+        recent = [m async for m in channel.history(limit=30) if m.author.id == guild.me.id]
+    except discord.HTTPException:
+        recent = []
+    if any(getattr(child, "custom_id", None) == BUTTON_ID for m in recent for row in m.components for child in getattr(row, "children", [])):
+        return
+    try:
+        await channel.send(view=panel_view())
+    except discord.HTTPException as exc:
+        report.fail(f"Confession panel in {channel.mention}: {str(exc)[:80]}")
+
+
+async def _post_command(bot, guild: discord.Guild, channel, trigger: str, pin: bool, report: Report):
+    cog = bot.get_cog("CustomCommands")
+    if cog is None:
+        return
+    await cog._ensure_loaded(guild.id)
+    command = cog._get_commands(guild.id).get(trigger.lower())
+    if command is None:
+        return
+    marker = f"ccm:{command.numeric_id}"
+    try:
+        recent = [m async for m in channel.history(limit=30) if m.author.id == guild.me.id]
+    except discord.HTTPException:
+        recent = []
+    if any(getattr(child, "custom_id", None) == marker for m in recent for row in m.components for child in getattr(row, "children", [])):
+        return
+    try:
+        sent = await cog.post_command(guild, trigger, channel)
+    except discord.HTTPException as exc:
+        report.fail(f"Custom command message in {channel.mention}: {str(exc)[:80]}")
+        return
+    if sent is None:
+        return
+    if pin:
+        try:
+            await sent.pin()
+        except discord.HTTPException:
+            pass
+    report.counts["messages"] += 1
+    await asyncio.sleep(0.4)
+
+
+async def _apply_content(bot, guild: discord.Guild, data: dict, rmap: dict, cmap: dict, actor_id: int, report: Report, foreign: bool = False):
+    await _apply_commands(bot, guild, data, rmap, cmap, foreign, actor_id, report)
     cap = await embed_templates.get_template_cap(guild.id)
     used = await embed_templates.count_templates(guild.id)
     for spec in data.get("embeds") or []:
@@ -758,6 +957,12 @@ async def _apply_content(bot, guild: discord.Guild, data: dict, rmap: dict, cmap
 
     for message in data.get("messages") or []:
         channel = _channel(guild, message.get("channel"), cmap)
+        if channel is not None and message.get("special") == "confess_panel":
+            await _post_confess_panel(guild, channel, report)
+            continue
+        if channel is not None and message.get("command"):
+            await _post_command(bot, guild, channel, str(message["command"]), bool(message.get("pin")), report)
+            continue
         name = str(message.get("embed", "")).lower()
         if channel is None or not name:
             continue
@@ -1075,9 +1280,22 @@ async def full_clean(guild: discord.Guild, report: Report, skip_channel_id: int 
     await guild_settings.delete(guild.id, "antinuke_quarantine_role_id")
 
 
-async def _ensure_quarantine(guild: discord.Guild, report: Report):
+async def _apply_everyone(guild: discord.Guild, flags: dict, foreign: bool, report: Report):
+    if foreign or "everyone_perms" not in flags:
+        return
+    names = _valid_perm_names(flags.get("everyone_perms") or [])
+    try:
+        await asyncio.wait_for(
+            guild.default_role.edit(permissions=discord.Permissions(**{n: True for n in names}), reason="Soward server template"), CALL_TIMEOUT,
+        )
+        report.ok("Turned off every @everyone permission, so members need the member role to talk")
+    except (discord.HTTPException, asyncio.TimeoutError) as exc:
+        report.fail(f"@everyone permissions: {_err(exc)}")
+
+
+async def _ensure_quarantine(guild: discord.Guild, report: Report, preferred_id: Optional[int] = None):
     from utils import security_autosetup
-    role_id = await guild_settings.get(guild.id, "antinuke_quarantine_role_id")
+    role_id = preferred_id or await guild_settings.get(guild.id, "antinuke_quarantine_role_id")
     role = guild.get_role(int(role_id)) if role_id else None
     if role is None:
         role = next((r for r in guild.roles if r.name.lower() == "quarantined" and not r.managed), None)
@@ -1093,13 +1311,18 @@ async def _ensure_quarantine(guild: discord.Guild, report: Report):
             await role.edit(position=max(1, guild.me.top_role.position - 1))
         except discord.HTTPException:
             pass
+    if role.permissions.value:
+        try:
+            await role.edit(permissions=discord.Permissions.none(), reason="Soward server template")
+        except discord.HTTPException:
+            pass
     await guild_settings.set(guild.id, "antinuke_quarantine_role_id", role.id)
     locked = await security_autosetup._lock_channels(guild, role)
-    report.ok(f"{'Created' if created else 'Linked'} the Quarantined role and hid {locked} channel(s) or categories from it")
+    report.ok(f"{'Created' if created else 'Linked'} the Quarantined role and removed all of its permissions in {locked} channel(s) or categories")
 
 
-async def apply(bot, guild: discord.Guild, data: dict, *, actor_id: int, parts: set, foreign: bool) -> Report:
-    report = Report()
+async def apply(bot, guild: discord.Guild, data: dict, *, actor_id: int, parts: set, foreign: bool, report: Optional[Report] = None) -> Report:
+    report = report or Report()
     rmap: dict[str, int] = {}
     cmap: dict[str, int] = {}
 
@@ -1129,9 +1352,12 @@ async def apply(bot, guild: discord.Guild, data: dict, *, actor_id: int, parts: 
         await _apply_logs(bot, guild, data, rmap, cmap, report)
         await _apply_flags(bot, guild, data, foreign, rmap, cmap, report)
     if "content" in parts:
-        await _apply_content(bot, guild, data, rmap, cmap, actor_id, report)
+        await _apply_content(bot, guild, data, rmap, cmap, actor_id, report, foreign)
+    if "roles" in parts:
+        await _apply_everyone(guild, data.get("flags") or {}, foreign, report)
     if "roles" in parts and (data.get("flags") or {}).get("quarantine", True):
-        await _ensure_quarantine(guild, report)
+        key = (data.get("flags") or {}).get("quarantine_role")
+        await _ensure_quarantine(guild, report, rmap.get(key) if key else None)
     report.rmap = rmap
     report.cmap = cmap
     return report

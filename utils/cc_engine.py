@@ -94,6 +94,8 @@ class CustomCommand:
         self.interval_minutes = data.get("interval_minutes", 0)
         self.interval_channel = data.get("interval_channel")
         self.interval_next_run = data.get("interval_next_run", 0)
+        menu = data.get("menu") or {}
+        self.menu = {"placeholder": menu.get("placeholder", ""), "options": list(menu.get("options", []))}
         self._cooldown_cache: dict = {}
 
     def to_dict(self) -> dict:
@@ -124,6 +126,7 @@ class CustomCommand:
             "interval_minutes": self.interval_minutes,
             "interval_channel": self.interval_channel,
             "interval_next_run": self.interval_next_run,
+            "menu": self.menu,
         }
 
     def matches(self, content: str, prefix_stripped: str) -> bool:

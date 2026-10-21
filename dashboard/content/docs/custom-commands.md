@@ -78,7 +78,38 @@ Most `!cc` subcommands need **Manage Server** (or the fake permission `manage_gu
 | `!cc embed <trigger> [title] [color]` | Switches embed mode on or off, and optionally sets the embed title and hex color. | Manage Server |
 | `!cc deleteafter <trigger> [trigger seconds] [response seconds]` | Deletes the trigger message and/or the response after a delay. `0` turns each off. Alias: `!cc da`. | Manage Server |
 
-### Cooldowns and restrictions
+### Menus
+
+A custom command can carry a dropdown menu. The command posts its message with the dropdown under it. When a member picks an option, the response for that option is sent only to them, so you can build rules panels, info panels and self role panels.
+
+```
+!cc add rules-panel As a valued member, please follow our rules.
+!cc embed rules-panel "Community Rules" #E91E63
+!cc menu add rules-panel "Chat Rules" "How to behave in chat" Be kind. No spam. No NSFW.
+!cc menu title rules-panel 1 Chat Rules
+!cc menu emoji rules-panel 1 💬
+!cc menu placeholder rules-panel Pick a category
+```
+
+| Command | What it does | Needs |
+| --- | --- | --- |
+| `!cc menu add <trigger> "<label>" "<description>" <response>` | Adds an option. Use `-` for no description. Up to 25 options. | Manage Server |
+| `!cc menu edit <trigger> <number> <response>` | Changes what an option says or does. | Manage Server |
+| `!cc menu title <trigger> <number> <title>` | Makes the reply an embed with that title. Use `-` to remove it. | Manage Server |
+| `!cc menu emoji <trigger> <number> <emoji>` | Sets the option emoji. Use `-` to remove it. | Manage Server |
+| `!cc menu link <trigger> <number> <other command>` | Makes the option open another command's embed and menu, privately. Use `-` to unlink. | Manage Server |
+| `!cc menu placeholder <trigger> <text>` | Sets the text shown on the dropdown. | Manage Server |
+| `!cc menu remove <trigger> <number>` | Removes an option. | Manage Server |
+| `!cc menu clear <trigger>` | Removes the whole menu. | Manage Server |
+| `!cc menu list <trigger>` | Lists the options. | Manage Server |
+
+- Option responses can use variables and action tags. A self role option is `{togglerole:Gamer}Toggled Gamer.`, and a pick-one group removes the others first: `{removerole:Blue}{addrole:Red}You are now Red.`
+- A linked option replies with the other command's embed (and its image) plus its own dropdown, so a hub menu can open one sub menu per category.
+- The reply is an embed when the option has a title or uses embed tags, otherwise plain text.
+- Restrictions decide who can run the command and post the message. Anyone who can see the posted message can use its menu. The command cooldown applies per member.
+- Menus keep working after the bot restarts. Menus are managed with commands only, not the dashboard.
+
+## Cooldowns and restrictions
 
 | Command | What it does | Needs |
 | --- | --- | --- |
@@ -379,7 +410,7 @@ The Custom Commands page on the web dashboard lists every command with its trigg
 
 The dashboard supports the trigger types `command`, `starts_with`, `contains`, `regex` and `exact_match`. Commands that use `message_edit`, `reaction` or `interval` show up in the list and can be toggled or deleted, but must be changed with `!cc`.
 
-Still commands only: extra responses, restrictions, groups, intervals, reaction triggers, descriptions, rename, copy, export and import, search, stats and `!cc exec`.
+Still commands only: menus, extra responses, restrictions, groups, intervals, reaction triggers, descriptions, rename, copy, export and import, search, stats and `!cc exec`.
 
 ## Troubleshooting
 

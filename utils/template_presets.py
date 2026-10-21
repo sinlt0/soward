@@ -25,7 +25,10 @@ def access(kind: str, staff: tuple = STAFF) -> Optional[dict]:
     if kind.startswith("roles:"):
         keys = kind[6:].split(",")
         grant = _ow([VIEW, "send_messages", "connect", "speak", "add_reactions", "read_message_history"])
-        return {"everyone": _ow(deny=[VIEW]), **{k: grant for k in keys}, **{k: _ow([VIEW, "send_messages", "connect", "speak"]) for k in staff}}
+        return {"everyone": _ow(deny=[VIEW]), "member": _ow(deny=[VIEW]), **{k: _ow([VIEW, "send_messages", "connect", "speak"]) for k in staff}, **{k: grant for k in keys}}
+    if kind.startswith("only:"):
+        keys = kind[5:].split(",")
+        return {"everyone": _ow(deny=[VIEW]), "member": _ow(deny=[VIEW]), **{k: _ow([VIEW, "send_messages", "connect", "speak", "read_message_history"]) for k in keys}}
     staff_view = {k: _ow([VIEW, "send_messages", "connect", "speak"]) for k in staff}
     if kind == "members":
         return {"everyone": _ow(deny=[VIEW]), "member": _ow([VIEW]), **staff_view}
@@ -33,6 +36,8 @@ def access(kind: str, staff: tuple = STAFF) -> Optional[dict]:
         return {"everyone": _ow(deny=[VIEW] + SEND), "member": _ow([VIEW], SEND), **staff_view}
     if kind == "staff":
         return {"everyone": _ow(deny=[VIEW]), **staff_view}
+    if kind == "gate":
+        return {"everyone": _ow(deny=[VIEW] + SEND), "unverified": _ow([VIEW, "read_message_history"], SEND), "member": _ow([VIEW], SEND), **staff_view}
     if kind == "verify":
         return {"everyone": _ow([VIEW], SEND), "member": _ow(deny=[VIEW])}
     if kind == "publicread":
@@ -58,6 +63,9 @@ class Builder:
         self.tables: dict = {}
         self.greetings: list[dict] = []
         self.flags: dict = {}
+        self.logs: dict = {}
+        self.commands: list[dict] = []
+        self.fixed_order = False
         self.staff: tuple = STAFF
         self._cat: Optional[dict] = None
         self._n = 0
@@ -74,8 +82,10 @@ class Builder:
         self.categories.append(self._cat)
         return self._cat["key"]
 
-    def channel(self, key, name, kind="text", topic=None, access_kind=None, slowmode=0, user_limit=0):
+    def channel(self, key, name, kind="text", topic=None, access_kind=None, slowmode=0, user_limit=0, merge=True):
         entry = {"key": key, "name": name, "type": kind, "overwrites": access(access_kind, self.staff) if access_kind else None}
+        if not merge:
+            entry["merge"] = False
         if topic:
             entry["topic"] = topic
         if slowmode:
@@ -90,6 +100,20 @@ class Builder:
             "footer_text": footer, "thumbnail_url": thumb, "use_timestamp": 0,
             "fields": [{"name": n, "value": v, "inline": bool(i)} for n, v, i in (fields or [])],
         })
+
+    def command(self, trigger, response, embed=False, color=None, title=None, options=(), placeholder="", allowed_roles=(), cooldown=0, allowed_channels=()):
+        self.commands.append({"trigger": trigger, "data": {
+            "trigger_text": trigger, "trigger_type": "command", "responses": [response], "embed": embed, "embed_color": color, "embed_title": title,
+            "cooldown": cooldown, "cooldown_type": "user", "allowed_roles": [{"$role": k} for k in allowed_roles], "denied_roles": [],
+            "allowed_channels": [{"$channel": k} for k in allowed_channels], "denied_channels": [], "enabled": True, "description": "",
+            "menu": {"placeholder": placeholder, "options": [dict(o) for o in options]},
+        }})
+
+    def post_special(self, channel_key, special, pin=False):
+        self.messages.append({"channel": channel_key, "special": special, "pin": pin})
+
+    def post_command(self, channel_key, trigger, pin=False):
+        self.messages.append({"channel": channel_key, "command": trigger, "pin": pin})
 
     def post(self, channel_key, embed, pin=False):
         self.messages.append({"channel": channel_key, "embed": embed, "pin": pin})
@@ -121,10 +145,25 @@ class Builder:
             "welcome": welcome, "button": button, "questions": list(questions or []), "one_per_user": 1, "ask_subject": 1,
         })
 
+    def _tier(self, key: str) -> int:
+        if key in self.staff or key in ("admin", "hmod", "mod", "helper", "verifier"):
+            return 0
+        if key == "bot":
+            return 1
+        if key in ("member", "verified", "age18", "vgirl", "vguy", "vnb", "creator", "dev", "streamer", "sub", "tutor"):
+            return 2
+        if key in ("booster", "vip", "vipplus", "partner") or key.startswith("tier"):
+            return 3
+        if key.startswith("lvl"):
+            return 4
+        return 5
+
     def result(self, meta: dict) -> dict:
+        if not self.fixed_order:
+            self.roles.sort(key=lambda r: self._tier(r["key"]))
         return {
             "version": 1, "meta": meta, "roles": self.roles, "categories": self.categories, "settings": self.settings,
-            "tables": self.tables, "greetings": self.greetings, "logs": {}, "nsfw": None, "embeds": self.embeds,
+            "tables": self.tables, "greetings": self.greetings, "logs": self.logs, "commands": self.commands, "nsfw": None, "embeds": self.embeds,
             "panels": self.panels, "tickets": self.tickets, "messages": self.messages, "flags": self.flags, "prefix": None,
         }
 
@@ -570,251 +609,538 @@ def creator() -> dict:
     return b.result({"id": "creator", "name": "Creator Server", "emoji": "🎬", "summary": "A fan hub with live and video alert channels, supporter lounge and content ping roles."})
 
 
-def _group(b: Builder, channel, embed_name, title, desc, items, ptype="select", mode="normal", color=0x5865F2, max_roles=0, ping=False):
-    for emoji, key, label, rcolor in items:
-        b.role(key, label, rcolor, "member", mentionable=ping)
-    b.embed(embed_name, title, desc, color)
-    b.panel(channel, embed_name, ptype, [(emoji, key, label) for emoji, key, label, _ in items], mode=mode, max_roles=max_roles)
+def _dn(name: str, emoji: str) -> str:
+    return f"♡﹒{name}﹒˚₊{emoji}𓂃﹗"
+
+
+def _dc(name: str) -> str:
+    return f"˚₊ {name} ₊˚"
+
+
+def _rooms(b: "Builder", layout: list) -> Optional[str]:
+    marked = None
+    for entry in layout:
+        title, kind, channels = entry[0], entry[1], entry[2]
+        if title:
+            key = b.category(title, kind)
+            if len(entry) > 3 and entry[3]:
+                marked = key
+        for item in channels:
+            ckey, name, emoji, ctype, access = item[:5]
+            extra = item[5] if len(item) > 5 else {}
+            b.channel(ckey, _dn(name, emoji), ctype, access_kind=access, **extra)
+    return marked
+
+
+def _bold_sans(text: str) -> str:
+    out = []
+    depth = 0
+    for c in text:
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth = max(0, depth - 1)
+        if depth or c in "{}":
+            out.append(c)
+        elif "A" <= c <= "Z":
+            out.append(chr(0x1D5D4 + ord(c) - 65))
+        elif "a" <= c <= "z":
+            out.append(chr(0x1D5EE + ord(c) - 97))
+        elif "0" <= c <= "9":
+            out.append(chr(0x1D7EC + ord(c) - 48))
+        else:
+            out.append(c)
+    return "".join(out)
+
+
+def _split_emoji(name: str, seps=(" ", "-")) -> tuple[str, str]:
+    index = len(name)
+    for sep in seps:
+        found = name.find(sep)
+        if found != -1:
+            index = min(index, found)
+    head, tail = name[:index], name[index + 1:]
+    if head and not head[0].isascii():
+        return head, tail
+    return "", name
+
+
+def _style_embeds(embeds: list) -> None:
+    for embed in embeds:
+        emoji, rest = _split_emoji(embed["title"], seps=(" ",))
+        embed["title"] = f"{emoji} {_bold_sans(rest)}" if emoji else _bold_sans(embed["title"])
+        for field in embed["fields"]:
+            f_emoji, f_rest = _split_emoji(field["name"], seps=(" ",))
+            field["name"] = f"{f_emoji} {_bold_sans(f_rest)}" if f_emoji else _bold_sans(field["name"])
+
+
+ALL_PERMS = [
+    "create_instant_invite", "kick_members", "ban_members", "manage_channels", "manage_guild", "add_reactions", "view_audit_log", "priority_speaker",
+    "stream", "view_channel", "send_messages", "send_tts_messages", "manage_messages", "embed_links", "attach_files", "read_message_history",
+    "mention_everyone", "use_external_emojis", "connect", "speak", "mute_members", "deafen_members", "move_members", "use_voice_activation",
+    "change_nickname", "manage_nicknames", "manage_roles", "manage_webhooks", "manage_expressions", "use_application_commands", "request_to_speak",
+    "manage_events", "manage_threads", "create_public_threads", "create_private_threads", "use_external_stickers", "send_messages_in_threads",
+    "use_embedded_activities", "moderate_members", "view_creator_monetization_analytics", "use_soundboard", "create_expressions", "create_events",
+    "use_external_sounds", "send_voice_messages", "create_polls", "use_external_apps",
+]
+
+FAM_PERMS = [
+    "view_channel", "change_nickname", "create_instant_invite", "send_messages", "send_messages_in_threads", "add_reactions", "read_message_history",
+    "use_application_commands", "connect", "speak", "stream", "use_voice_activation", "request_to_speak", "use_embedded_activities",
+]
+
+
+COLOR_SPECS = (
+    ("c_strawberry", "strawberry-milk", "🍓", 0xFFB3C6), ("c_peach", "peach-soda", "🍑", 0xFFCBA4), ("c_lemon", "lemon-fizz", "🍋", 0xFFF3A3),
+    ("c_matcha", "matcha", "🍵", 0xC8E6C0), ("c_mint", "mint-chip", "🍃", 0xB8F2E6), ("c_babyblue", "baby-blue", "🫧", 0xB8E0FF),
+    ("c_lavender", "lavender", "🪻", 0xD4C1FF), ("c_cotton", "cotton-candy", "🍭", 0xFFC1F3),
+    ("c_cherry", "cherry-red", "🍒", 0xFF6B81), ("c_midnight", "midnight", "🌌", 0x7A8CFF),
+)
+
+COLOR_ITEMS = [(emoji, key, slug, slug.replace("-", " ").title()) for key, slug, emoji, color in COLOR_SPECS]
+
+
+SR_IMG_MAIN = "https://cdn.discordapp.com/attachments/1226123389173760022/1465603206360072283/4e8e17102cfa7905.jpg?ex=6ad863d9&is=6ad71259&hm=40d524420e70ca16de73543015f152defaa35911d6ce88615c507d906df9d639&"
+SR_IMG_PRONOUNS = "https://media.tenor.com/6cLc9EayQfEAAAAe/pronoun-roles-roles.png"
+SR_IMG_PINGS = "https://media.discordapp.net/attachments/1226123389173760022/1465597506099347559/discord_ping_roles.jpeg?ex=6ad9074a&is=6ad7b5ca&hm=3acdb43211ff66164fe10f4c57b4a451d9478fb60b1b728f922c659dba5def0d&"
+SR_IMG_COLORS = "https://media.tenor.com/MWLgxOmCWTQAAAAM/discord.gif"
+SR_IMG_DM = "https://media.tenor.com/QotbLpGdtu4AAAAM/dm-status-dm.gif"
+SR_IMG_STATUS = "https://media.tenor.com/-__ERCW9KIUAAAAM/dm-status.gif"
+SR_IMG_REGION = "https://media.tenor.com/CA1dzXn-6C8AAAAM/lcation-roles-location.gif"
+SR_DEFAULT_IMG = "https://c.tenor.com/Whj-rEanRfIAAAAd/roles.gif"
+
+
+def _cc_panel(b: "Builder", channel, trigger, title, desc, items, unique=False, color="#FFB3D9", create_roles=True, placeholder="Make a selection", image=SR_DEFAULT_IMG):
+    names = {key: _dn(slug, emoji) for emoji, key, slug, label in items}
+    if create_roles:
+        for key, name in names.items():
+            b.role(key, name, 0, [])
+    options = []
+    for emoji, key, slug, label in items:
+        if unique:
+            drops = "".join(f"{{removerole:{names[k]}}}" for k in names if k != key)
+            response = f"{drops}{{addrole:{names[key]}}}You are now **{label}**."
+        else:
+            response = f"{{togglerole:{names[key]}}}Toggled **{label}**. Pick it again to remove it."
+        options.append({"label": label, "description": "", "emoji": emoji, "title": "", "response": response})
+    b.command(trigger, f"{{setimage:{image}}}{desc}", embed=True, color=color, title=title, options=options, placeholder=placeholder, allowed_roles=b.staff)
+    if channel:
+        b.post_command(channel, trigger)
 
 
 def datingv2() -> dict:
     b = Builder()
-    b.staff = ("admin", "hmod", "mod", "verifier", "helper")
-    b.role("admin", "Admin", 0xE74C3C, "admin", hoist=True)
-    b.role("hmod", "Head Moderator", 0xE91E63, "mod", hoist=True)
-    b.role("mod", "Moderator", 0xFF69B4, "mod", hoist=True)
-    b.role("verifier", "Verifier", 0x1ABC9C, ["moderate_members", "manage_messages", "manage_roles", "manage_nicknames"], hoist=True)
-    b.role("helper", "Helper", 0xF1C40F, "helper", hoist=True)
-    b.role("bot", "Bots", 0x7289DA, [VIEW, "send_messages"])
-    b.role("member", "Verified", 0xFF69B4, "member")
-    b.role("age18", "18+", 0xBDC3C7, "member")
-    b.role("vgirl", "Verified Girl", 0xFF4DA6, "member", hoist=True)
-    b.role("vguy", "Verified Guy", 0x4DA6FF, "member", hoist=True)
-    b.role("vnb", "Verified Non-Binary", 0xB57EDC, "member", hoist=True)
-    b.role("booster", "Booster", 0xF47FFF, "member", hoist=True)
-    b.role("vip", "VIP", 0xFFD700, "member", hoist=True)
-    b.role("vipplus", "VIP+", 0xFFA500, "member", hoist=True)
-    b.role("tier1", "Rich", 0xF1C40F, "member", hoist=True)
-    b.role("tier2", "Wealthy", 0xF39C12, "member", hoist=True)
-    lv = _levels(b, ("Friendly", "Social", "Charming", "Popular", "Trending", "Star", "Icon", "Legend"), (5, 10, 20, 30, 45, 60, 80, 100))
-    lv = [(lvl, key) for lvl, key in lv]
-    _rules_embed(b, "tpl-rules", [
-        "You must be 18 or older. Underage users are banned immediately and reported where required.",
-        "Consent and respect always. No harassment, pressure, stalking or unwanted DMs.",
-        "No NSFW, sexual content or explicit images anywhere. Keep everything SFW.",
-        "Never share anyone's photos, personal details or private messages.",
-        "No scams, money requests, catfishing, fake or stolen photos.",
-        "Respect DM roles. Ask before messaging and accept a no.",
-        "No hate speech, discrimination or outing anyone's identity.",
-        "Never post ID documents in any channel. Verification happens only in private tickets.",
-        "No advertising, invite links or self promotion outside the allowed channels.",
-        "Meeting offline is your own responsibility. Read the safety tips and tell a friend.",
-        "Report anything suspicious through a ticket. Staff decisions are final."],
-        0xE91E63, "This server is for adults only. Please keep it safe and kind.")
-    b.embed("tpl-self-intro", "💞 Make Your Profile", "Pick roles that describe you in the self roles channel. Everything is optional except age confirmation.", 0xE91E63)
+    b.fixed_order = True
+    b.staff = ("manager", "asstmanager", "mod", "trialmod", "partnermgr", "ticketteam", "eventhosts")
+
+    def role(key, slug, emoji, color, perms=None, display=False):
+        b.role(key, _dn(slug, emoji), color, perms or [], hoist=display)
+
+    role("founders", "founders", "👑", 0xFFB3D9, ["administrator"], True)
+    role("owner", "owner", "💎", 0xFFC2E0, ["administrator"], True)
+    role("coowner", "co-owner", "💫", 0xFFD0E8, ["administrator"], True)
+    role("quarantine", "quarantine", "🚫", 0x5C5C5C)
+    role("admin", "admin", "🛡️", 0xE8A5FF, ["administrator"], True)
+    role("manager", "manager", "🌸", 0xD9B3FF, [p for p in ALL_PERMS if p != "administrator"], True)
+    role("asstmanager", "assistant-manager", "🌷", 0xC9C3FF, [
+        "manage_channels", "manage_roles", "manage_nicknames", "manage_expressions", "manage_events", "manage_messages", "manage_threads",
+        "kick_members", "ban_members", "moderate_members", "view_audit_log", "mention_everyone", "mute_members", "deafen_members", "move_members"], True)
+    role("mod", "moderator", "🔨", 0xB3C6FF, [
+        "kick_members", "ban_members", "moderate_members", "manage_messages", "manage_threads", "manage_nicknames", "mute_members", "deafen_members",
+        "move_members", "view_audit_log"], True)
+    role("trialmod", "trial-mod", "🌱", 0xB3E0FF, ["moderate_members", "manage_messages", "manage_nicknames", "mute_members"], True)
+    role("partnermgr", "partnership-managers", "🤝", 0xFFD1A9, ["mention_everyone"], True)
+    role("ticketteam", "ticket-team", "🎫", 0xB8F2E6, ["manage_threads"], True)
+    role("eventhosts", "event-hosts", "🎉", 0xFFE0A3, ["create_events", "manage_events", "mute_members", "move_members"], True)
+    role("staff", "staff", "⭐", 0xFFFFFF)
+    for key, slug, emoji, color in COLOR_SPECS:
+        role(key, slug, emoji, color)
+    role("wealthy", "wealthy", "💸", 0xFFE29A, None, True)
+    role("rich", "rich", "💰", 0xFFD1A9, None, True)
+    role("partner", "partner-rep", "🤝", 0xFFCBA4, None, True)
+    role("couples", "couples", "💑", 0xFFB3C6)
+    role("birthday", "birthday", "🎂", 0xFFD6F0)
+    lv = []
+    for level, key, slug, emoji, perms in (
+            (75, "lvl75", "lvl-75-servers-honey", "👑", None), (50, "lvl50", "lvl-50-sweetheart", "💎", None), (30, "lvl30", "lvl-30-heartthrob", "💘", None),
+            (20, "lvl20", "lvl-20-charmer", "🌸", None), (10, "lvl10", "lvl-10-cutie", "🍓", ["attach_files"]), (5, "lvl5", "lvl-5-sweetie", "🍬", ["embed_links"])):
+        role(key, slug, emoji, 0, perms, True)
+        lv.append((level, key))
+    lv.reverse()
+    role("vgirl", "verified-girl", "🎀", 0xFFB3C6)
+    role("vboy", "verified-boy", "🧢", 0xB8E0FF)
+    role("vnb", "verified-nonbinary", "🌙", 0xD4C1FF)
+    role("member", "fam", "🫶", 0xFFD6E8, FAM_PERMS)
+    role("unverified", "unverified", "🔒", 0x9E9E9E)
+    role("muted", "muted", "🔇", 0x7A7A7A)
+
+    rule_options = [
+        {"label": "Chat Rules", "description": "The rules you must follow while chatting", "emoji": "💬", "title": "Chat Rules", "response": (
+            "**↪ | Good behavior**\n• Treat others with kindness, courtesy and respect. Listen when others speak and value different opinions.\n\n"
+            "**↪ | Consent and respect**\n• No harassment, pressure, stalking or unwanted messages. A no is a no.\n\n"
+            "**↪ | Spamming**\n• Spamming messages, links, files, emojis, stickers or GIFs is not allowed and leads to a mute.\n\n"
+            "**↪ | Keep it SFW**\n• No NSFW, sexual content or explicit images anywhere.\n\n"
+            "**↪ | Privacy**\n• Never share anyone's photos, personal details or screenshots of private conversations.\n\n"
+            "**↪ | Scams and catfishing**\n• No scams, money requests or fake and stolen photos. Catfishing is a permanent ban.\n\n"
+            "**↪ | Promoting and trading**\n• This server is not a marketplace. Advertising and invite links are only allowed in the places made for them.")},
+        {"label": "DM Rules", "description": "How to message members respectfully", "emoji": "💌", "title": "DM Rules", "response": (
+            "**↪ | Check the role**\n• Open DMs means you can message them. Ask First means use the ask-to-dm channel. Closed DMs means never.\n\n"
+            "**↪ | Respect a no**\n• If someone declines or stops replying, leave them alone. Follow up once at most.\n\n"
+            "**↪ | Keep it clean**\n• No explicit content, pressure or money requests in DMs. Report it with a ticket.")},
+        {"label": "Voice Rules", "description": "The rules you must follow in voice channels", "emoji": "🎙️", "title": "Voice Chat Rules", "response": (
+            "**↪ | Be respectful**\n• Do not shout, scream or talk over people. Abusing others in voice leads to a mute.\n\n"
+            "**↪ | No adult content**\n• Streaming adult movies, videos, songs or any adult content leads to a ban.\n\n"
+            "**↪ | No recording**\n• Recording people without their clear consent is not allowed.\n\n"
+            "**↪ | Music and noise**\n• Do not play music with abusive terms in public rooms. Avoid loud or disruptive noise and mic spam.")},
+        {"label": "Safety Rules", "description": "Stay safe and report problems", "emoji": "🛡️", "title": "Safety Rules", "response": (
+            "**↪ | Never post ID**\n• Never post ID documents in any channel. Badge proof stays inside the private ticket.\n\n"
+            "**↪ | Meeting offline**\n• Meeting offline is your own responsibility. Read the safety tips and tell a friend.\n\n"
+            "**↪ | Reporting**\n• Report anything suspicious in the help desk. Use the safety desk for private or sensitive concerns.")},
+        {"label": "Other Rules", "description": "More rules", "emoji": "✨", "title": "Other Rules", "response": (
+            "**↪ | No hate**\n• No hate speech, discrimination or outing anyone's identity.\n\n"
+            "**↪ | Ban evasion**\n• Evading a ban or mute with another account leads to a permanent ban.\n\n"
+            "**↪ | Staff decisions**\n• Staff decisions are final. Ask a moderator politely if anything is unclear.")},
+    ]
+    b.command("rules-panel", (
+        "As a valued member of our community, we kindly ask that you follow these rules to maintain a safe and enjoyable space for everyone 💖.\n\n"
+        "**Discord Community Terms of Service and Guidelines**\n"
+        "• As a part of Discord, please adhere to the Terms of Service and Community Guidelines.\n"
+        "• You must be 18 or older to be a part of this server.\n\n"
+        "**Server Rules Overview**\n"
+        "• Use the menu below to read the detailed server rules. Staying here means you agree to them."),
+        embed=True, color="#E91E63", title="Community Rules & Protocols", options=rule_options, allowed_roles=b.staff)
+    def _decisions(here, items):
+        return [{"label": label, "description": desc, "emoji": emoji, "title": "", "response": (
+            f"{{sendchannel:{{{{channel:{here}}}}}|{emoji} **{label}** by {{user}} on {{msglink}}{extra}}}Recorded: {label}.")}
+            for label, desc, emoji, extra in items]
+
+    b.command("rq", (
+        "{deletetrigger}**Requested by:** {user}\n\n{args}\n\n"
+        "-# Moderators and managers: pick a decision below. Decisions are posted in this channel and never shown to the member."),
+        embed=True, color="#3498DB", title="🔍 Review Request", placeholder="Record a decision", allowed_roles=("ticketteam", "trialmod", "mod", "asstmanager", "manager"),
+        allowed_channels=("review_queue",), options=_decisions("review_queue", (
+            ("Claim", "I am taking this one", "🙋", ""), ("Approve", "Approve the request", "✅", ""), ("Warn", "Warn the member", "⚠️", ""),
+            ("Mute", "Mute the member", "🔇", ""), ("Ban", "Ban the member", "🔨", ""),
+            ("Need more info", "Ask the ticket team for more", "❓", ""), ("Done", "Handled and closed", "✔️", ""))) + [
+            {"label": "Escalate", "description": "Send to safety review", "emoji": "🚨", "title": "", "response": (
+                "{sendchannel:{{channel:review_queue}}|🚨 **Escalate** by {user} on {msglink}}"
+                "{sendchannel:{{channel:safety_review}}|🚨 **Escalated from review-queue** by {user}. Original request: {msglink}}Escalated to safety review.")}])
+    b.command("safecase", (
+        "{deletetrigger}**Opened by:** {user}\n\n{args}\n\n"
+        "-# Assistant managers and managers only. Record the evidence, the decision, the follow-up with the reporter and the result."),
+        embed=True, color="#E74C3C", title="🆘 Safety Case", placeholder="Record a decision", allowed_roles=("asstmanager", "manager"),
+        allowed_channels=("safety_review",), options=_decisions("safety_review", (
+            ("Claim", "I am leading this case", "🙋", ""), ("Need more evidence", "Collect more before deciding", "🔎", ""),
+            ("Warn", "Warn the member", "⚠️", ""), ("Ban", "Ban the member", "🔨", ""), ("Quarantine", "Quarantine the member", "🚫", ""),
+            ("Report to Discord", "Report to Discord Trust and Safety", "📨", ""), ("Follow up with reporter", "Contact the member who reported", "💬", ""),
+            ("Close with result", "Case closed, result noted", "✔️", ""))))
+    b.embed("tpl-self-intro", "💞 Make Your Profile", "Pick roles that describe you below. Everything is optional.", 0xFFB3D9)
     b.embed("tpl-guide", "🧭 Server Guide", "Here is where to find everything.", 0x9B59B6, [
-        ("🪪 Verification", "Open a ticket in the verification channel to get **Verified Girl**, **Verified Guy** or **Verified Non-Binary**.", 0),
-        ("🎭 Self Roles", "Pick your age range, interests, region, status and DM preferences.", 0),
-        ("💘 Matchmaking", "Post a profile in the looking-for-date channel using the format shown there.", 0),
-        ("🎲 Games", "Truth or dare, would you rather and ship games with Soward.", 0),
-        ("🎟️ Tickets", "Support, reports, appeals, partnerships and VIP requests all use tickets.", 0)])
+        ("🥤 Verify", "Pass the quick check in the verify channel to get the Fam role and unlock the server.", 0),
+        ("🌷 Roles", "Pick your DM status, what you are looking for, status, pronouns, age range, region, pings and a colour.", 0),
+        ("🧸 Meet people", "Introduce yourself, make a post in the profiles forum and use looking-for and matchmaking.", 0),
+        ("💌 DMs", "Check someone's DM role first. Use ask-to-dm when they are set to Ask First.", 0),
+        ("🎀 Verified badge", "Optional. Open a ticket in the verified badge channel to get Verified Girl, Boy or Nonbinary.", 0),
+        ("🎟️ Help desk", "Support, reports, safety concerns, partnerships and staff applications all use tickets.", 0)])
+    b.embed("tpl-faq", "🍡 FAQ", "Quick answers to common questions.", 0xE91E63, [
+        ("How do I get in?", "Press the button in the verify channel.", 0),
+        ("How do I unlock GIFs and uploads?", "Level 5 unlocks GIFs and link previews. Level 10 unlocks attaching photos and videos.", 0),
+        ("How do I DM someone?", "Check their DM role. If it says Ask First, use the ask-to-dm channel.", 0),
+        ("Someone is bothering me", "Block them and open a report or safety ticket in the help desk.", 0),
+        ("Are verified badges guaranteed?", "No. A badge lowers the catfishing risk but is not a guarantee.", 0)])
+    b.embed("tpl-invite", "🔗 Invite Rewards", "Bring your friends and get rewarded.", 0xFF69B4, [
+        ("How it works", "Share your own invite link. Staff reward active inviters with perks.", 0),
+        ("Fair play", "Fake or bought invites are not counted and may lead to a ban.", 0)])
     b.embed("tpl-safety-tips", "🛡️ Safety Tips", "Dating online needs care.", 0x2ECC71, [
         ("Protect your details", "Never share your address, workplace, full name or financial info.", 0),
-        ("Verify before you trust", "Look for the Verified roles and ask for a video call before meeting.", 0),
+        ("Verify before you trust", "A verified badge helps, but ask for a video call before meeting.", 0),
         ("Meeting in person", "Meet in a public place, tell a friend and arrange your own transport.", 0),
         ("Never send money", "Anyone asking for money, gift cards or crypto is a scammer. Report them.", 0),
-        ("Trust your instincts", "If something feels wrong, stop talking and open a safety ticket.", 0)])
-    b.embed("tpl-verify-info", "🪪 How Verification Works", "Verified roles show other members that a real person is behind the profile.", 0xFF4DA6, [
-        ("1. Open a ticket", "Press the button below and answer the questions.", 0),
-        ("2. Send a verification photo", "Staff will give you a code to write on paper and hold next to your face. Photos stay inside the private ticket.", 0),
-        ("3. Get your role", "A verifier checks it and gives you **Verified Girl**, **Verified Guy** or **Verified Non-Binary**. The ticket is then closed.", 0),
-        ("Privacy", "Only verifiers can see the ticket. Never post your photo or any ID in a public channel.", 0)], "Verification is optional but unlocks gender lounges and voice rooms.")
-    b.embed("tpl-profile", "💘 Profile Format", "Copy this and fill it in. One post per member, edit instead of reposting.", 0xE91E63, [
-        ("Template", "**Name:**\n**Age:**\n**Region:**\n**Looking for:**\n**Interests:**\n**About me:**", 0),
+        ("Trust your instincts", "If something feels wrong, stop talking and open a safety ticket.", 0),
+        ("In danger", "If you are in immediate danger, contact your local emergency services first.", 0)])
+    b.embed("tpl-verify-info", "🎀 Verified Badge", "An optional badge that shows a real person is behind the profile.", 0xFFB3C6, [
+        ("1. Open a ticket", "Press the button and say which badge you want: Girl, Boy or Nonbinary.", 0),
+        ("2. Send proof", "The ticket team will tell you what to send. Proof stays inside the private ticket and is deleted after approval. No ID is ever needed.", 0),
+        ("3. Get your badge", "The ticket team gives you the badge role and closes the ticket.", 0),
+        ("Note", "A badge lowers the catfishing risk but is not a guarantee.", 0)])
+    b.embed("tpl-profile", "💘 Profile Format", "Copy this into a post in the profiles forum. One post per member, edit instead of reposting.", 0xE91E63, [
+        ("Template", "**Name or nickname:**\n**Age:**\n**Pronouns:**\n**Region:**\n**Interests:**\n**Looking for:**\n**About me:**\n**DM status:**", 0),
         ("Rules", "SFW only. No contact details. No photos of other people.", 0)])
-    b.embed("tpl-ticket-info", "🎟️ Open a Ticket", "Choose the button that matches your need. Tickets are private between you and staff.", 0x3498DB)
-    b.embed("tpl-vip", "💎 Booster Perks", "Boost the server to unlock perks:", 0xFFD700, [
-        ("Tier roles", "**Rich** for 1 boost and **Wealthy** for 2 boosts, shown in the member list.", 0),
-        ("Custom role", "Boosters can make their own role with `!booster role create <name> [colour]`, then change its name, colour and icon.", 0),
-        ("Lounges", "Access to the VIP lounge and VIP voice room, plus a bonus to level XP.", 0),
+    b.embed("tpl-dm-rules", "📌 DM Rules", "Direct messages are a privilege. Keep them respectful.", 0xE91E63, [
+        ("Check the role", "Open DMs means you can message them. Ask First means use ask-to-dm. Closed DMs means never.", 0),
+        ("Respect a no", "If someone declines or stops replying, leave them alone.", 0),
+        ("Keep it SFW", "No explicit content, pressure or money requests in DMs. Report it with a ticket.", 0)])
+    b.embed("tpl-dm-ask", "💌 Ask to DM", "Want to message someone who is set to Ask First? Ask here.", 0xE91E63, [
+        ("How to ask", "Post `@member hi, I liked your intro. May I DM you?` with one friendly reason.", 0),
+        ("If they say yes", "Send one respectful message and keep the chat kind.", 0),
+        ("If they say no or ignore", "Leave it. Follow up once at most and never DM again.", 0)])
+    b.embed("tpl-intro", "🙋 Introduce Yourself", "Say hi and tell us who you are.", 0x9B59B6, [
+        ("Suggested format", "**Name:**\n**Age:**\n**Region:**\n**Interests:**\n**Looking for:**\n**Fun fact:**", 0),
+        ("Keep it safe", "No contact details, no photos of other people and no explicit content.", 0)])
+    b.embed("tpl-partner-info", "📋 Partnerships", "We partner with friendly, safe, 18+ communities.", 0x1ABC9C, [
+        ("Requirements", "Active community, clear rules, adults only and a good moderation team.", 0),
+        ("How to apply", "Open a ticket in the partnership channel of the help desk.", 0),
+        ("Ad format", "Keep ads short, SFW and with a single invite link. Only partner reps can post in the ads channel.", 0),
+        ("Removal", "Partnerships end if either server breaks the agreement.", 0)])
+    b.embed("tpl-perks", "✨ Perks", "What you get for boosting, levelling and inviting.", 0xFFD700, [
+        ("Boost perks", "**Rich** for 1 boost and **Wealthy** for 2 boosts, booster-only colours, a custom role request channel and the personal diary.", 0),
+        ("Level perks", "Level 5 unlocks GIFs and link previews. Level 10 unlocks attaching media. Level 50 unlocks the personal diary.", 0),
+        ("Invite rewards", "Invite friends with your own link and ask staff about rewards.", 0),
         ("Keep it", "If you stop boosting your roles are removed after 24 hours and come back if you boost again.", 0)])
+    b.embed("tpl-custom-role", "🧵 Custom Roles", "Boosters can make their own role.", 0xF47FFF, [
+        ("Create", "Use `!booster role create <name> [colour]`.", 0),
+        ("Change", "Edit your role later with `!booster role name`, `colour` and `icon`.", 0),
+        ("Need help", "Ask staff here if your role request is blocked.", 0)])
+    b.embed("tpl-safety-desk", "🆘 Safety Desk", "For sensitive concerns. Only senior staff can see these tickets.", 0xE74C3C, [
+        ("Use this for", "Harassment, unwanted DMs, catfishing or impersonation, threats or blackmail, scams and anything that feels unsafe.", 0),
+        ("In danger", "If you are in immediate danger, contact your local emergency services first.", 0)])
+    b.embed("tpl-staff-resources", "📂 Staff Resources", "Rules, training and guides for the team.", 0xE74C3C, [
+        ("Be fair", "Treat every member equally and explain your actions.", 0),
+        ("Second opinions", "Ticket team: in review-queue use `!rq <short summary>`. Moderators and managers pick a decision from the menu and it is logged there.", 0),
+        ("Safety cases", "Assistant managers and managers: in safety-review use `!safecase <summary>` and record the decision, follow-up and result. Never discuss these in review-queue.", 0),
+        ("Stay private", "Never share tickets, proof or reports outside staff channels. Discuss safety cases in safety-review.", 0),
+        ("Log actions", "Use Soward moderation commands so every action is logged.", 0),
+        ("Ask when unsure", "Ask a manager before big actions.", 0)])
+    b.embed("tpl-ticket-info", "🛟 Support", "Press the button below to open a private ticket with staff.", 0x3498DB)
 
-    b.category("📌 START HERE", "publicread")
-    b.channel("verify", "✅-verify", topic="Verify here to unlock the server.", access_kind="verify")
-    b.channel("rules", "📜-rules", access_kind="publicread")
-    b.channel("welcome", "👋-welcome", access_kind="members")
-    b.channel("safety_tips", "🛡️-safety-tips", access_kind="members")
-    b.channel("guide", "🧭-server-guide", access_kind="members")
-    b.category("📣 INFORMATION", "readonly")
-    b.channel("announcements", "📢-announcements", "announcement", "Official news.")
-    b.channel("updates", "🆕-updates")
-    b.channel("self_roles", "🎭-self-roles", topic="Pick roles that describe you.")
-    b.channel("levels", "📈-level-ups")
-    b.channel("vip_info", "💎-booster-perks")
-    b.category("🪪 VERIFICATION", "readonly")
-    b.channel("verify_info", "🪪-how-to-verify")
-    b.channel("verify_ticket", "📸-get-verified", topic="Open a private verification ticket.")
-    b.category("💬 SOCIAL", "members")
-    b.channel("general", "💬-general", slowmode=3)
-    b.channel("introductions", "🙋-introductions", topic="Tell us about yourself. Keep it clean and safe.")
-    b.channel("photos", "📸-sfw-photos", topic="SFW photos only.")
-    b.channel("flirt", "💘-flirt-zone", topic="Light and respectful flirting. Keep it SFW.")
-    b.channel("advice", "❤️-dating-advice")
-    b.channel("relationships", "💍-relationship-talk")
-    b.channel("vent", "🫂-vent-and-support", topic="Be kind. Report anything concerning.")
-    b.channel("memes", "😂-memes")
-    b.channel("pets", "🐾-pets")
-    b.channel("food", "🍕-food-and-cooking")
-    b.channel("bots", "🤖-bot-commands")
-    b.category("💘 MATCHMAKING", "members")
-    b.channel("lfd", "💞-looking-for-date", topic="Post your profile using the format below.")
-    b.channel("friends", "🤝-friend-finder", topic="Looking for friends only.")
-    b.channel("profiles", "🗂️-profile-cards")
-    b.channel("taken", "💑-taken-and-happy", access_kind="roles:st_taken,vgirl,vguy,vnb")
-    b.category("🌈 VERIFIED LOUNGES", "members")
-    b.channel("girls", "👩-girls-lounge", topic="Verified Girls only.", access_kind="roles:vgirl")
-    b.channel("guys", "👨-guys-lounge", topic="Verified Guys only.", access_kind="roles:vguy")
-    b.channel("nb", "🌈-non-binary-lounge", topic="Verified Non-Binary members only.", access_kind="roles:vnb")
-    b.channel("verified_chat", "✅-verified-chat", topic="All verified members.", access_kind="roles:vgirl,vguy,vnb")
-    b.channel("vip_lounge", "💎-vip-lounge", access_kind="roles:vip,vipplus,booster")
-    b.category("🎮 HOBBIES", "members")
-    for key, name in (("gaming", "🎮-gaming"), ("anime", "🎌-anime-and-manga"), ("music", "🎵-music-share"), ("movies", "🎬-movies-and-shows"),
-                      ("books", "📚-books"), ("fitness", "💪-fitness"), ("travel", "✈️-travel"), ("art", "🎨-art-and-creativity"), ("tech", "💻-tech-talk")):
-        b.channel(key, name)
-    b.category("🎲 GAMES", "members")
-    for key, name in (("tod", "🎲-truth-or-dare"), ("wyr", "🤔-would-you-rather"), ("rate", "⭐-rate-and-ship"), ("counting", "🔢-counting"),
-                      ("wordchain", "🔤-word-chain"), ("polls", "📊-polls")):
-        b.channel(key, name)
-    b.category("🌍 REGIONS", "members")
-    for key, name in (("r_na", "🌎-north-america"), ("r_sa", "🌎-south-america"), ("r_eu", "🌍-europe"), ("r_af", "🌍-africa"),
-                      ("r_asia", "🌏-asia"), ("r_oce", "🌏-oceania")):
-        b.channel(key, name)
-    b.category("🔊 VOICE", "voice")
-    for i in (1, 2, 3):
-        b.channel(f"vc{i}", f"💬 Lounge {i}", "voice")
-    b.channel("vc_music", "🎵 Music Room", "voice")
-    b.channel("vc_movie", "🎬 Movie Night", "voice")
-    b.channel("vc_game", "🎮 Game Night", "voice", user_limit=6)
-    b.channel("vc_late", "🌙 Late Night", "voice")
-    for i in (1, 2, 3, 4):
-        b.channel(f"date{i}", f"💞 Date Room {i}", "voice", user_limit=2)
-    b.channel("vc_girls", "👩 Girls VC", "voice", access_kind="roles:vgirl")
-    b.channel("vc_vip", "💎 VIP Room", "voice", access_kind="roles:vip,vipplus,booster")
-    b.channel("stage", "🎤 Speed Dating Stage", "stage")
-    jtc_cat = b.category("🎙️ TEMP VOICE", "voice")
-    b.channel("jtc_hub", "➕ Join to Create", "voice", access_kind="hub")
-    b.category("🎟️ HELP DESK", "readonly")
-    b.channel("open_ticket", "🎫-open-a-ticket", topic="Support, reports, appeals, partnerships and VIP.")
-    tickets_cat = b.category("🗃️ TICKETS", "staff")
-    b.channel("transcripts", "📄-ticket-transcripts", access_kind="staff")
-    verify_cat = b.category("🪪 VERIFICATION TICKETS", "staff")
-    b.channel("verify_transcripts", "📄-verification-log", access_kind="staff")
-    b.category("🛡️ SAFETY", "staff")
-    b.channel("safety", "🚨-safety-reports")
-    b.channel("verify_queue", "🪪-verification-queue")
-    b.channel("appeals", "⚖️-appeals")
-    b.channel("blacklist", "🚫-banned-scammers", topic="Known bad actors to watch for.")
-    b.category("🛡️ STAFF", "staff")
-    b.channel("staff_chat", "🛡️-staff-chat")
-    b.channel("staff_cmds", "🤖-staff-commands")
-    b.channel("staff_notes", "📝-staff-notes")
-    b.channel("staff_vc", "Staff Room", "voice")
+    voice_cat = _rooms(b, [
+        ("˚₊ start here ₊˚", "members", [
+            ("welcome", "welcome", "🎀", "text", "readonly"),
+            ("rules", "rules", "📜", "text", "gate"),
+            ("verify", "verify", "🥤", "text", "gate"),
+            ("self_roles", "roles", "🌷", "text", "readonly"),
+            ("guide", "server-guide", "🗺️", "text", "readonly"),
+            ("announcements", "announcements", "📢", "announcement", "gate")]),
+        ("˚₊ meet ₊˚", "members", [
+            ("introductions", "introductions", "🧸", "text", None),
+            ("profiles", "profiles", "🪞", "forum", None),
+            ("lfd", "looking-for-dates", "💘", "text", None),
+            ("friends", "looking-for-friends", "🫶", "text", None),
+            ("matchmaking", "matchmaking", "💞", "text", None),
+            ("lgbtq", "lgbtq-corner", "🌈", "text", None)]),
+        ("˚₊ dm center ₊˚", "members", [
+            ("dm_rules", "dm-rules", "📌", "text", "readonly"),
+            ("dm_requests", "ask-to-dm", "💌", "text", None),
+            ("socials", "share-socials", "📱", "text", None)]),
+        ("˚₊ lounge ₊˚", "members", [
+            ("general", "general", "☁️", "text", None),
+            ("dq", "daily-question", "❓", "text", None),
+            ("flirt", "flirty-chat", "😽", "text", None),
+            ("selfies", "selfies", "📸", "text", None),
+            ("media", "media", "🖼️", "text", None),
+            ("memes", "memes", "🐸", "text", None),
+            ("vent", "vent", "🫧", "text", None),
+            ("diary", "personal-diary", "📔", "forum", "roles:wealthy,rich,lvl50,lvl75")]),
+        ("˚₊ interests ₊˚", "members", [
+            ("int_gaming", "gaming", "🎮", "text", None),
+            ("int_anime", "anime", "🍥", "text", None),
+            ("int_music", "music", "🎧", "text", None),
+            ("int_movies", "movies-and-tv", "🍿", "text", None),
+            ("int_food", "food", "🍜", "text", None),
+            ("int_art", "art", "🎨", "text", None),
+            ("int_fitness", "fitness", "🏋️", "text", None),
+            ("int_travel", "travel", "✈️", "text", None),
+            ("int_books", "books", "📚", "text", None)]),
+        ("˚₊ couples ₊˚", "members", [
+            ("couples_corner", "couples-corner", "💍", "text", None),
+            ("rel_advice", "relationship-advice", "🕊️", "text", None),
+            ("date_ideas", "date-ideas", "🌹", "text", None)]),
+        ("˚₊ events ₊˚", "members", [
+            ("events", "events", "🎉", "announcement", "readonly"),
+            ("birthdays", "birthdays", "🎂", "text", None),
+            ("giveaways", "giveaways", "🎁", "text", None),
+            ("polls", "polls", "📊", "text", None),
+            ("speed_dating", "speed-dating", "⏳", "voice", "voice"),
+            ("game_night", "game-night", "🎲", "voice", "voice")]),
+        ("˚₊ activities ₊˚", "members", [
+            ("bots", "bot-commands", "🤖", "text", None),
+            ("games", "games", "🕹️", "text", None),
+            ("counting", "counting", "🔢", "text", None),
+            ("icebreakers", "icebreakers", "🎯", "text", None),
+            ("rizz", "rizz-and-ship", "😎", "text", None),
+            ("confessions", "confessions", "🤫", "text", "readonly")]),
+        ("˚₊ voice ₊˚", "voice", [
+            ("vc1", "lounge", "🎙️", "voice", None),
+            ("date1", "date night 1", "🕯️", "voice", None, {"user_limit": 2}),
+            ("date2", "date night 2", "🍷", "voice", None, {"user_limit": 2}),
+            ("couples_vc", "couples vc", "💑", "voice", "roles:couples"),
+            ("vc_music", "music & chill", "🎶", "voice", None),
+            ("vc_gaming", "gaming", "🎮", "voice", None),
+            ("vc_movie", "movie night", "🍿", "voice", None),
+            ("vc_late", "late night & sleep", "🌌", "voice", None),
+            ("stage", "stage", "🎤", "stage", None),
+            ("jtc_hub", "create vc", "➕", "voice", "hub"),
+            ("vc_afk", "afk", "💤", "voice", None),
+            ("vc_chat", "vc-chat", "💬", "text", "members")], True),
+        ("˚₊ partners ₊˚", "members", [
+            ("partner_info", "partner-info", "📋", "text", "readonly"),
+            ("partners", "partners", "🤝", "announcement", "readonly"),
+            ("ads", "ads", "📣", "text", "roles:partner,partnermgr"),
+            ("partner_chat", "partner-chat", "🫂", "text", "roles:partner,partnermgr")]),
+        ("˚₊ boosters & levels ₊˚", "members", [
+            ("perks", "perks", "✨", "text", "readonly"),
+            ("level_up", "level-up", "🆙", "text", "readonly"),
+            ("custom_role_req", "custom-role-requests", "🧵", "text", "roles:wealthy,rich")]),
+        ("˚₊ help desk ₊˚", "members", [
+            ("support", "support", "🛟", "text", "readonly"),
+            ("verified_badge", "verified-badge", "🎀", "text", "readonly"),
+            ("report", "report", "🚨", "text", "readonly"),
+            ("safety_desk", "safety-desk", "🆘", "text", "readonly"),
+            ("partnership", "partnership", "🤝", "text", "readonly"),
+            ("applications", "staff-applications", "📝", "text", "readonly"),
+            ("suggestions", "suggestions", "💡", "text", None),
+            ("safety_tips", "safety-tips", "🛡️", "text", "readonly")]),
+    ])
 
-    b.post("rules", "tpl-rules", pin=True)
+    def ticket_category(title, kind, attach=False):
+        key = b.category(_dc(title), kind)
+        if attach:
+            b._cat["overwrites"]["member"] = {"allow": ["attach_files", "embed_links"], "deny": [VIEW]}
+        return key
+
+    cat_support = ticket_category("support tickets", "only:ticketteam,mod,asstmanager,manager", True)
+    cat_verify = ticket_category("verification tickets", "only:ticketteam,asstmanager,manager", True)
+    cat_report = ticket_category("report tickets", "only:ticketteam,mod,asstmanager,manager", True)
+    cat_safety = ticket_category("safety tickets", "only:asstmanager,manager", True)
+    cat_partner = ticket_category("partner tickets", "only:partnermgr,manager")
+    cat_app = ticket_category("application tickets", "only:asstmanager,manager")
+    _rooms(b, [
+        ("˚₊ ticket transcripts ₊˚", "staff", [
+            ("transcripts", "ticket-transcripts", "🧾", "text", None),
+            ("safety_tx", "safety-transcripts", "🔐", "text", "only:asstmanager,manager", {"merge": False})]),
+        ("˚₊ logs ₊˚", "staff", [
+            ("l_mod", "mod-logs", "🔨", "text", None),
+            ("l_message", "message-logs", "✉️", "text", None),
+            ("l_member", "member-logs", "👥", "text", None),
+            ("l_security", "security-logs", "🛡️", "text", None),
+            ("l_server", "server-logs", "🗄️", "text", None)]),
+        ("˚₊ staff ₊˚", "staff", [
+            ("staff_announcements", "staff-announcements", "🔔", "announcement", None),
+            ("staff_chat", "staff-chat", "🔒", "text", None),
+            ("mod_chat", "mod-chat", "🛠️", "text", None),
+            ("staff_resources", "staff-resources", "📂", "text", None),
+            ("review_queue", "review-queue", "🔍", "text", None),
+            ("safety_review", "safety-review", "🆘", "text", "only:asstmanager,manager", {"merge": False}),
+            ("partner_mgmt", "partner-management", "🤲", "text", None),
+            ("event_planning", "event-planning", "🗓️", "text", None),
+            ("staff_cmds", "staff-commands", "⌨️", "text", None),
+            ("staff_meeting", "staff-meeting", "🎙️", "voice", None)]),
+    ])
+    b.logs = {"mod": {"$channel": "l_mod"}, "message": {"$channel": "l_message"}, "member": {"$channel": "l_member"},
+              "security": {"$channel": "l_security"}, "server": {"$channel": "l_server"}}
+    for cat in b.categories:
+        if cat["overwrites"] is not None:
+            cat["overwrites"]["muted"] = _ow(deny=SEND + ["speak"])
+
+    b.post_command("rules", "rules-panel", pin=True)
     b.post("safety_tips", "tpl-safety-tips", pin=True)
     b.post("guide", "tpl-guide", pin=True)
+    b.post("guide", "tpl-faq", pin=True)
+    b.post("guide", "tpl-invite")
     b.post("self_roles", "tpl-self-intro")
-    b.post("verify_info", "tpl-verify-info", pin=True)
     b.post("lfd", "tpl-profile", pin=True)
-    b.post("vip_info", "tpl-vip")
-    b.post("open_ticket", "tpl-ticket-info")
+    b.post("dm_rules", "tpl-dm-rules", pin=True)
+    b.post("dm_requests", "tpl-dm-ask", pin=True)
+    b.post("introductions", "tpl-intro", pin=True)
+    b.post("partner_info", "tpl-partner-info", pin=True)
+    b.post("perks", "tpl-perks", pin=True)
+    b.post("custom_role_req", "tpl-custom-role", pin=True)
+    b.post("verified_badge", "tpl-verify-info", pin=True)
+    b.post("safety_desk", "tpl-safety-desk", pin=True)
+    b.post("staff_resources", "tpl-staff-resources", pin=True)
+    b.post("support", "tpl-ticket-info")
 
-    b.embed("tpl-age", "🔞 Age Confirmation", "By taking this role you confirm that you are **18 or older**. False claims lead to an immediate ban.", 0xE74C3C)
-    b.panel("self_roles", "tpl-age", "button", [("✅", "age18", "I am 18 or older")])
-    _group(b, "self_roles", "tpl-ping", "🔔 Ping Roles", "Choose what you want to be pinged for.", [
-        ("📢", "ping_news", "📢 Announcements", 0x3498DB), ("💞", "ping_events", "💞 Events", 0xE91E63), ("🎙️", "ping_vc", "🎙️ VC Hangouts", 0x9B59B6),
-        ("💬", "ping_revive", "💬 Chat Revive", 0x95A5A6), ("🎮", "ping_game", "🎮 Game Night", 0x2ECC71), ("🎬", "ping_movie", "🎬 Movie Night", 0xE67E22),
-        ("🎁", "ping_giveaways", "🎁 Giveaways", 0xF1C40F), ("📊", "ping_polls", "📊 Polls", 0x1ABC9C)], "button", color=0x3498DB, ping=True)
-    _group(b, "self_roles", "tpl-status", "💘 Relationship Status", "Show your status. Pick one.", [
-        ("💚", "st_single", "Single", 0x2ECC71), ("❤️", "st_taken", "Taken", 0xE74C3C), ("💛", "st_mingle", "Mingling", 0xF1C40F),
-        ("💙", "st_friends", "Looking for Friends", 0x3498DB), ("💔", "st_complicated", "It's Complicated", 0x95A5A6)], "select", "unique", 0xFF69B4)
-    _group(b, "self_roles", "tpl-looking", "🔎 Looking For", "What are you here for? Pick any.", [
-        ("🤝", "lf_friends", "Friendship", 0x3498DB), ("💞", "lf_dating", "Dating", 0xE91E63), ("💍", "lf_serious", "Serious Relationship", 0xE74C3C),
-        ("💬", "lf_chat", "Casual Chatting", 0x95A5A6), ("🎙️", "lf_voice", "Voice Calls", 0x9B59B6), ("🎮", "lf_gaming", "Gaming Partners", 0x2ECC71)], "select", color=0xE91E63)
-    _group(b, "self_roles", "tpl-dm", "📨 DM Preferences", "Let people know how you like to be contacted. Pick one.", [
-        ("📬", "dm_open", "DMs Open", 0x2ECC71), ("❓", "dm_ask", "Ask to DM", 0xF1C40F), ("📪", "dm_closed", "DMs Closed", 0xE74C3C)], "button", "unique", 0x7F8C8D)
-    _group(b, "self_roles", "tpl-age-range", "🎂 Age Range", "Pick your age range. One only.", [
-        ("🔹", "age_18", "18-20", 0x95A5A6), ("🔸", "age_21", "21-24", 0x95A5A6), ("🔷", "age_25", "25-29", 0x95A5A6),
-        ("🔶", "age_30", "30-39", 0x95A5A6), ("🟦", "age_40", "40+", 0x95A5A6)], "select", "unique", 0x95A5A6)
-    _group(b, "self_roles", "tpl-gender", "🏷️ Identity", "Optional. Pick any that fit. Verified roles come from verification tickets.", [
-        ("👩", "id_woman", "Woman", 0xBDC3C7), ("👨", "id_man", "Man", 0xBDC3C7), ("🌈", "id_nb", "Non-Binary", 0xBDC3C7),
-        ("⚧️", "id_trans", "Trans", 0xBDC3C7), ("🤐", "id_private", "Prefer Not to Say", 0xBDC3C7)], "select", color=0xBDC3C7)
-    _group(b, "self_roles", "tpl-orient", "🌈 Orientation", "Optional. Pick any that fit.", [
-        ("🏳️", "o_straight", "Straight", 0xBDC3C7), ("🏳️‍🌈", "o_gay", "Gay", 0xBDC3C7), ("💗", "o_lesbian", "Lesbian", 0xBDC3C7),
-        ("💜", "o_bi", "Bisexual", 0xBDC3C7), ("💛", "o_pan", "Pansexual", 0xBDC3C7), ("🖤", "o_ace", "Asexual", 0xBDC3C7), ("✨", "o_other", "Other", 0xBDC3C7)], "select", color=0x9B59B6)
-    _group(b, "self_roles", "tpl-pronouns", "🏷️ Pronouns", "Show your pronouns.", [
-        ("🔵", "p_he", "He/Him", 0xBDC3C7), ("🔴", "p_she", "She/Her", 0xBDC3C7), ("🟢", "p_they", "They/Them", 0xBDC3C7), ("⚪", "p_any", "Any Pronouns", 0xBDC3C7)], "reaction", color=0xBDC3C7)
-    _group(b, "self_roles", "tpl-region", "🌍 Region", "Pick your region. One only.", [
-        ("🌎", "reg_na", "North America", 0x95A5A6), ("🌎", "reg_sa", "South America", 0x95A5A6), ("🌍", "reg_eu", "Europe", 0x95A5A6),
-        ("🌍", "reg_af", "Africa", 0x95A5A6), ("🌏", "reg_asia", "Asia", 0x95A5A6), ("🌏", "reg_oce", "Oceania", 0x95A5A6)], "select", "unique", 0x3498DB)
-    _group(b, "self_roles", "tpl-lang", "🗣️ Languages", "Pick the languages you speak.", [
-        ("🇬🇧", "lang_en", "English", 0x95A5A6), ("🇪🇸", "lang_es", "Spanish", 0x95A5A6), ("🇮🇳", "lang_hi", "Hindi", 0x95A5A6),
-        ("🇧🇩", "lang_bn", "Bengali", 0x95A5A6), ("🇸🇦", "lang_ar", "Arabic", 0x95A5A6), ("🇫🇷", "lang_fr", "French", 0x95A5A6),
-        ("🇧🇷", "lang_pt", "Portuguese", 0x95A5A6), ("🇩🇪", "lang_de", "German", 0x95A5A6), ("🌐", "lang_other", "Other", 0x95A5A6)], "select", color=0x95A5A6)
-    _group(b, "self_roles", "tpl-interests", "⭐ Interests", "Pick what you enjoy.", [
-        ("🎮", "i_gaming", "Gaming", 0x1ABC9C), ("🎌", "i_anime", "Anime", 0x1ABC9C), ("🎵", "i_music", "Music", 0x1ABC9C), ("🎬", "i_movies", "Movies", 0x1ABC9C),
-        ("📚", "i_books", "Books", 0x1ABC9C), ("💪", "i_fitness", "Fitness", 0x1ABC9C), ("✈️", "i_travel", "Travel", 0x1ABC9C), ("🎨", "i_art", "Art", 0x1ABC9C),
-        ("💻", "i_tech", "Tech", 0x1ABC9C), ("🍳", "i_cooking", "Cooking", 0x1ABC9C), ("🐶", "i_pets", "Pets", 0x1ABC9C), ("📸", "i_photo", "Photography", 0x1ABC9C)], "select", color=0x1ABC9C)
-    _group(b, "self_roles", "tpl-zodiac", "♈ Zodiac", "Pick your sign. One only.", [
-        ("♈", "z_aries", "Aries", 0x95A5A6), ("♉", "z_taurus", "Taurus", 0x95A5A6), ("♊", "z_gemini", "Gemini", 0x95A5A6), ("♋", "z_cancer", "Cancer", 0x95A5A6),
-        ("♌", "z_leo", "Leo", 0x95A5A6), ("♍", "z_virgo", "Virgo", 0x95A5A6), ("♎", "z_libra", "Libra", 0x95A5A6), ("♏", "z_scorpio", "Scorpio", 0x95A5A6),
-        ("♐", "z_sag", "Sagittarius", 0x95A5A6), ("♑", "z_capricorn", "Capricorn", 0x95A5A6), ("♒", "z_aquarius", "Aquarius", 0x95A5A6), ("♓", "z_pisces", "Pisces", 0x95A5A6)],
-        "select", "unique", 0x9B59B6)
-    _group(b, "self_roles", "tpl-colors", "🎨 Name Colors", "Pick one colour for your name.", [
-        ("🔴", "c_red", "Red", 0xE74C3C), ("🟠", "c_orange", "Orange", 0xE67E22), ("🟡", "c_yellow", "Yellow", 0xF1C40F), ("🟢", "c_green", "Green", 0x2ECC71),
-        ("🔵", "c_blue", "Blue", 0x3498DB), ("🟣", "c_purple", "Purple", 0x9B59B6), ("💗", "c_pink", "Pink", 0xFF69B4), ("🤍", "c_white", "White", 0xECF0F1),
-        ("🩵", "c_cyan", "Cyan", 0x1ABC9C), ("🖤", "c_black", "Charcoal", 0x2C3E50)], "select", "unique", 0xFF69B4)
+    _cc_panel(b, None, "sr-dm", "💌 DM Status", "Let people know how you like to be contacted. Pick one.", [
+        ("🟢", "dm_open", "open-dms", "Open DMs"), ("🟡", "dm_ask", "ask-first", "Ask First"), ("🔴", "dm_closed", "closed-dms", "Closed DMs")], True, "#7F8C8D", image=SR_IMG_DM)
+    _cc_panel(b, None, "sr-looking", "🔎 Looking For", "What are you here for? Pick any. Pick again to remove one.", [
+        ("💘", "lf_dates", "looking-for-dates", "Dates"), ("🫶", "lf_friends", "looking-for-friends", "Friends"),
+        ("💞", "lf_any", "open-to-anything", "Open to Anything"), ("☁️", "lf_vibing", "just-vibing", "Just Vibing")], False, "#E91E63")
+    _cc_panel(b, None, "sr-status", "💍 Relationship Status", "Show your status. Pick one.", [
+        ("🕊️", "st_single", "single", "Single"), ("💍", "st_taken", "taken", "Taken"), ("🌀", "st_complicated", "its-complicated", "It's Complicated")], True, "#FF69B4", image=SR_IMG_STATUS)
+    _cc_panel(b, None, "sr-pronouns", "🏷️ Pronouns", "Show your pronouns. Pick any. Pick again to remove one.", [
+        ("🌷", "p_she", "she-her", "She/Her"), ("🌊", "p_he", "he-him", "He/Him"), ("🌙", "p_they", "they-them", "They/Them")], False, "#BDC3C7", image=SR_IMG_PRONOUNS)
+    _cc_panel(b, None, "sr-orientation", "🌈 Orientation", "Optional. Pick any that fit. Pick again to remove one.", [
+        ("🤍", "o_straight", "straight", "Straight"), ("💙", "o_gay", "gay", "Gay"), ("🧡", "o_lesbian", "lesbian", "Lesbian"),
+        ("💜", "o_bi", "bisexual", "Bisexual"), ("💛", "o_pan", "pansexual", "Pansexual"), ("🖤", "o_ace", "asexual", "Asexual"),
+        ("🤎", "o_questioning", "questioning", "Questioning")], False, "#9B59B6")
+    _cc_panel(b, None, "sr-age", "🎂 Age Range", "Pick your age range. One only.", [
+        ("🍬", "age_18", "18-20", "18-20"), ("🍓", "age_21", "21-24", "21-24"), ("🍷", "age_25", "25-plus", "25+")], True, "#95A5A6")
+    _cc_panel(b, None, "sr-region", "🌍 Region", "Pick your region. One only.", [
+        ("🏯", "reg_asia", "asia", "Asia"), ("🏰", "reg_eu", "europe", "Europe"), ("🗽", "reg_na", "north-america", "North America"),
+        ("🌴", "reg_sa", "south-america", "South America"), ("🦁", "reg_af", "africa", "Africa"), ("🕌", "reg_me", "middle-east", "Middle East"),
+        ("🏝️", "reg_oce", "oceania", "Oceania")], True, "#3498DB", image=SR_IMG_REGION)
+    _cc_panel(b, None, "sr-pings", "🔔 Ping Roles", "Choose what you want to be pinged for. Pick again to remove one.", [
+        ("📢", "ping_news", "announcement-ping", "Announcements"), ("🎉", "ping_events", "event-ping", "Events"),
+        ("🎁", "ping_giveaways", "giveaway-ping", "Giveaways"), ("⏳", "ping_speed", "speed-dating-ping", "Speed Dating"),
+        ("🎲", "ping_game", "game-night-ping", "Game Night"), ("🎬", "ping_movie", "movie-night-ping", "Movie Night"),
+        ("❓", "ping_dq", "daily-question-ping", "Daily Question"), ("💬", "ping_revive", "chat-revive", "Chat Revive"),
+        ("🤝", "ping_partner", "partner-ping", "Partner Ping")], False, "#3498DB", image=SR_IMG_PINGS)
+    _cc_panel(b, None, "sr-colors", "🎨 Name Colors", "Pick one colour for your name. Choosing a new one swaps the old one.", COLOR_ITEMS[:8], True, "#FFB3C6", False, image=SR_IMG_COLORS)
+    _cc_panel(b, "custom_role_req", "sr-boostcolors", "🍒 Booster Colors", "Exclusive colours for boosters. Choosing a new one swaps the old one.", COLOR_ITEMS[8:], True, "#FF6B81", False, image=SR_IMG_COLORS)
 
-    b.ticket("verify_ticket", "Verification", ("admin", "hmod", "mod", "verifier"), category=verify_cat, transcript="verify_transcripts",
-             welcome="Thanks for starting verification. A verifier will send you a code to write on paper and hold next to your face. Only staff can see this ticket. Never share ID documents.",
-             button="Get Verified", questions=("Which role: Girl, Guy or Non-Binary?", "How old are you?", "Anything we should know?"))
-    b.ticket("open_ticket", "Support", ("admin", "hmod", "mod", "helper"), category=tickets_cat, transcript="transcripts",
+    b.command("sr-hub", (
+        f"{{setimage:{SR_IMG_MAIN}}}Customize Your Profile With Our Self Roles"),
+        embed=True, color="#FFB3D9", title="CUSTOMIZE", placeholder="Personization Options", allowed_roles=b.staff, options=[
+        {"label": label, "description": desc, "emoji": emoji, "title": "", "response": "", "link": link} for label, desc, emoji, link in (
+            ("Pronouns", "What are your pronouns?", "🏷️", "sr-pronouns"), ("DM Status", "How do you like to be contacted?", "💌", "sr-dm"),
+            ("Relationship Status", "Are you single or taken?", "💍", "sr-status"), ("Looking For", "What are you here for?", "🔎", "sr-looking"),
+            ("Orientation", "Optional", "🌈", "sr-orientation"), ("Age", "How old are you?", "🎂", "sr-age"),
+            ("Region", "Where are you from?", "🌍", "sr-region"), ("Notifications", "Ping roles", "🔔", "sr-pings"),
+            ("Name Colors", "Pick a colour for your name", "🎨", "sr-colors"))])
+    b.post_command("self_roles", "sr-hub", pin=True)
+
+    b.ticket("verified_badge", "Verified Badge", ("ticketteam", "asstmanager", "manager"), category=cat_verify, transcript="transcripts",
+             welcome="Thanks for starting verification. The ticket team will tell you what to send. Proof stays in this ticket and is deleted after approval. Never share ID documents.",
+             button="Get Verified", questions=("Which badge: Girl, Boy or Nonbinary?", "Anything we should know?"))
+    b.ticket("support", "Support", ("ticketteam", "mod", "asstmanager", "manager"), category=cat_support, transcript="transcripts",
              welcome="Thanks for reaching out. A staff member will help you shortly.", button="Get Support", questions=("What do you need help with?",))
-    b.ticket("open_ticket", "Safety Report", ("admin", "hmod", "mod"), category=tickets_cat, transcript="transcripts",
-             welcome="Thank you for reporting. This is private. Include usernames, links and what happened.", button="Report a Problem",
-             questions=("Who are you reporting?", "What happened?", "Do you have message links?"))
-    b.ticket("open_ticket", "Ban Appeal", ("admin", "hmod"), category=tickets_cat, transcript="transcripts",
-             welcome="Tell us why you think the action should be reviewed. Be honest and respectful.", button="Appeal an Action",
-             questions=("What was the action?", "Why should it be reviewed?"))
-    b.ticket("open_ticket", "Partnership", ("admin", "hmod"), category=tickets_cat, transcript="transcripts",
+    b.ticket("report", "Report", ("ticketteam", "mod", "asstmanager", "manager"), category=cat_report, transcript="transcripts",
+             welcome="Thank you for reporting. This is private. Include usernames, links and what happened.", button="Report a Member",
+             questions=("Who are you reporting?", "Message link or where it happened?", "What happened?"))
+    b.ticket("safety_desk", "Safety Desk", ("asstmanager", "manager"), category=cat_safety, transcript="safety_tx",
+             welcome="Thank you for telling us. Only senior staff can see this ticket. If you are in immediate danger, contact your local emergency services first.",
+             button="Open a Safety Ticket", questions=("What kind of issue is this?", "What happened?"))
+    b.ticket("partnership", "Partnership", ("partnermgr", "manager"), category=cat_partner, transcript="transcripts",
              welcome="Thanks for your interest. Share your server details and what you propose.", button="Partner With Us",
              questions=("Server name and invite?", "Member count?", "What do you propose?"))
-    b.ticket("open_ticket", "VIP Request", ("admin", "hmod", "mod"), category=tickets_cat, transcript="transcripts",
-             welcome="Tell us how you qualify for VIP and which perk you want.", button="Request VIP", questions=("How do you qualify?",))
-    b.ticket("open_ticket", "Profile Review", ("admin", "hmod", "mod", "helper"), category=tickets_cat, transcript="transcripts",
-             welcome="Share your profile and we will give friendly tips.", button="Review My Profile", questions=("Paste your profile text.",))
+    b.ticket("applications", "Staff Application", ("asstmanager", "manager"), category=cat_app, transcript="transcripts",
+             welcome="Thanks for applying. Answer the questions and a manager will review your application.", button="Apply for Staff",
+             questions=("How old are you?", "Why do you want to join staff?", "Do you have moderation experience?", "How many hours can you give each week?"))
 
-    b.embed("tpl-welcome", "👋 Welcome to {server}!", "Verify, confirm you are 18+, pick your roles and read the safety tips. Get **Verified Girl, Guy or Non-Binary** from the verification channel.", 0xFF69B4, footer="Member #{membercount}")
+    b.embed("tpl-welcome", "👋 Welcome to {server}!", "Pass verification, pick your roles in the roles channel and read the safety tips. Get an optional **Verified Girl, Boy or Nonbinary** badge from the verified badge channel.", 0xFF69B4, footer="Member #{membercount}")
     b.greeting("join", "welcome", "{user}", embed="tpl-welcome")
     b.greeting("leave", "welcome", "**{username}** has left **{server}**. We are now **{membercount}** members.", enabled=0)
-    b.greeting("boost", "general", "💜 Thank you {user} for boosting **{server}**! You unlocked the VIP lounge.")
-    b.levels(lv, "levels", voice_xp_per_minute=12)
-    b.tables["jtc_hubs"] = [{"channel_id": {"$channel": "jtc_hub"}, "category_id": {"$channel": jtc_cat}, "name_template": "🔊 {user}'s room", "user_limit": 0, "bitrate": 0}]
+    b.greeting("boost", "general", "💜 Thank you {user} for boosting **{server}**! You unlocked the booster perks.")
+    b.levels(lv, "level_up", voice_xp_per_minute=12)
+    b.tables["jtc_hubs"] = [{"channel_id": {"$channel": "jtc_hub"}, "category_id": {"$channel": voice_cat}, "name_template": "♡﹒{user}'s room﹒˚₊🎧𓂃﹗", "user_limit": 0, "bitrate": 0}]
     b.tables["booster_config"] = [{
-        "enabled": 1, "tier_mode": "count", "stack_mode": "highest", "base_role_id": {"$role": "booster"}, "grace_hours": 24, "custom_enabled": 1,
+        "enabled": 1, "tier_mode": "count", "stack_mode": "highest", "base_role_id": None, "grace_hours": 24, "custom_enabled": 1,
         "custom_min": 1, "allow_name": 1, "allow_color": 1, "allow_icon": 1, "allow_hoist": 0, "allow_perms": 0, "position_mode": "below",
-        "position_ref_id": {"$role": "booster"}, "cooldown_hours": 6, "name_filter": 1, "max_name_len": 24, "remove_on_unboost": 1, "restore_on_reboost": 1,
+        "position_ref_id": None, "cooldown_hours": 6, "name_filter": 1, "max_name_len": 24, "remove_on_unboost": 1, "restore_on_reboost": 1,
     }]
-    b.tables["booster_tiers"] = [{"boosts": 1, "role_id": {"$role": "tier1"}}, {"boosts": 2, "role_id": {"$role": "tier2"}}]
+    b.tables["booster_tiers"] = [{"boosts": 1, "role_id": {"$role": "rich"}}, {"boosts": 2, "role_id": {"$role": "wealthy"}}]
     b.tables["xp_multipliers"] = [
-        {"scope_type": "role", "scope_id": {"$role": "tier1"}, "multiplier": 1.25, "label": "booster"},
-        {"scope_type": "role", "scope_id": {"$role": "tier2"}, "multiplier": 1.5, "label": "booster"},
+        {"scope_type": "role", "scope_id": {"$role": "rich"}, "multiplier": 1.25, "label": "booster"},
+        {"scope_type": "role", "scope_id": {"$role": "wealthy"}, "multiplier": 1.5, "label": "booster"},
     ]
-    b.settings["booster_blocked_names"] = ["admin", "mod", "staff", "owner", "verified", "moderator", "support", "verifier", "official"]
-    _common_setup(b, "strict", 3)
+    b.settings["booster_blocked_names"] = ["admin", "mod", "staff", "owner", "founder", "verified", "fam", "moderator", "support", "verifier", "official", "manager"]
+    b.settings["count_channel_id"] = {"$channel": "counting"}
+    b.settings["dq_channel_id"] = {"$channel": "dq"}
+    b.settings["dq_role_id"] = {"$role": "ping_dq"}
+    b.settings["bday_channel_id"] = {"$channel": "birthdays"}
+    b.settings["bday_role_id"] = {"$role": "birthday"}
+    b.settings["confess_channel_id"] = {"$channel": "confessions"}
+    b.settings["sug_channel_id"] = {"$channel": "suggestions"}
+    b.post_special("confessions", "confess_panel", pin=True)
+    b.settings["verification_gate_role_id"] = {"$role": "unverified"}
+    b.settings["antinuke_quarantine_role_id"] = {"$role": "quarantine"}
+    b.flags["security_preset"] = "strict"
+    b.flags["everyone_perms"] = []
+    b.flags["quarantine_role"] = "quarantine"
+    _verify(b, "verify", 3)
+    _style_embeds(b.embeds)
     return b.result({"id": "datingv2", "name": "Dating and Social 18+ v2 (Premium)", "emoji": "💞", "premium": True,
-                     "summary": "Premium. Verified Girl, Guy and Non-Binary roles with a verification ticket, seven ticket panels, gender lounges, matchmaking, 14 self role panels, 8 level roles, Join to Create voice and Booster Perks."})
-
+                     "summary": "Premium. A full 18+ dating blueprint: styled staff, colour, level, verified badge and self roles, gate and Fam permissions, six ticket panels with per-type categories and a private safety desk, DM center, partners, Join to Create voice and Booster Perks."})
 
 
 BUILDERS = {"community": community, "gaming": gaming, "support": support, "dating": dating, "datingv2": datingv2, "study": study, "creator": creator}

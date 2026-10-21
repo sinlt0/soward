@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import time
@@ -24,6 +25,8 @@ class ServerTemplates(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.running: set[int] = set()
+        self.tasks: dict[int, asyncio.Task] = {}
+        self.reports: dict[int, engine.Report] = {}
 
     async def _row(self, code: str) -> Optional[dict]:
         row = await db.raw_fetchone("SELECT * FROM server_templates WHERE code=?", (code.strip().upper(),))
@@ -58,6 +61,7 @@ class ServerTemplates(commands.Cog):
             "`template browse` Community published templates\n"
             "`template preview <preset or code>` See what it contains\n"
             "`template apply <preset or code> [parts]` Set up this server *(owner / Extra Owner)*\n"
+            "`template cancel` / `template status` Stop or check a running apply *(owner / Extra Owner)*\n"
             "`template publish <name>` Save this server as a template *(owner / Extra Owner)*\n"
             "`template list` Your templates\n"
             "`template update | delete | visibility <code>`\n\n"
@@ -132,7 +136,7 @@ class ServerTemplates(commands.Cog):
         if data is None:
             return await self._not_found(ctx, state)
         if state == "builtin" and (data.get("meta") or {}).get("premium") and not await tickets.is_premium(ctx.guild.id) and ctx.author.id not in config.ALL_PRIVILEGED_IDS:
-            return await ctx.send(view=error_layout("Premium preset", f"**{row['name']}** uses more than the free limits (seven ticket panels, 100+ roles and 14 self role panels), so it needs Soward Premium on this server. You can still preview it with `template preview {ref.lower()}`."))
+            return await ctx.send(view=error_layout("Premium preset", f"**{row['name']}** uses more than the free limits (a staff ladder, 16 panels and 79 roles), so it needs Soward Premium on this server. You can still preview it with `template preview {ref.lower()}`."))
         chosen = set()
         wipe = False
         full = False
@@ -162,7 +166,8 @@ class ServerTemplates(commands.Cog):
         c = engine.summary_counts(data)
         body = (
             f"**{row['name']}** will add up to {c['roles']} roles, {c['categories']} categories, {c['channels']} channels, "
-            f"{c['embeds']} embeds, {c['panels']} panels and {c['messages']} messages.\n"
+            f"{c['embeds']} embeds, {c['panels']} panels and {c['messages']} messages"
+            f"{', plus ' + str(c['commands']) + ' custom commands' if c['commands'] else ''}.\n"
             f"Parts: {', '.join(sorted(chosen))}.\n\n"
             "Roles and channels with the same name are reused. Settings in the template replace your current values."
         )
@@ -183,6 +188,8 @@ class ServerTemplates(commands.Cog):
             )
         else:
             body += "\nNothing is deleted. Add `clean` to remove old channels and roles that are not in the template."
+        if "roles" in chosen and "everyone_perms" in (data.get("flags") or {}) and not foreign:
+            body += "\n\n**@everyone permissions are turned off.** Only members with the member role (Fam) can talk, so existing members need that role. Soward will not touch anything else about your members."
         if foreign:
             body += "\nThis is another server's template, so dangerous permissions are removed and lock and bypass settings are skipped."
         confirm = ConfirmLayout(f"{e('shield')} Apply template", body, author_id=ctx.author.id, color=ERROR if wipe else NEUTRAL, timeout=120.0)
@@ -203,27 +210,44 @@ class ServerTemplates(commands.Cog):
                 self.running.discard(guild.id)
                 return await message.edit(view=error_layout("Backup failed", f"Nothing was changed: {str(exc)[:150]}"))
             backup_line = f"Backup `{backup_id}` was taken first. Restore with `backup restore {backup_id}`."
-        await message.edit(view=info_layout(f"{e('shield')} Applying template", "Building your server. Large templates take a few minutes."))
-        try:
-            pre = engine.Report()
+        await message.edit(view=info_layout(f"{e('shield')} Applying template", "Building your server. Large templates take a few minutes. Stop it any time with `template cancel`."))
+        pre = engine.Report()
+        report = engine.Report()
+        self.reports[guild.id] = report
+
+        async def work():
             if full:
                 await engine.full_clean(guild, pre, ctx.channel.id)
-            report = await engine.apply(self.bot, guild, data, actor_id=ctx.author.id, parts=chosen, foreign=foreign)
-            report.merge(pre)
+            await engine.apply(self.bot, guild, data, actor_id=ctx.author.id, parts=chosen, foreign=foreign, report=report)
             if wipe and not full:
                 await engine.clean(guild, report, chosen, ctx.channel.id)
-        except Exception as exc:
-            return await message.edit(view=error_layout("Template failed", f"Stopped part-way: {str(exc)[:200]}"))
+
+        task = asyncio.ensure_future(work())
+        self.tasks[guild.id] = task
+        try:
+            await asyncio.wait({task})
         finally:
             self.running.discard(guild.id)
+            self.tasks.pop(guild.id, None)
+            self.reports.pop(guild.id, None)
+        report.merge(pre)
+        k = report.counts
+        partial = f"Roles **{k['roles']}**, channels **{k['channels']}**, embeds **{k['embeds']}**, panels **{k['panels']}** were created before it stopped."
+        if task.cancelled():
+            return await message.edit(view=error_layout("Template stopped", f"{partial}\nNothing already built was removed. Run `template apply {ref.lower()}` again to continue, roles and channels that exist are reused."))
+        failure = task.exception()
+        if isinstance(failure, engine.Stalled):
+            return await message.edit(view=error_layout("Template paused by rate limit", f"Discord stopped answering for several minutes, so Soward stopped instead of hanging. {partial}\nWait a few minutes, then run `template apply {ref.lower()}` again to continue, roles and channels that exist are reused."))
+        if failure is not None:
+            return await message.edit(view=error_layout("Template failed", f"Stopped part-way: {str(failure)[:200]}"))
         if state == "saved":
             await db.raw_execute("UPDATE server_templates SET uses=uses+1 WHERE code=?", (row["code"],))
-        k = report.counts
         lines = [
             f"Roles created: **{k['roles']}** ({k['roles_reused']} reused)",
             f"Channels created: **{k['channels']}** ({k['channels_reused']} reused)",
             f"Settings saved: **{k['settings']}**",
             f"Embeds: **{k['embeds']}**, panels: **{k['panels']}**, messages: **{k['messages']}**",
+            f"Custom commands: **{k['commands']}**",
         ] + report.lines
         if wipe:
             if full:
@@ -246,6 +270,24 @@ class ServerTemplates(commands.Cog):
             await old.delete(reason="Soward server template clean")
         except discord.HTTPException:
             await message.edit(view=result)
+
+    @template_group.command(name="cancel", aliases=["stop", "abort"], help="Stop a template that is being applied right now")
+    @security_owner()
+    async def cancel(self, ctx: commands.Context):
+        task = self.tasks.get(ctx.guild.id)
+        if task is None or task.done():
+            return await ctx.send(view=error_layout("Nothing running", "No template is being applied on this server."))
+        task.cancel()
+        await ctx.send(view=success_layout("Stopping", "The template is being stopped. What is already built stays, and `template apply` can continue later because existing roles and channels are reused."))
+
+    @template_group.command(name="status", help="Show progress of a template being applied")
+    @security_owner()
+    async def status(self, ctx: commands.Context):
+        report = self.reports.get(ctx.guild.id)
+        if report is None:
+            return await ctx.send(view=info_layout("Template status", "No template is being applied on this server."))
+        k = report.counts
+        await ctx.send(view=info_layout("Template status", f"Roles **{k['roles']}**, channels **{k['channels']}**, settings **{k['settings']}**, embeds **{k['embeds']}**, panels **{k['panels']}**, messages **{k['messages']}**\nSkipped so far: **{len(report.failed)}**\nStop it with `template cancel`."))
 
     @template_group.command(name="publish", aliases=["save", "create"], help="Save this server as a template. Usage: template publish <name>")
     @security_owner()

@@ -10,7 +10,7 @@ from utils import security_settings as settings
 from utils.events_bus import LOG_EVENT, bus
 
 DAY = 86400
-MAX_OVERWRITES = 120
+MAX_OVERWRITES = 250
 PRESET_ORDER = ("relaxed", "balanced", "strict", "paranoid")
 
 
@@ -197,14 +197,14 @@ def summary(a: dict, plan: dict) -> str:
 
 
 async def _lock_channels(guild: discord.Guild, role: discord.Role) -> int:
-    overwrite = discord.PermissionOverwrite(view_channel=False, send_messages=False, connect=False, speak=False, add_reactions=False)
+    overwrite = discord.PermissionOverwrite.from_pair(discord.Permissions.none(), discord.Permissions.all_channel())
     targets = [
         ch for ch in guild.channels
         if isinstance(ch, discord.CategoryChannel) or ch.category is None or not ch.permissions_synced
     ][:MAX_OVERWRITES]
     done = 0
     for channel in targets:
-        if role in channel.overwrites:
+        if role in channel.overwrites and channel.overwrites_for(role) == overwrite:
             continue
         try:
             await channel.set_permissions(role, overwrite=overwrite, reason="Soward security setup")

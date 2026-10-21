@@ -25,7 +25,7 @@ A template is a saved layout of a whole server: roles, categories, channels, per
 | `gaming` | Game chats, LFG, tournaments, streaming, and game and platform roles |
 | `support` | Help desk with a ticket panel, FAQ, help forum, status and feedback |
 | `dating` | Adults-only social server with strict security, captcha verification and safety reports |
-| `datingv2` | **Premium.** A bigger adults-only server with Verified Girl, Guy and Non-Binary roles, a verification ticket, seven ticket panels, gender lounges, matchmaking and 14 self role panels |
+| `datingv2` | **Premium.** The full 18+ dating blueprint: gate and fam roles, staff ladder, 90 styled channels, six ticket panels with a private safety desk, verified badges, DM center, partners and level perks |
 | `study` | Subject channels, focus rooms, daily goals and study level roles |
 | `creator` | Fan hub with live and video alert channels and a supporter lounge |
 
@@ -45,18 +45,22 @@ Role panels, rules and welcome text are Soward embeds that you can edit afterwar
 
 ## Dating v2 (Premium)
 
-`datingv2` needs Soward Premium on the server because it goes beyond the free limits. You can preview it for free with `!template preview datingv2`.
+`datingv2` follows the Dating Server Blueprint. It needs Soward Premium on the server because it goes beyond the free limits. You can preview it for free with `!template preview datingv2`.
 
-- **Verification:** a private ticket where a Verifier asks for a code photo and grants **Verified Girl**, **Verified Guy** or **Verified Non-Binary**. Verified members unlock the matching lounge and voice room.
-- **Seven ticket panels:** Verification, Support, Safety Report, Ban Appeal, Partnership, VIP Request and Profile Review, each with intake questions. Verification tickets and their log are visible to staff only.
-- **Staff roles:** Admin, Head Moderator, Moderator, Verifier and Helper.
-- **About 80 channels:** gender and verified lounges, VIP lounge, matchmaking (profile format, friend finder, profile cards), hobbies, games, six regions, date rooms for two, game and movie night, a speed dating stage, and safety, appeals and staff areas.
-- **14 self role panels:** age confirmation, pings, status, looking for, DM preferences, age range, identity, orientation, pronouns, region, languages, interests, zodiac and name colours.
-- **Join to Create**: a hub voice channel that gives every member their own temporary room, see [Join to Create](/docs/join-to-create).
-- **Booster Perks**: Rich (1 boost) and Wealthy (2 boosts) tier roles with an XP bonus, a Booster role, and custom booster roles placed below the Booster role, see [Booster Perks](/docs/booster). Members cannot change display or permissions on their custom roles.
-- **Eight level roles** from Friendly to Legend, strict security and captcha verification.
+- **Style:** categories look like `˚₊ lounge ₊˚`, and channels and roles look like `♡﹒general﹒˚₊☁️𓂃﹗`, each with its own emoji. Embed titles use a bold font.
+- **Gate:** members get **unverified** on join and can only see verify, rules and announcements. After verification they lose it and get **fam**, the main member role. The quarantine role from the template is used as Soward's quarantine role, with no permissions, and every channel and category denies it all permissions. The unverified and muted roles are linked to Soward's verification and quarantine settings.
+- **@everyone has no permissions.** Fam carries the real permissions. Embed links unlock at level 5 and attach files at level 10. Fam gets attach files inside the support, verification, report and safety ticket categories.
+- **Staff ladder:** founders, owner, co-owner, quarantine, admin, manager, assistant manager, moderator, trial mod, partnership managers, ticket team, event hosts and staff, each with the permissions from the blueprint.
+- **Roles in blueprint order:** staff, ten colour roles (two booster-only), wealthy, rich, partner rep, couples, birthday, six level roles, verified girl, boy and nonbinary, fam, unverified, muted, then the self roles.
+- **Rules and self roles use custom commands.** The rules channel has a rules panel with a dropdown (chat, DM, voice, safety and other rules). The roles channel has one CUSTOMIZE panel with a Personization Options dropdown. Each choice opens a private panel with its own banner image and dropdown for DM status, looking for, relationship status, pronouns, orientation, age range, region, pings and name colours. All of it is made with `!cc` commands you can edit afterwards, such as `!cc menu edit sr-dm 1 ...`.
+- **Self role details:** pick-one groups swap the old role, and the rest toggle. The two booster colours have their own panel in the custom role requests channel.
+- **90 channels in 21 categories:** start here, meet, dm center, lounge, interests, couples, events, activities, voice, partners, boosters and levels, help desk, six opened-ticket categories, ticket transcripts, logs and staff.
+- **Six ticket panels:** support, verified badge, report, safety desk, partnership and staff applications. Each opens tickets in its own category with its own staff. Safety tickets are visible to assistant managers and up only and write to a private safety-transcripts channel.
+- **Logs:** Soward's five log categories (moderation, messages, member activity, security and server changes) in styled channels. Soward has no separate voice log category.
+- **Join to Create**, see [Join to Create](/docs/join-to-create), and **Booster Perks**, see [Booster Perks](/docs/booster). Rich is 1 boost and wealthy is 2 boosts. Booster-only channels use those two tier roles, and custom booster roles are placed below Discord's Server Booster role.
+- **Level roles** at 5, 10, 20, 30, 50 and 75 with display on.
 
-Soward never asks for ID. The verification flow uses a code photo that stays inside the private ticket.
+Applying this preset turns off every @everyone permission, so existing members need the fam role. Soward warns you before you confirm. Age verification is left to your own setup. Soward never asks for ID, and badge proof stays inside the private ticket.
 
 ## Applying a template
 
@@ -72,6 +76,29 @@ Leave the parts out to apply everything. Soward shows what will be added and wai
 - **content**: embeds, rules messages, self role panels and ticket panels. Greetings use the `tpl-welcome` embed, so apply `content` together with `settings`.
 
 By default nothing is deleted. Roles, categories and channels with the same name are reused. Settings in the template replace your current values for those settings. Discord limits (250 roles, 500 channels) are respected, and anything skipped is listed when it finishes.
+
+### Stopping and resuming
+
+- `!template cancel` stops a running apply right away. Everything already built stays.
+- `!template status` shows what has been created so far.
+- If Discord rate limits the server and stops answering, Soward gives up after three calls in a row time out and tells you, instead of hanging. Wait a few minutes and run `!template apply` again. Roles and channels that already exist are reused, so it continues where it stopped.
+
+### Role order
+
+Template roles are placed in one block under Soward's role, top to bottom: staff, bots, main member roles (such as Fam and the verified roles), booster and VIP roles, level roles, then colour and self roles. Keep Soward's role at the top of your role list so it can order them.
+
+## Staff review commands in Dating v2
+
+Dating v2 adds two custom commands so staff do not have to write review posts by hand.
+
+- `!rq <summary>` works only in review-queue and only for the ticket team, moderators and managers. It posts a "Review Request" embed with a dropdown: Claim, Approve, Warn, Mute, Ban, Need more info, Done and Escalate. Each pick is logged in the channel with the staff member and a link to the request, so the next person on shift can see what is pending and what was decided. The member never sees it. Escalate also posts a link in safety-review.
+- `!safecase <summary>` works only in safety-review and only for assistant managers and managers. Its dropdown has Claim, Need more evidence, Warn, Ban, Quarantine, Report to Discord, Follow up with reporter and Close with result. Decisions stay in safety-review and are never copied to review-queue.
+
+The dropdown records decisions only. It does not run the ban or warning for you, so use the normal moderation commands for the action itself. Inside template custom command text, `{{channel:key}}` is replaced with the matching channel of the template.
+
+## Custom commands in templates
+
+Templates can carry [custom commands](/docs/custom-commands), including their dropdown menus, cooldowns and role or channel restrictions. They are created in the **content** part. Commands that already exist are never overwritten, and a template can post a command's message (for example a rules panel) into a channel. Usage counts are not saved. When you apply another server's template, only safe commands are added: plain triggers that use role toggles and embed tags, never bans, kicks or channel actions.
 
 ## Clean mode
 
@@ -117,7 +144,7 @@ The Quarantined role is also created by a normal apply when the `roles` part is 
 
 `publish` saves roles, categories, channels and permission overwrites, plus Soward settings: leveling (rewards, multipliers, no-XP lists), greetings, log channels, security settings, whitelist (roles and channels), AntiNuke punishments, NSFW role and channels, ticket settings, anime daily config, embeds, posted self role panels and posted ticket panels (staff roles, category, transcript channel, button label, intake questions).
 
-Join to Create hubs and Booster Perks settings are saved too. Not saved: custom commands, giveaways, alerts, open tickets and transcripts, warnings, XP and any member data. Members, bans and messages never leave your server.
+Join to Create hubs and Booster Perks settings are saved too. Not saved: giveaways, alerts, open tickets and transcripts, warnings, XP and any member data. Members, bans and messages never leave your server.
 
 A new template is **private**. `unlisted` lets anyone with the code use it, and `public` also lists it in `!template browse`. You can keep 5 templates.
 

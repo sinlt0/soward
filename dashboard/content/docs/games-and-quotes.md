@@ -126,3 +126,43 @@ Premium fonts and colors work only in servers that have [premium](/docs/premium)
 - **"Couldn't fetch that user's avatar"**: Discord did not return the avatar. Try again.
 - **Ship shows "Can't Ship That"**: you picked the same member twice.
 - **"Can't Do That" on truth or dare**: you asked for `r` outside an NSFW channel, or used a rating other than `pg`, `pg13` or `r`.
+
+## Counting
+
+Members count upward together in one channel. Numbers must follow in order, and nobody can count twice in a row. A wrong number or a double count resets the count to 0, adds a ❌ and tells everyone who broke it. Correct numbers get a ✅, and every 100th number is celebrated.
+
+| Command | What it does | Needs |
+| --- | --- | --- |
+| `!counting` | Shows the status, current number and record. | Anyone |
+| `!counting top` | Shows the best counters. | Anyone |
+| `!counting channel #channel` | Sets the counting channel. | Manage Server |
+| `!counting toggle` | Turns counting on or off. | Manage Server |
+| `!counting set <number>` | Sets the current number. | Manage Server |
+| `!counting reset` | Resets the count to 0. | Manage Server |
+
+## Wordle
+
+Everyone in a server gets the same word each day, and a new word starts at 00:00 UTC. Use `!wordle` to post the game, then press **Play** and type a 5 letter guess. Your board is private. When you finish, a spoiler free result is posted in the channel.
+
+- `!wordle stats [member]` shows played games, wins and streaks.
+- `!wordle top` shows the server leaderboard.
+
+Any five letters count as a guess, so the game does not check a dictionary.
+
+## Icebreakers
+
+| Command | What it does |
+| --- | --- |
+| `!wyr` | A would you rather with 🅰️ and 🅱️ reactions. |
+| `!nhie` | A never have I ever prompt. |
+| `!rizz [member]` | A cheesy pickup line, optionally aimed at someone. |
+| `!icebreaker` | A conversation starter. Aliases: `!question`, `!ice`. |
+
+## Daily question
+
+Soward can post a new question every day without repeating one until all have been used.
+
+- `!daily channel #channel` sets the channel.
+- `!daily time <HH:MM>` and `!daily offset <hours>` set when it posts, for example `09:00` and `6`.
+- `!daily role @role` pings a role with each question. Run it without a role to remove the ping.
+- `!daily toggle` turns it on or off and `!daily now` posts one immediately.

@@ -15,6 +15,7 @@ CATEGORY_DESCRIPTIONS = {
     "Music": "Voice channel music playback and queueing.",
     "Utility": "Server and user information commands.",
     "Premium": "Premium activation and no-prefix settings.",
+    "Community": "Birthdays, anonymous confessions, suggestions and the starboard.",
 }
 
 COG_DESCRIPTIONS = {
