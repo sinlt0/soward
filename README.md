@@ -177,6 +177,13 @@ activities = {
 Turning an app off also blocks its server routes and its `!musicapp` or `!gamesapp`
 command. `SOWARD_ACTIVITY=0` still turns every app off.
 
+### Coins, family and clans
+
+Coins are a global wallet. Votes (`config.VOTE_COINS`) and tips (`config.SUPPORT_COINS`) pay coins,
+and `!coins topup` sells them through the crypto invoices at `config.COIN_PER_USD` coins per dollar.
+Coins are tracked as bought (top-ups) and earned (votes, tips, owner grants); only bought coins can be given to other users, and spending uses earned coins first. `coins.spend_bought` and `coins.spend_mixed` (half bought, half earned) are there for later features such as redeeming Nitro. Premium can be bought with coins (`!premium coins`). Marriage and adoption slots, clan prices and
+the other limits are constants near the top of the economy section of `config.py`.
+
 ### Vote rewards
 
 `!vote` links to the bot's discordbotlist.com page. When someone votes, the site posts to

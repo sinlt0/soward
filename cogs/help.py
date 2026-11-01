@@ -1,3 +1,6 @@
+import time
+from pathlib import Path
+
 import discord
 from discord.ext import commands
 
@@ -5,8 +8,15 @@ from utils.colors import NEUTRAL, ERROR
 import config
 
 COMMANDS_PER_PAGE = 8
+ASSET_DIR = Path(__file__).resolve().parent.parent / "assets" / "help"
+BANNER_FILE = "help_banner.png"
+SUPPORT_FILE = "help_support.png"
+COUNT_TTL = 60
+_count_cache = {}
 
 CATEGORY_DESCRIPTIONS = {
+    "Economy": "Coins: earn them by voting, buy them, and spend them.",
+    "Family": "Marriage, adoption and global clans.",
     "Moderation": "Ban, kick, mute, warn, purge, and case logging.",
     "Config": "Server setup and protection systems.",
     "Engagement": "Giveaways, alerts, Join to Create voice channels and other ways to engage your members.",
@@ -76,6 +86,39 @@ def command_hidden(cmd, privileged=False):
             return True
         node = node.parent
     return False
+
+def help_files():
+    files = []
+    for name in (BANNER_FILE, SUPPORT_FILE):
+        path = ASSET_DIR / name
+        if path.exists():
+            files.append(discord.File(path, filename=name))
+    return files
+
+def prefix_label(prefix):
+    if not prefix:
+        return "Np"
+    if prefix.startswith("<@"):
+        return "Mention"
+    return f"`{prefix}`"
+
+async def command_counts(bot, ctx, privileged):
+    key = (ctx.author.id, ctx.guild.id if ctx.guild else 0, privileged)
+    cached = _count_cache.get(key)
+    if cached and time.time() - cached[0] < COUNT_TTL:
+        return cached[1]
+    total = usable = 0
+    for cmd in set(bot.walk_commands()):
+        if command_hidden(cmd, privileged) or cmd.qualified_name.split(" ")[0] in ("jsk", "jishaku"):
+            continue
+        total += 1
+        try:
+            if await cmd.can_run(ctx):
+                usable += 1
+        except Exception:
+            pass
+    _count_cache[key] = (time.time(), (total, usable))
+    return total, usable
 
 def _category_map(bot):
     mapping = {}
@@ -150,8 +193,10 @@ def _resolve_query(bot, text, privileged):
     return None
 
 class HelpLayout(discord.ui.LayoutView):
-    def __init__(self, bot, author_id, prefix, privileged, preview_notice=False):
+    def __init__(self, bot, author_id, prefix, privileged, preview_notice=False, counts=None, has_images=False):
         super().__init__(timeout=120)
+        self.counts = counts
+        self.has_images = has_images
         self.bot = bot
         self.author_id = author_id
         self.prefix = prefix
@@ -209,13 +254,49 @@ class HelpLayout(discord.ui.LayoutView):
 
     def _home_text(self):
         notice = "*Previewing help as a regular user would see it.*\n\n" if self.preview_notice else ""
-        total = len(set(self.bot.walk_commands()))
-        return (
-            f"## {config.BOT_NAME} help\n"
-            f"{notice}"
-            f"Select a category below to view its commands.\n\n"
-            f"**Prefix:** `{self.prefix}` • **Total commands:** {total}"
+        return f"{notice}Select a category below to view its commands."
+
+    def _stats_text(self):
+        total, usable = self.counts if self.counts else (len(set(self.bot.walk_commands())), 0)
+        usable_text = f" - usable by you **{usable}**" if self.counts else ""
+        return f"**Prefix:** {prefix_label(self.prefix)}\n**Total commands:** {total}{usable_text}"
+
+    def _links_text(self):
+        lines = ["**Links**"]
+        if config.SUPPORT_URL:
+            lines.append(f"- [Support server]({config.SUPPORT_URL})")
+        invite = discord.utils.oauth_url(
+            self.bot.user.id,
+            permissions=discord.Permissions(administrator=True),
+            scopes=("bot", "applications.commands"),
         )
+        lines.append(f"- [Invite {config.BOT_NAME}]({invite})")
+        return "\n".join(lines)
+
+    def _gallery(self, filename):
+        return discord.ui.MediaGallery(discord.MediaGalleryItem(f"attachment://{filename}"))
+
+    def _render_home(self):
+        container = discord.ui.Container(accent_color=NEUTRAL)
+        container.add_item(discord.ui.Separator())
+        if self.has_images:
+            container.add_item(self._gallery(BANNER_FILE))
+            container.add_item(discord.ui.Separator())
+        else:
+            container.add_item(discord.ui.TextDisplay(f"## {config.BOT_NAME} help"))
+        container.add_item(discord.ui.TextDisplay(self._home_text()))
+        container.add_item(discord.ui.Separator())
+        container.add_item(discord.ui.TextDisplay(self._stats_text()))
+        container.add_item(discord.ui.Separator())
+        category_row = discord.ui.ActionRow()
+        category_row.add_item(self._category_select())
+        container.add_item(category_row)
+        container.add_item(discord.ui.Separator())
+        if self.has_images:
+            container.add_item(self._gallery(SUPPORT_FILE))
+            container.add_item(discord.ui.Separator())
+        container.add_item(discord.ui.TextDisplay(self._links_text()))
+        self.add_item(container)
 
     def _category_text(self):
         page = self.pages[self.page_index] if self.pages else []
@@ -294,6 +375,8 @@ class HelpLayout(discord.ui.LayoutView):
 
     def render(self):
         self.clear_items()
+        if self.stage == "home":
+            return self._render_home()
         container = discord.ui.Container(accent_color=NEUTRAL)
         container.add_item(discord.ui.TextDisplay(self._header_text()))
         container.add_item(discord.ui.Separator())
@@ -377,13 +460,21 @@ class Help(commands.Cog):
         self.bot = bot
         bot.help_command = None
 
+    async def _menu(self, ctx, privileged, preview=False):
+        counts = await command_counts(self.bot, ctx, privileged)
+        files = help_files()
+        return HelpLayout(self.bot, ctx.author.id, ctx.prefix, privileged=privileged, preview_notice=preview, counts=counts, has_images=len(files) == 2)
+
+    async def _send_menu(self, ctx, privileged, preview=False):
+        view = await self._menu(ctx, privileged, preview)
+        await ctx.send(view=view, files=help_files())
+
     @commands.command(name="help", aliases=["commands", "h"], help="Browse all commands by category.")
     async def help_cmd(self, ctx, *, query: str = None):
         privileged = await _is_privileged(self.bot, ctx.author)
 
         if query and query.lower() == "asuser" and privileged:
-            view = HelpLayout(self.bot, ctx.author.id, ctx.prefix, privileged=False, preview_notice=True)
-            return await ctx.send(view=view)
+            return await self._send_menu(ctx, False, preview=True)
 
         if query:
             cmd = self.bot.get_command(query.lower())
@@ -400,17 +491,16 @@ class Help(commands.Cog):
             if not resolved:
                 return await ctx.send(view=NotFoundLayout(query))
 
-            view = HelpLayout(self.bot, ctx.author.id, ctx.prefix, privileged=privileged)
+            view = await self._menu(ctx, privileged)
             if resolved[0] == "category":
                 view.open_category(resolved[1])
             elif resolved[0] == "submodule":
                 view.open_submodule(resolved[1], resolved[2])
             else:
                 view.open_category(resolved[1])
-            return await ctx.send(view=view)
+            return await ctx.send(view=view, files=help_files())
 
-        view = HelpLayout(self.bot, ctx.author.id, ctx.prefix, privileged=privileged)
-        await ctx.send(view=view)
+        await self._send_menu(ctx, privileged)
 
 async def setup(bot):
     await bot.add_cog(Help(bot))

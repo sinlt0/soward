@@ -6,7 +6,7 @@ from typing import Optional
 import discord
 from discord.ext import commands, tasks
 
-from utils import db, embeds, emoji_manager, premium_limits, premium_trials, prefix as prefix_utils
+from utils import coins as coin_store, crypto_pay as crypto_store, db, embeds, emoji_manager, premium_limits, premium_trials, prefix as prefix_utils
 from utils.checks import has_guild_permission, is_privileged
 import config
 
@@ -55,6 +55,30 @@ class PremiumClaimView(discord.ui.View):
         self.confirmed = False
         self.stop()
         await interaction.response.edit_message(embed=embeds.neutral("Cancelled", "Premium claim cancelled."), view=None)
+
+class PremiumCoinsView(discord.ui.View):
+    def __init__(self, author_id: int):
+        super().__init__(timeout=60)
+        self.author_id = author_id
+        self.confirmed = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("This is not your purchase.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Buy", style=discord.ButtonStyle.success)
+    async def buy(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = True
+        await interaction.response.defer()
+        self.stop()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(view=None)
+        self.stop()
+
 
 class Premium(commands.Cog):
     category = "Premium"
@@ -160,7 +184,41 @@ class Premium(commands.Cog):
         cog = self.bot.get_cog("CryptoPay")
         if cog is None:
             return await ctx.send(embed=embeds.error("Unavailable", "Crypto payments are not available right now."))
+        if mode.lower() == "coins":
+            return await cog.start_coins(ctx, None)
         await cog.start_purchase(ctx, mode.lower() == "gift")
+
+    @premium_group.command(name="coins", aliases=["coinbuy"], help='Buy premium for this server with coins. Usage: premium coins [plan]')
+    @has_guild_permission("manage_guild")
+    @commands.guild_only()
+    async def premium_coins(self, ctx: commands.Context, plan: str = ""):
+        e = emoji_manager.get
+        prices = {key: coin_store.usd_to_coins(item["usd"]) for key, item in config.CRYPTO_PLANS.items()}
+        wallet = await coin_store.balance(ctx.author.id)
+        key = plan.lower()
+        if key not in prices:
+            lines = [f"{e('coin')} Your wallet: **{coin_store.fmt(wallet)}** coins", ""]
+            for name, item in config.CRYPTO_PLANS.items():
+                lines.append(f"`{name}` · {item['label']} · **{coin_store.fmt(prices[name])}** coins")
+            lines.append(f"\nUse `premium coins <plan>` to buy. Earn coins by voting or top up with `coins topup`.")
+            return await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} Premium with coins", "\n".join(lines)))
+        item = config.CRYPTO_PLANS[key]
+        price = prices[key]
+        row = await db.raw_fetchone("SELECT premium, premium_expires_at FROM guilds WHERE guild_id=?", (ctx.guild.id,))
+        if row and row["premium"] and row["premium_expires_at"] is None:
+            return await ctx.send(embed=embeds.error(f"{e('cross')} Already Lifetime", "This server already has premium with no end date."))
+        if wallet < price:
+            return await ctx.send(embed=embeds.error(f"{e('cross')} Not Enough Coins", f"**{item['label']}** costs **{coin_store.fmt(price)}** coins and you have **{coin_store.fmt(wallet)}**."))
+        view = PremiumCoinsView(ctx.author.id)
+        msg = await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} Confirm Purchase", f"Spend **{coin_store.fmt(price)}** coins on **{item['label']}** of premium for **{ctx.guild.name}**?"), view=view)
+        await view.wait()
+        if not view.confirmed:
+            return
+        if not await coin_store.spend(ctx.author.id, price):
+            return await msg.edit(embed=embeds.error(f"{e('cross')} Not Enough Coins", "Your balance changed. Try again."), view=None)
+        expires = await crypto_store.grant_server(ctx.guild.id, item["days"])
+        when = f"until <t:{int(expires)}:F>" if expires else "with no end date"
+        await msg.edit(embed=embeds.success(f"{e('premium_cat')} Premium Activated!", f"**{item['label']}** of premium is now active {when}."), view=None)
 
     @premium_group.command(name="generate", aliases=["gen"], help='Generate a redeemable premium key (owner/dev only).')
     @is_privileged()

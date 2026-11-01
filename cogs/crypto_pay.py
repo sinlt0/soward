@@ -9,7 +9,7 @@ import discord
 from discord.ext import commands, tasks
 
 import config
-from utils import crypto_pay as store, emoji_manager, hdwallet, supporters
+from utils import coins as coin_store, crypto_pay as store, emoji_manager, hdwallet, supporters
 from utils.checks import is_privileged
 from utils.components import error_layout, info_layout, success_layout
 
@@ -56,6 +56,8 @@ def invoice_layout(invoice: dict, guild_name: str, with_qr: bool) -> discord.ui.
     target = "a gift key" if invoice["kind"] == "key" else f"**{guild_name}**"
     if invoice["kind"] == "tip":
         lines = [f"## Pay with {coin}", f"Invoice `{invoice['invoice_id']}` · {plan['label']} to support {config.BOT_NAME}"]
+    elif invoice["kind"] == "coins":
+        lines = [f"## Pay with {coin}", f"Invoice `{invoice['invoice_id']}` · {plan['label']} ({money(invoice['usd'])})"]
     else:
         lines = [f"## Pay with {coin}", f"Invoice `{invoice['invoice_id']}` · Premium {plan['label']} ({money(invoice['usd'])}) for {target}"]
     if status in ("pending", "seen"):
@@ -67,8 +69,10 @@ def invoice_layout(invoice: dict, guild_name: str, with_qr: bool) -> discord.ui.
         lines.append(f"-# Valid until <t:{int(invoice['expires_at'])}:t> (<t:{int(invoice['expires_at'])}:R>). This address belongs to this invoice only. Send only {invoice['coin'].upper()} on its own network, and send the full amount in one or more payments. It is checked automatically.")
     elif status == "paid":
         result = store.result_of(invoice)
-        if result.get("type") == "tip":
-            lines.append("\n**Paid.** Thank you for supporting " + config.BOT_NAME + ". Use `support public on` if you would like your name on the supporters page.")
+        if result.get("type") == "coins":
+            lines.append(f"\n**Paid.** **{coin_store.fmt(result['coins'])}** coins were added to your wallet.")
+        elif result.get("type") == "tip":
+            lines.append("\n**Paid.** Thank you for supporting " + config.BOT_NAME + f". **{coin_store.fmt(result.get('coins', 0))}** coins were added to your wallet. Use `support public on` if you would like your name on the supporters page.")
         elif result.get("type") == "key":
             lines.append("\n**Paid.** Your premium key was sent to your DMs. You can also press the button below to see it.")
         elif result.get("expires"):
@@ -122,19 +126,31 @@ class BuyView(discord.ui.LayoutView):
         self.clear_items()
         container = discord.ui.Container(accent_color=GOLD)
         target = "a gift key anyone can redeem" if self.kind == "key" else f"**{self.ctx.guild.name}**" if self.ctx.guild else "this chat"
-        if self.kind == "tip":
+        if self.kind in ("tip", "coins"):
+            coins_mode = self.kind == "coins"
+            title = "Buy coins" if coins_mode else f"Support {config.BOT_NAME}"
             if self.plan is None:
-                container.add_item(discord.ui.TextDisplay(f"## Support {config.BOT_NAME}\nTips help cover hosting. Pay with Bitcoin or Litecoin, no account needed. Supporters get a thank-you role in the support server and can opt in to the supporters page.\n\n**Choose an amount**"))
+                if coins_mode:
+                    intro = f"Pay with Bitcoin or Litecoin, no account needed. **{money(1)} = {coin_store.fmt(config.COIN_PER_USD)} coins**, added to your wallet when the payment confirms.\n\n**Choose an amount**"
+                    amounts = config.COIN_TOPUP_AMOUNTS
+                    note = f"-# Want a different amount? Use `coins topup <amount>` with {money(config.COIN_TOPUP_MIN_USD)} to {money(config.COIN_TOPUP_MAX_USD)}."
+                else:
+                    intro = f"Tips help cover hosting. Pay with Bitcoin or Litecoin, no account needed. Every tip gives **{coin_store.fmt(config.SUPPORT_COINS)} coins**, whatever the amount, plus a thank-you role in the support server and an optional place on the supporters page.\n\n**Choose an amount**"
+                    amounts = config.SUPPORT_AMOUNTS
+                    note = f"-# Want a different amount? Use `support <amount>` with {money(config.SUPPORT_MIN_USD)} to {money(config.SUPPORT_MAX_USD)}."
+                container.add_item(discord.ui.TextDisplay(f"## {title}\n{intro}"))
                 row = discord.ui.ActionRow()
-                for amount in config.SUPPORT_AMOUNTS:
-                    button = discord.ui.Button(label=money(amount), style=discord.ButtonStyle.primary)
-                    button.callback = self._plan_callback(f"tip:{amount}")
+                for amount in amounts:
+                    label = f"{money(amount)} · {coin_store.fmt(coin_store.usd_to_coins(amount))}" if coins_mode else money(amount)
+                    button = discord.ui.Button(label=label, style=discord.ButtonStyle.primary)
+                    button.callback = self._plan_callback(f"{self.kind}:{amount}")
                     row.add_item(button)
                 container.add_item(row)
-                container.add_item(discord.ui.TextDisplay(f"-# Want a different amount? Use `support <amount>` with {money(config.SUPPORT_MIN_USD)} to {money(config.SUPPORT_MAX_USD)}."))
+                container.add_item(discord.ui.TextDisplay(note))
             else:
                 plan = store.plan_for(self.plan)
-                container.add_item(discord.ui.TextDisplay(f"## Support {config.BOT_NAME}\n**{money(plan['usd'])}** tip.\n\n**Choose a coin**"))
+                summary = f"**{plan['label']}** for {money(plan['usd'])}." if coins_mode else f"**{money(plan['usd'])}** tip."
+                container.add_item(discord.ui.TextDisplay(f"## {title}\n{summary}\n\n**Choose a coin**"))
                 row = discord.ui.ActionRow()
                 for coin in self.coins:
                     button = discord.ui.Button(label=config.CRYPTO_COINS[coin], style=discord.ButtonStyle.success)
@@ -240,6 +256,18 @@ class CryptoPay(commands.Cog):
             view.render()
         await ctx.send(view=view)
 
+    async def start_coins(self, ctx: commands.Context, amount: Optional[float]):
+        coins = await store.enabled_coins()
+        if not coins:
+            return await ctx.send(view=error_layout("Coin top-ups are not set up", "The bot owner has not added a wallet yet."))
+        view = BuyView(self, ctx, "coins", coins, False)
+        if amount is not None:
+            if store.plan_for(f"coins:{amount}") is None:
+                return await ctx.send(view=error_layout("Invalid amount", f"Choose an amount from {money(config.COIN_TOPUP_MIN_USD)} to {money(config.COIN_TOPUP_MAX_USD)}."))
+            view.plan = f"coins:{round(amount, 2)}"
+            view.render()
+        await ctx.send(view=view)
+
     async def grant_supporter_role(self, user_id: int):
         if not (config.SUPPORT_GUILD_ID and config.SUPPORTER_ROLE_ID):
             return
@@ -288,8 +316,10 @@ class CryptoPay(commands.Cog):
             except discord.HTTPException:
                 user = None
         plan = store.plan_for(invoice["plan"]) or {"label": invoice["plan"]}
-        if result["type"] == "tip":
-            body = f"Thank you for your {money(result['usd'])} tip. It goes straight to hosting.\nUse `support public on` if you would like your name on the supporters page."
+        if result["type"] == "coins":
+            body = f"Thank you. **{coin_store.fmt(result['coins'])}** coins were added to your wallet for {money(result['usd'])}."
+        elif result["type"] == "tip":
+            body = f"Thank you for your {money(result['usd'])} tip. It goes straight to hosting, and **{coin_store.fmt(result.get('coins', 0))}** coins were added to your wallet.\nUse `support public on` if you would like your name on the supporters page."
             await self.grant_supporter_role(int(invoice["user_id"]))
         elif result["type"] == "key":
             body = f"Thank you. Here is your premium key for **{plan['label']}**:\n`{result['key']}`\nRedeem it in a server with `premium claim {result['key']}`."
@@ -303,7 +333,7 @@ class CryptoPay(commands.Cog):
                 await user.send(view=success_layout("Payment confirmed", body))
             except discord.HTTPException:
                 pass
-        what = "a tip" if result["type"] == "tip" else "gift key" if result["type"] == "key" else f"server `{invoice['guild_id']}`"
+        what = "coins" if result["type"] == "coins" else "a tip" if result["type"] == "tip" else "gift key" if result["type"] == "key" else f"server `{invoice['guild_id']}`"
         await self.log(f"Invoice `{invoice['invoice_id']}` paid by <@{invoice['user_id']}> for {what}: {plan['label']}, {store.fmt_amount(invoice['received_units'])} {invoice['coin'].upper()} ({money(invoice['usd'])}).")
 
     @commands.group(name="support", aliases=["tip", "donate"], invoke_without_command=True, help="Support hosting with a Bitcoin or Litecoin tip. Usage: support [amount in USD]")
