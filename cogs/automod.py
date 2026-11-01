@@ -7,11 +7,12 @@ import discord
 from discord.ext import commands
 
 from utils import automod_filters as filters
+from utils import security_master
 from utils import automod_native, cases, warn_ladder
 from utils import emoji_manager, guild_settings, incident, security, threat
 from utils import security_settings as settings
 from utils import security_whitelist as whitelist
-from utils import security_cmds
+from utils import premium_limits, security_cmds
 from utils.checks import has_guild_permission
 from utils.security_access import security_owner, security_staff
 from utils.events_bus import (
@@ -28,6 +29,7 @@ _history: dict[tuple[int, int], deque] = {}
 _unverified: dict[int, set] = defaultdict(set)
 _panic_flags: dict[int, list[tuple[int, float]]] = defaultdict(list)
 _counter = [0]
+_invite_cache: dict[str, tuple[float, Optional[int]]] = {}
 _bursts: dict[int, deque] = defaultdict(deque)
 
 FILTER_DEFAULTS = {
@@ -112,6 +114,8 @@ class AutoMod(commands.Cog):
         _unverified[guild_id].discard(user_id)
 
     async def _is_enabled(self, guild_id: int) -> bool:
+        if await security_master.is_off(guild_id):
+            return False
         return await settings.get(guild_id, "automod", "enabled")
 
     async def _filter_on(self, guild_id: int, name: str) -> bool:
@@ -132,6 +136,38 @@ class AutoMod(commands.Cog):
         if roles and any(r.id in {int(x) for x in roles} for r in getattr(member, "roles", [])):
             return True
         return False
+
+    async def _invite_guild(self, code: str) -> Optional[int]:
+        cached = _invite_cache.get(code)
+        now = time.time()
+        if cached and now - cached[0] < 600:
+            return cached[1]
+        guild_id = None
+        try:
+            invite = await self.bot.fetch_invite(code, with_counts=False)
+            guild_id = getattr(invite.guild, "id", None)
+        except discord.HTTPException:
+            guild_id = None
+        if len(_invite_cache) > 500:
+            _invite_cache.clear()
+        _invite_cache[code] = (now, guild_id)
+        return guild_id
+
+    async def _invite_allowed(self, message: discord.Message, content: str) -> bool:
+        values = await whitelist.rule_values(message.guild.id, "automod.invite", message.author, message.channel)
+        if not values:
+            return False
+        codes = filters.invite_codes(content)
+        if not codes:
+            return False
+        guild_ids = {v[2:] for v in values if v.startswith("g:")}
+        for code in codes:
+            if code in values:
+                continue
+            if guild_ids and str(await self._invite_guild(code)) in guild_ids:
+                continue
+            return False
+        return True
 
     async def _evaluate(self, message: discord.Message, *, edited: bool) -> tuple[float, list[str], bool]:
         guild_id = message.guild.id
@@ -155,13 +191,17 @@ class AutoMod(commands.Cog):
 
         banned: list = await settings.get(guild_id, "automod", "banned_words")
         if banned and "words" not in skip:
+            allowed_words = await whitelist.rule_values(guild_id, "automod.word", message.author, message.channel)
+            if allowed_words:
+                banned = [w for w in banned if filters.normalize(str(w)).strip() not in allowed_words]
+        if banned and "words" not in skip:
             hit = filters.banned_word_hit(content, banned, await self._filter_on(guild_id, "wholeword"))
             if hit:
                 heat += events["banned_word"]
                 reasons.append("banned word")
                 remove = True
 
-        if content and "invites" not in skip and await settings.get(guild_id, "automod", "block_invites") and filters.has_invite(content):
+        if content and "invites" not in skip and await settings.get(guild_id, "automod", "block_invites") and filters.has_invite(content) and not await self._invite_allowed(message, content):
             heat += events["invite"]
             reasons.append("invite link")
             remove = True
@@ -169,8 +209,9 @@ class AutoMod(commands.Cog):
         if content and "links" not in skip:
             blocklist: list = await settings.get(guild_id, "automod", "link_blocklist")
             allowlist: list = await settings.get(guild_id, "automod", "link_allowlist")
-            blocked = filters.blocked_host(content, blocklist) if blocklist else None
-            disallowed = filters.disallowed_host(content, allowlist) if allowlist else None
+            allowed_hosts = await whitelist.rule_values(guild_id, "automod.link", message.author, message.channel)
+            blocked = filters.blocked_host(content, blocklist, allowed_hosts) if blocklist else None
+            disallowed = filters.disallowed_host(content, allowlist, allowed_hosts) if allowlist else None
             if blocked or disallowed:
                 heat += events["link"]
                 reasons.append("blocked link")
@@ -488,8 +529,9 @@ class AutoMod(commands.Cog):
         current: list = await guild_settings.get(ctx.guild.id, "automod_banned_words", [])
         if len(word) < 2 or len(word) > 100:
             return await ctx.send(view=error_layout("Invalid word", "Banned words must be 2-100 characters."))
-        if len(current) >= 100 and word not in current:
-            return await ctx.send(view=error_layout("List full", "AutoMod can hold up to 100 banned words."))
+        cap = await premium_limits.get(ctx.guild.id, "automod_words")
+        if len(current) >= cap and word not in current:
+            return await ctx.send(view=error_layout("List full", f"AutoMod can hold up to {cap} banned words." + await premium_limits.hint(ctx.guild.id, "automod_words")))
         if word not in current:
             current.append(word)
             await guild_settings.set(ctx.guild.id, "automod_banned_words", current)
@@ -526,8 +568,9 @@ class AutoMod(commands.Cog):
             return await ctx.send(view=error_layout("Invalid domain", "Give a domain such as `example.com`."))
         current: list = await guild_settings.get(ctx.guild.id, key, [])
         if add:
-            if len(current) >= 100 and cleaned not in current:
-                return await ctx.send(view=error_layout("List full", "A list can hold up to 100 domains."))
+            cap = await premium_limits.get(ctx.guild.id, "automod_domains")
+            if len(current) >= cap and cleaned not in current:
+                return await ctx.send(view=error_layout("List full", f"A list can hold up to {cap} domains." + await premium_limits.hint(ctx.guild.id, "automod_domains")))
             if cleaned not in current:
                 current.append(cleaned)
             await guild_settings.set(ctx.guild.id, key, current)
@@ -596,8 +639,9 @@ class AutoMod(commands.Cog):
         store = roles if is_role else channels
         key = "automod_exempt_roles" if is_role else "automod_exempt_channels"
         if action == "add":
-            if len(store) >= 50 and target.id not in store:
-                return await ctx.send(view=error_layout("List full", "You can exempt up to 50 channels and 50 roles."))
+            cap = await premium_limits.get(ctx.guild.id, "automod_exempt")
+            if len(store) >= cap and target.id not in store:
+                return await ctx.send(view=error_layout("List full", f"You can exempt up to {cap} channels and {cap} roles." + await premium_limits.hint(ctx.guild.id, "automod_exempt")))
             if target.id not in store:
                 store.append(target.id)
         else:

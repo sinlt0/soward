@@ -91,10 +91,8 @@ async def count_templates(guild_id: int) -> int:
 
 
 async def get_template_cap(guild_id: int) -> int:
-    from config import EMBED_TEMPLATE_MAX_FREE, EMBED_TEMPLATE_MAX_PREMIUM
-    row = await db.raw_fetchone("SELECT premium FROM guilds WHERE guild_id=?", (guild_id,))
-    is_premium = bool(row["premium"]) if row else False
-    return EMBED_TEMPLATE_MAX_PREMIUM if is_premium else EMBED_TEMPLATE_MAX_FREE
+    from utils import premium_limits
+    return await premium_limits.get(guild_id, "embed_templates")
 
 
 def build_discord_embed(template: dict, var_map: Optional[dict] = None, fields: Optional[list[dict]] = None) -> discord.Embed:

@@ -7,18 +7,14 @@ from typing import Optional
 import discord
 from discord.ext import commands, tasks
 
-from utils import cc_engine, db, emoji_manager
+from utils import cc_engine, db, emoji_manager, premium_limits
 from utils.cc_engine import ALL_TRIGGER_TYPES, CCGroup, CustomCommand, TRIGGER_INTERVAL, TRIGGER_REACTION, TRIGGER_MSG_EDIT
 from utils.checks import has_guild_permission
 from utils.colors import NEUTRAL
 from utils.components import ConfirmLayout, error_layout, footer_block, info_layout, success_layout
 from utils.prefix import get_guild_prefix
-import config
 
 
-MAX_COMMANDS_PER_GUILD = 100
-MAX_GROUPS_PER_GUILD = 20
-MAX_RESPONSES_PER_COMMAND = 10
 MAX_MENU_OPTIONS = 25
 MENU_PREFIX = "ccm:"
 
@@ -625,8 +621,9 @@ class CustomCommands(commands.Cog):
 
         await self._ensure_loaded(ctx.guild.id)
         cmds = self._get_commands(ctx.guild.id)
-        if len(cmds) >= MAX_COMMANDS_PER_GUILD:
-            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {MAX_COMMANDS_PER_GUILD} custom commands per server."))
+        cap = await premium_limits.get(ctx.guild.id, "custom_commands")
+        if len(cmds) >= cap:
+            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {cap} custom commands per server." + await premium_limits.hint(ctx.guild.id, "custom_commands")))
 
         nid = self._alloc_id()
         cmd = CustomCommand(trigger_key, {"responses": [response], "numeric_id": nid, "trigger_text": trigger})
@@ -668,8 +665,9 @@ class CustomCommands(commands.Cog):
         cmd = self._get_commands(ctx.guild.id).get(trigger)
         if not cmd:
             return await ctx.send(view=error_layout("Not Found", f"Command `{trigger}` not found."))
-        if len(cmd.responses) >= MAX_RESPONSES_PER_COMMAND:
-            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {MAX_RESPONSES_PER_COMMAND} responses per command."))
+        cap = await premium_limits.get(ctx.guild.id, "custom_command_responses")
+        if len(cmd.responses) >= cap:
+            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {cap} responses per command." + await premium_limits.hint(ctx.guild.id, "custom_command_responses")))
         cmd.responses.append(response)
         await self._save_command(ctx.guild.id, cmd)
         await ctx.send(view=success_layout(f"{e('check')} Response Added", f"`{trigger}` now has **{len(cmd.responses)}** responses (picked randomly)."))
@@ -919,7 +917,8 @@ class CustomCommands(commands.Cog):
             cd = f" ⏱`{cmd.cooldown}s`" if cmd.cooldown else ""
             grp = f" [{cmd.group}]" if cmd.group else ""
             lines.append(f"{status} `{trigger}` — `{cmd.trigger_type}`{cd}{grp}")
-        await ctx.send(view=info_layout(f"{e('history')} Custom Commands ({len(filtered)}/{MAX_COMMANDS_PER_GUILD})", "\n".join(lines)))
+        cap = await premium_limits.get(ctx.guild.id, "custom_commands")
+        await ctx.send(view=info_layout(f"{e('history')} Custom Commands ({len(filtered)}/{cap})", "\n".join(lines)))
 
     @cc_group.command(name="variables", aliases=["vars"], help="Show all available template variables.")
     async def cc_variables(self, ctx: commands.Context):
@@ -1032,10 +1031,8 @@ class CustomCommands(commands.Cog):
         data = {trigger: cmd.to_dict() for trigger, cmd in cmds.items()}
         buf = io.BytesIO(json.dumps(data, indent=2).encode())
         buf.seek(0)
-        await ctx.send(
-            view=success_layout(f"{e('check')} Exported", f"Exported **{len(data)}** custom command(s)."),
-            file=discord.File(buf, filename=f"cc_export_{ctx.guild.id}.json"),
-        )
+        await ctx.send(view=success_layout(f"{e('check')} Exported", f"Exported **{len(data)}** custom command(s). The file is below."))
+        await ctx.send(file=discord.File(buf, filename=f"cc_export_{ctx.guild.id}.json"))
 
     @cc_group.command(name="import", help="Import custom commands from a JSON file (attach the file).")
     @has_guild_permission("manage_guild")
@@ -1056,10 +1053,11 @@ class CustomCommands(commands.Cog):
         await self._ensure_loaded(ctx.guild.id)
         existing = self._get_commands(ctx.guild.id)
         imported, skipped = 0, 0
+        cap = await premium_limits.get(ctx.guild.id, "custom_commands")
 
         for trigger, cmd_data in data.items():
             trigger = trigger.lower()
-            if len(existing) + imported >= MAX_COMMANDS_PER_GUILD or trigger in existing:
+            if len(existing) + imported >= cap or trigger in existing:
                 skipped += 1
                 continue
             cmd_data["numeric_id"] = self._alloc_id()
@@ -1136,8 +1134,9 @@ class CustomCommands(commands.Cog):
             return await ctx.send(view=error_layout("Not Found", f"Command `{source}` not found."))
         if destination in cmds:
             return await ctx.send(view=error_layout("Already Exists", f"Command `{destination}` already exists."))
-        if len(cmds) >= MAX_COMMANDS_PER_GUILD:
-            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {MAX_COMMANDS_PER_GUILD} custom commands per server."))
+        cap = await premium_limits.get(ctx.guild.id, "custom_commands")
+        if len(cmds) >= cap:
+            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {cap} custom commands per server." + await premium_limits.hint(ctx.guild.id, "custom_commands")))
 
         data = cmds[source].to_dict()
         data["numeric_id"] = self._alloc_id()
@@ -1373,8 +1372,9 @@ class CustomCommands(commands.Cog):
             return await ctx.send(view=error_layout("Too Long", "Group name must be under 50 characters."))
         await self._ensure_loaded(ctx.guild.id)
         groups = self._get_groups(ctx.guild.id)
-        if len(groups) >= MAX_GROUPS_PER_GUILD:
-            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {MAX_GROUPS_PER_GUILD} groups per server."))
+        cap = await premium_limits.get(ctx.guild.id, "custom_command_groups")
+        if len(groups) >= cap:
+            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {cap} groups per server." + await premium_limits.hint(ctx.guild.id, "custom_command_groups")))
         if name in groups:
             return await ctx.send(view=error_layout("Already Exists", f"Group `{name}` already exists."))
         group = CCGroup({"name": name})
@@ -1410,7 +1410,8 @@ class CustomCommands(commands.Cog):
         for name in groups:
             count = sum(1 for c in cmds.values() if c.group == name)
             lines.append(f"**{name}** — `{count}` command(s)")
-        await ctx.send(view=info_layout(f"{e('settings')} Command Groups ({len(groups)}/{MAX_GROUPS_PER_GUILD})", "\n".join(lines)))
+        cap = await premium_limits.get(ctx.guild.id, "custom_command_groups")
+        await ctx.send(view=info_layout(f"{e('settings')} Command Groups ({len(groups)}/{cap})", "\n".join(lines)))
 
     @cc_groupcmd.command(name="restrict", help="Apply role/channel restrictions to a group.")
     @has_guild_permission("manage_guild")

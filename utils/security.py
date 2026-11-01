@@ -5,7 +5,7 @@ from typing import Optional
 
 import discord
 
-from utils import db, guild_settings
+from utils import db, guild_settings, threat
 from utils import security_whitelist as whitelist
 from utils.events_bus import (
     ANTINUKE_QUARANTINED,
@@ -25,13 +25,15 @@ async def is_trusted_id(guild_id: int, user_id: int, owner_id: Optional[int] = N
         return True
     if await get_permit_tier(guild_id, user_id) is not None:
         return True
+    if threat.is_forced(guild_id):
+        return False
     return user_id in await whitelist.user_ids_for(guild_id, "antinuke")
 
 
 async def is_trusted(guild_id: int, member: discord.Member) -> bool:
     if await is_trusted_id(guild_id, member.id, member.guild.owner_id):
         return True
-    if await whitelist.is_whitelisted(guild_id, ("antinuke",), member):
+    if not threat.is_forced(guild_id) and await whitelist.is_whitelisted(guild_id, ("antinuke",), member):
         return True
     if member.guild_permissions.administrator:
         return bool(await guild_settings.get(guild_id, "antinuke_admin_bypass", config.ANTINUKE_ADMIN_BYPASS_DEFAULT))
@@ -350,6 +352,26 @@ async def clear_action_punishment(guild_id: int, action_type: str) -> bool:
         "DELETE FROM antinuke_action_punishments WHERE guild_id=? AND action_type=?", (guild_id, action_type)
     )
     return cur.rowcount > 0
+
+
+_relief_revoked: dict[int, float] = {}
+
+
+def revoke_raid_relief(guild_id: int, seconds: int) -> None:
+    _relief_revoked[guild_id] = time.time() + seconds
+
+
+def restore_raid_relief(guild_id: int) -> None:
+    _relief_revoked.pop(guild_id, None)
+
+
+async def is_raid_relief_active(guild_id: int) -> bool:
+    if time.time() < _relief_revoked.get(guild_id, 0):
+        return False
+    row = await db.raw_fetchone("SELECT raid_mode, raid_mode_expires_at, triggered_by FROM antiraid_state WHERE guild_id=?", (guild_id,))
+    if not row or not row["raid_mode"] or row["triggered_by"] == "antinuke_incident":
+        return False
+    return not row["raid_mode_expires_at"] or time.time() <= row["raid_mode_expires_at"]
 
 
 async def is_panic_mode_active(guild_id: int) -> bool:

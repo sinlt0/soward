@@ -11,6 +11,8 @@ Soward plays music in voice channels. You ask for a song with `!play`, the bot j
 
 Playing songs and managing the queue are done with commands only. The web dashboard cannot start songs or edit the queue. It does manage [lofi radio and 24/7 mode](/docs/lofi).
 
+Want to listen on your own device instead, in DMs or without joining voice? Use the [Music App](/docs/music-app), a player that runs inside Discord.
+
 There is nothing to switch on. You only need to be in a voice channel, and the bot needs **Connect** and **Speak** there. All music commands work in servers only.
 
 ## Quick start
@@ -48,7 +50,7 @@ The bot searches **YouTube** (via YouTube Music) by default. A link always works
 | `!musicsource` | Shows this server's default search source. Aliases: `!musrc`, `!defaultsource`. | Nothing |
 | `!musicsource set <youtube\|soundcloud\|spotify>` | Changes the default source for `!play`, `!playnext` and `!search`. | Manage Server |
 
-Spotify searches only work if the bot's host has Spotify support set up. If it does not, Spotify searches return no results. Use YouTube or SoundCloud instead.
+Spotify searches only work if Spotify support is set up on this bot. If it is not, Spotify searches return no results. Use YouTube or SoundCloud instead.
 
 ## Controlling playback
 
@@ -143,7 +145,7 @@ The bot must already be in a voice channel, so start a song first. It remembers 
 - Queue pages show 10 tracks.
 - `!search` shows 5 results.
 - Saved playlists: up to 25 per user, names up to 50 characters.
-- Loading a saved playlist adds at most 200 tracks.
+- Loading a saved playlist adds at most 200 tracks, or 500 with Premium.
 - `!playlist view` shows the first 20 tracks.
 - Default loop mode for `!loop` is `track`.
 - Default search source is YouTube.
@@ -151,7 +153,7 @@ The bot must already be in a voice channel, so start a song first. It remembers 
 
 ## Who can use what
 
-Most music commands have no permission requirement. Anyone can run them, and the playback buttons are open to everyone who can see the card. Only these need **Manage Server** (or a fake permission granted with `!fakeperm`, see [moderation](/docs/moderation)): `!musicsource set`, `!247` and every `!lofi` command. Administrators and the bot's owners are always allowed.
+Most music commands have no permission requirement. Anyone can run them, and the playback buttons are open to everyone who can see the card. Only these need **Manage Server** (or a fake permission granted with `!fakeperm`, see [moderation](/docs/moderation)): `!musicsource set`, `!247` and every `!lofi` command. Administrators are always allowed.
 
 ## Troubleshooting
 
@@ -160,4 +162,4 @@ Most music commands have no permission requirement. Anyone can run them, and the
 - **"Connection failed"**: check that the bot has **Connect** and **Speak** in your voice channel.
 - **"No results"**: try different words or paste a link. For Spotify, see the note under Sources.
 - **Starting a song while lofi is on**: the lofi stream stops and the bot switches to normal music.
-- **Nothing plays at all**: music runs through a separate audio server called Lavalink. If you host Soward yourself, make sure Lavalink 4 or newer is running and its password matches your bot settings.
+- **Nothing plays at all**: the music service may be temporarily offline. Try again in a few minutes, and ask in the support server if it keeps happening.

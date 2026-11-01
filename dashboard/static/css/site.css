@@ -347,3 +347,5 @@ code, kbd, .mono { font-family: var(--font-mono); font-size: 0.9em; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.ad-slot { text-align: center; padding: 8px 0 32px; }
+.ad-slot small { display: block; color: var(--muted, #8a8f98); font-size: 12px; margin: 6px 0; }

@@ -34,7 +34,8 @@ Members send anonymous messages that are posted by the bot.
 
 1. `!confess channel #confessions` sets where confessions are posted.
 2. `!confess panel` posts a **Confess** button. Members press it, write in the form and the bot posts the confession as a numbered message.
-3. Optional: `!confess log #staff-channel` sends a copy to a private channel so staff can moderate. The author is never shown there.
+3. Every confession gets its own public thread named after its number, so members can reply without touching the channel. `!confess threads on|off` turns this on or off. Soward needs Create Public Threads and Send Messages in Threads in the channel.
+4. Optional: `!confess log #staff-channel` sends a copy to a private channel so staff can moderate. The author is never shown there.
 
 Confessions are anonymous to members and to staff. The bot does keep the sender in its database so abuse can be handled without revealing anyone:
 
@@ -63,6 +64,22 @@ Messages that get enough reactions are copied to a starboard channel.
 - `!starboard toggle` turns it on or off and `!starboard top` shows the most starred messages.
 
 Reactions from the author and from bots do not count. Messages in NSFW channels are never copied. The count is updated live and the post is removed if the reactions drop too low.
+
+## Milestones
+
+Soward can celebrate members without anyone running a command. Set a channel first:
+
+```
+!milestones channel #level-up
+```
+
+| Feature | What it does |
+| --- | --- |
+| Anniversaries | Once a day, after 09:00 server time (`!event timezone`), posts everyone who joined on that date in an earlier year, with the number of years. `!milestones anniversary on` or `off` |
+| Level milestones | Posts when a member reaches one of your chosen levels, even if level-up messages are off. Default 10, 25, 50, 75 and 100. `!milestones levels 10 25 50` sets them and `!milestones levels off` turns them off |
+| Welcome back | When a member sends a message after a long silence, welcomes them with a short digest: new members since they left and events in the next 7 days. `!milestones welcomeback channel`, `dm` or `off` (default off). `!milestones away <days>` sets the silence (7 to 365, default 30) |
+
+All commands need Manage Server. Welcome back only knows about activity from the moment you turn it on, and it updates a member's last-seen time at most every 6 hours, so it is accurate to within a few hours. Join dates come from Discord's last join date, so a member who left and rejoined is counted from the rejoin. Anniversaries and welcome back are not shown for bots.
 
 ## Templates
 

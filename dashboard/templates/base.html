@@ -49,6 +49,13 @@
 </header>
 <main>
 {% block content %}{% endblock %}
+{% if show_ad %}
+<div class="wrap ad-slot">
+  <small>Advertisement</small>
+  <iframe data-aa="{{ ad_unit }}" src="https://acceptable.a-ads.com/{{ ad_unit }}?size=Adaptive" title="Advertisement" loading="lazy" referrerpolicy="no-referrer" style="border:0;padding:0;width:100%;max-width:728px;height:90px;overflow:hidden;display:block;margin:0 auto"></iframe>
+  <small>Signed-in users and premium servers do not see ads. <a href="{{ url_for('supporters_page') }}">Support {{ bot_name }}</a> to help keep it running.</small>
+</div>
+{% endif %}
 </main>
 <footer class="footer">
   <div class="wrap">

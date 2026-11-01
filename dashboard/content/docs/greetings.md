@@ -39,7 +39,7 @@ Run `!greetings test join` to see exactly what a join would look like using your
 
 ## Command reference
 
-All subcommands need **Manage Server** (or the fake permission `manage_guild`), except `variables`. Bot owners are always allowed. In every command, `<trigger>` is `join`, `leave`, `boost` or `ban`.
+All subcommands need **Manage Server** (or the fake permission `manage_guild`), except `variables`. In every command, `<trigger>` is `join`, `leave`, `boost` or `ban`.
 
 | Command | What it does | Needs |
 | --- | --- | --- |

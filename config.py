@@ -76,7 +76,6 @@ WEBSUB_PENDING_RETRY_SECONDS: int = 900
 WEBSUB_MAX_BODY_BYTES: int = 65536
 WEBSUB_ENABLED_FLAG: bool = os.getenv("SOWARD_WEBSUB", "1") not in ("0", "false", "no")
 WEBSUB_SECRET: str = os.getenv("SOWARD_WEBSUB_SECRET", "") or os.getenv("SOWARD_IPC_SECRET", "")
-ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM: int = 5
 
 EMBED_TEMPLATE_MAX_FREE: int = 100
 EMBED_TEMPLATE_MAX_PREMIUM: int = 250
@@ -89,6 +88,27 @@ PREMIUM_DURATION_PRESETS: dict = {
 }
 
 SERVER_NO_PREFIX_ENABLED_DEFAULT: bool = True
+NP_TARGETS_MAX: int = 50
+
+CRYPTO_PLANS: dict = {
+    "1m": {"label": "1 month", "days": 30, "usd": 3.0},
+    "3m": {"label": "3 months", "days": 90, "usd": 8.0},
+    "lifetime": {"label": "Lifetime", "days": None, "usd": 25.0},
+}
+CRYPTO_COINS: dict = {"btc": "Bitcoin", "ltc": "Litecoin"}
+CRYPTO_INVOICE_MINUTES: int = 30
+CRYPTO_GRACE_HOURS: int = 24
+CRYPTO_POLL_SECONDS: int = 45
+CRYPTO_CONFIRMATIONS: dict = {"btc": 1, "ltc": 1}
+CRYPTO_UNDERPAY_TOLERANCE: float = 0.01
+CRYPTO_MAX_OPEN_PER_USER: int = 2
+BLOCKCYPHER_TOKEN: str = os.getenv("SOWARD_BLOCKCYPHER_TOKEN", "")
+CRYPTO_MIN_AGREE: int = 2
+CRYPTO_GRACE_POLL_SECONDS: int = 600
+CRYPTO_PROVIDERS: dict = {
+    "btc": [("esplora", "https://mempool.space/api"), ("esplora", "https://blockstream.info/api"), ("blockchair", "https://api.blockchair.com/bitcoin")],
+    "ltc": [("esplora", "https://litecoinspace.org/api"), ("blockchair", "https://api.blockchair.com/litecoin"), ("blockcypher", "https://api.blockcypher.com/v1/ltc/main")],
+}
 
 XP_PER_MESSAGE_MIN: int = 5
 XP_PER_MESSAGE_MAX: int = 15
@@ -120,6 +140,7 @@ ANTINUKE_DEFAULT_THRESHOLDS: dict = {
     "permission_escalation": 2,
     "guild_update": 2,
     "integration_change": 2,
+    "timeout": 10,
 }
 
 ANTINUKE_THRESHOLD_WINDOW_SECONDS: int = 10
@@ -235,6 +256,7 @@ ANTINUKE_PER_ACTION_PUNISHMENT_DEFAULT: dict = {
     "role_create": "quarantine",
     "ban": "quarantine",
     "kick": "quarantine",
+    "timeout": "quarantine",
     "webhook_create": "quarantine",
     "permission_grant": "quarantine",
     "bot_add": "kick_bot",
@@ -384,8 +406,15 @@ TICKET_AUTOCLOSE_CHECK_MINUTES: int = 10
 TICKET_PRIORITIES: tuple = ("low", "normal", "high", "urgent")
 GIVEAWAY_CHECK_INTERVAL: int = 10
 
+HELP_HIDDEN_COMMANDS: set[str] = {
+    "premium generate",
+    "premium keys",
+    "premium revoke",
+    "globalnp",
+    "crypto",
+}
+
 HELP_HIDDEN_CATEGORIES: set[str] = {
-    "Premium",
     "GlobalNoPrefix",
     "Dev",
     "Jishaku",
@@ -393,7 +422,6 @@ HELP_HIDDEN_CATEGORIES: set[str] = {
 
 LOFI_STREAM_URL: str = "https://www.youtube.com/watch?v=jfKfPfyJRdk"
 AUTOPLAY_RELATED_SEARCH_SUFFIX: str = "official audio"
-MUSIC_MAX_PLAYLIST_TRACKS: int = 200
 
 AFK_MAX_AUTO_RETURN_MINUTES: int = 1440
 AFK_MENTION_LOG_LIMIT: int = 15
@@ -405,15 +433,31 @@ GREETING_DEFAULT_CARD_LAYOUT: str = "classic"
 GREETING_MAX_JOIN_ROLE_DELAY_SECONDS: int = 3600
 BOOST_LEVEL_THRESHOLDS: dict = {1: 2, 2: 7, 3: 14}
 
-NSFW_MAX_CHANNELS: int = 25
 
 TICKET_LIMITS: dict = {
     "free": {"panels": 3, "staff_roles": 10, "categories": 5, "questions": 5, "active": 25},
     "premium": {"panels": 10, "staff_roles": 20, "categories": 10, "questions": 10, "active": 250},
 }
 TICKET_MODAL_PAGE_SIZE: int = 5
-JTC_HUBS_FREE: int = 2
-JTC_HUBS_PREMIUM: int = 10
+PREMIUM_LIMITS: dict = {
+    "custom_commands": (100, 250, "Custom commands"),
+    "custom_command_groups": (20, 50, "Custom command groups"),
+    "custom_command_responses": (10, 25, "Responses per custom command"),
+    "embed_templates": (EMBED_TEMPLATE_MAX_FREE, EMBED_TEMPLATE_MAX_PREMIUM, "Embed templates"),
+    "application_forms": (5, 25, "Application forms"),
+    "application_questions": (25, 40, "Questions per application"),
+    "jtc_hubs": (2, 10, "Join to Create hubs"),
+    "alert_subscriptions": (5, 15, "YouTube and Twitch alerts (each)"),
+    "server_templates": (5, 15, "Saved server templates"),
+    "music_stations": (20, 60, "Custom radio stations"),
+    "music_playlist_tracks": (200, 500, "Tracks loaded from a playlist"),
+    "booster_tiers": (15, 30, "Booster tiers"),
+    "nsfw_channels": (25, 50, "NSFW channels"),
+    "automod_words": (200, 500, "AutoMod banned words"),
+    "automod_domains": (200, 500, "AutoMod blocked and allowed domains (each)"),
+    "automod_exempt": (50, 150, "AutoMod exempt channels and roles (each)"),
+    "antiraid_patterns": (50, 150, "AntiRaid name patterns"),
+}
 JTC_MAX_ACTIVE_PER_GUILD: int = 150
 JTC_CREATE_COOLDOWN: float = 6.0
 JTC_DEFAULT_NAME: str = "{user}'s room"
@@ -422,7 +466,6 @@ JTC_HUB_NAME: str = "Join to Create"
 JTC_SWEEP_SECONDS: int = 300
 BOOSTER_SWEEP_SECONDS: int = 900
 BOOSTER_MAX_COUNT: int = 99
-BOOSTER_MAX_TIERS: int = 15
 BOOSTER_ICON_MAX_BYTES: int = 262144
 BOOSTER_ROLE_CAP: int = 245
 BOOSTER_BACKFILL_LIMIT: int = 3000
@@ -448,3 +491,52 @@ DASHBOARD_URL: str = os.getenv("SOWARD_DASHBOARD_URL", "").rstrip("/")
 WEBSUB_CALLBACK_URL: str = os.getenv("SOWARD_WEBSUB_CALLBACK", "") or (DASHBOARD_URL + "/websub/youtube" if DASHBOARD_URL else "")
 DASHBOARD_ADDON_ENABLED: bool = bool(_DASH_ADDON.get("dashboard", True))
 DASHBOARD_PORT: int = _addon_port(_DASH_ADDON.get("dashboard_port"), _addon_port(os.getenv("PORT"), 8080))
+
+
+VAULT_RETENTION_DAYS = (7, 365)
+VAULT_PAGE_SIZE = 10
+VAULT_EXPORT_MAX = 20000
+VAULT_DETAIL_MAX = 1500
+SCHEDULE_MAX_ACTIONS = 25
+SCHEDULE_MIN_REPEAT = 300
+TICKET_CANNED_MAX = 25
+TICKET_ARCHIVE_KEEP = 200
+TICKET_ARCHIVE_MAX_BYTES = 4000000
+DEEP_BACKUP_KEEP = 14
+DEEP_BACKUP_MIN_HOURS = 6
+DEEP_BACKUP_MAX_MANUAL = 10
+
+def _flag(value, default: bool = True) -> bool:
+    return default if value is None else bool(value)
+
+
+_activities: dict = ADDONS.get("activities", {})
+_lobby = _activities.get("game_lobby", _activities.get("game-lobby", {}))
+if not isinstance(_lobby, dict):
+    _lobby = {"enabled": bool(_lobby)}
+_activities_on = _flag(_activities.get("enabled")) and os.getenv("SOWARD_ACTIVITY", "1") != "0"
+ACTIVITY_MUSIC: bool = _activities_on and _flag(_activities.get("music"))
+ACTIVITY_GAME_LIST: dict = {"chess": _activities_on and _flag(_lobby.get("enabled")) and _flag(_lobby.get("chess", _lobby.get("chess-enabled")))}
+ACTIVITY_GAMES: bool = any(ACTIVITY_GAME_LIST.values())
+ACTIVITY_ENABLED: bool = ACTIVITY_MUSIC or ACTIVITY_GAMES
+SUPPORT_AMOUNTS: tuple = (1, 3, 5, 10, 25)
+SUPPORT_MIN_USD = 1.0
+SUPPORT_MAX_USD = 500.0
+VOTE_DBL_SECRET: str = os.getenv("SOWARD_VOTE_DBL_SECRET", "").strip()
+VOTE_DBL_TOKEN: str = os.getenv("SOWARD_DBL_TOKEN", "").strip()
+VOTE_STATS_MINUTES = 30
+VOTE_NP_HOURS: int = max(1, int(os.getenv("SOWARD_VOTE_NP_HOURS", "12") or 12))
+VOTE_STREAK_WINDOW_HOURS = 36
+SUPPORT_GUILD_ID: int = int(os.getenv("SOWARD_SUPPORT_GUILD", "0") or 0)
+SUPPORTER_ROLE_ID: int = int(os.getenv("SOWARD_SUPPORTER_ROLE", "0") or 0)
+_ads: dict = ADDONS.get("ads", {})
+ADS_UNIT: str = str(_ads.get("aads_unit", "") or "").strip()
+ADS_ENABLED: bool = bool(_ads.get("enabled", False)) and ADS_UNIT.isdigit()
+ACTIVITY_MAX_LIKES = 1000
+ACTIVITY_MAX_PLAYLISTS = 20
+ACTIVITY_MAX_PLAYLIST_TRACKS = 300
+ACTIVITY_HISTORY_KEEP = 200
+ACTIVITY_SEARCH_RESULTS = 20
+ACTIVITY_STREAM_TTL = 6 * 3600
+ACTIVITY_RESOLVE_TTL = 1200
+ACTIVITY_HOME_QUERIES = ("top hits official audio", "new music this week", "trending songs", "chill songs", "bollywood hits", "lofi beats")

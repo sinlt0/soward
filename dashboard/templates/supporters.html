@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Supporters · {{ bot_name }}{% endblock %}
+{% block content %}
+<div class="wrap pagehead">
+  <h1>Supporters</h1>
+  <p>People who chipped in to keep {{ bot_name }} online. Thank you.</p>
+</div>
+<div class="wrap" style="padding-bottom:48px">
+  <div class="empty" style="margin-bottom:24px"><strong>Want to help?</strong>Run <code>!support</code> in Discord to send a Bitcoin or Litecoin tip. No account is needed, and tips go to hosting. After you tip, <code>!support public on</code> adds your name here.</div>
+  {% if people %}
+  <div class="people">
+    {% for p in people %}
+    <div class="person"><span class="person__blank"></span><div><strong>{{ p.name }}</strong></div></div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty"><strong>No supporters listed yet</strong>Be the first.</div>
+  {% endif %}
+</div>
+{% endblock %}

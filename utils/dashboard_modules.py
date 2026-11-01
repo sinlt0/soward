@@ -18,6 +18,13 @@ _TICKET_COLUMNS = {"log_channel_id", "max_open", "auto_close_hours"}
 _GREETING_COLUMNS = {"enabled", "channel_id", "message_text", "embed_name", "send_as_dm", "use_card"}
 
 
+DEFAULT_APPEAL_QUESTIONS = (
+    "Why were you banned, in your own words?",
+    "Why should we lift your ban?",
+    "What will you do differently if you come back?",
+)
+
+
 class GS:
     def __init__(self, key: str, default: Any = None):
         self.key = key
@@ -233,6 +240,21 @@ MODULES: list[Module] = [
                _channel("log_channel", "Log channel", TicketCol("log_channel_id"), help="Where ticket logs and transcripts are sent."),
                _int("max_open", "Open tickets per member", TicketCol("max_open"), 1, config.TICKET_MAX_OPEN_LIMIT),
                _int("auto_close", "Close inactive tickets after (hours, 0 is off)", TicketCol("auto_close_hours"), 0, 720),
+           ]),
+    Module("applications", "Applications", "Staff, partner and member applications with forms, reviews and interviews.", "Community", "badge",
+           commands="Applications", note="Review pending applications with Accept, Deny and Interview buttons, and set interview channel cleanup."),
+    Module("appeals", "Ban Appeals", "Banned members appeal from a web page after signing in with Discord. Staff review them here or in Discord.", "Moderation", "shield",
+           commands="Appeals", note="Review pending appeals with Accept and Deny. Accepting unbans the member and sends them a message. The appeal link comes from the dashboard address set on the bot.",
+           fields=[
+               _bool("enabled", "Accept appeals", GS("appeal_enabled", True), help="When off, ban messages are sent without the appeal button."),
+               _channel("channel", "Review channel", GS("appeal_channel_id"), help="Where new appeals are posted with Accept and Deny buttons."),
+               _role("role", "Ping role", GS("appeal_ping_role_id"), help="Pinged when a new appeal arrives."),
+               _int("votes", "Staff votes needed", GS("appeal_votes_needed", 1), 1, 10, help="1 means a single reviewer decides."),
+               _int("cooldown", "Days to wait after a denial", GS("appeal_cooldown_days", 7), 0, 365),
+               _channel("rejoin", "Rejoin invite channel", GS("appeal_rejoin_channel_id"), help="Accepted members get a one-use invite to this channel."),
+               _bool("show_reason", "Show the ban reason to the member", GS("appeal_show_reason", True)),
+               _bool("dm", "Message members when they are banned", GS("appeal_dm", True)),
+               _lines("questions", "Appeal questions", GS("appeal_questions", list(DEFAULT_APPEAL_QUESTIONS)), help="One per line, up to 5.", placeholder="Why should we lift your ban?"),
            ]),
     Module("giveaways", "Giveaways", "Run giveaways with role and account age requirements.", "Community", "gift", commands="Giveaways",
            note="Start, edit, end, cancel and reroll giveaways below."),

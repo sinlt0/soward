@@ -13,4 +13,5 @@ davey>=0.1.6
 flask>=3.0.0
 markdown>=3.6
 requests>=2.32.0
+qrcode>=7.4.2
 waitress>=3.0.0

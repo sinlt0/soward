@@ -14,7 +14,7 @@ A **panel** is a message that gives out roles. Each role on a panel is a **bindi
 | `reaction` | The bot adds one reaction per role. Members react to get the role and remove the reaction to lose it. This is the default. |
 | `select` | The message has a drop-down menu with one option per role. Members tick the roles they want. |
 
-Panels are identified by an 8-character **panel ID** such as `3F9A1C2B`. The command is `!reactionrole` with the alias `!rr`. Every subcommand needs **Manage Roles** (or the matching fake permission, see [moderation](/docs/moderation)). Bot owners are always allowed.
+Panels are identified by an 8-character **panel ID** such as `3F9A1C2B`. The command is `!reactionrole` with the alias `!rr`. Every subcommand needs **Manage Roles** (or the matching fake permission, see [moderation](/docs/moderation)).
 
 There is nothing to switch on. The bot needs the **Manage Roles** permission, its top role must be above every role you hand out, and it must be allowed to add reactions and embed links in the channel.
 

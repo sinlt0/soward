@@ -37,7 +37,7 @@ The main command is `!nbot`. Its alias is `!nexus`.
 | `!nbot banner [image URL]` | Changes the bot's profile banner in this server. Use a link or attach an image. | Premium, Manage Server |
 | `!nbot reset` | Clears the nickname, avatar, banner and bio one by one and goes back to the defaults. If one part fails, the rest are still reset and the failed part is listed. | Premium, Manage Server |
 
-Administrators and the bot's owners can use every command. Fake permissions granted for Manage Server also work.
+Administrators can use every command. Fake permissions granted for Manage Server also work.
 
 ## Images
 

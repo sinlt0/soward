@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 
 from utils import automod_filters as filters
-from utils import emoji_manager, guild_settings
+from utils import emoji_manager, guild_settings, premium_limits
 from utils import security_settings as settings
 from utils.components import error_layout, info_layout, success_layout
 from utils.events_bus import LOG_EVENT, bus
@@ -172,8 +172,9 @@ async def list_edit(ctx: commands.Context, module: str, key: str, raw: str, add:
     if add:
         if value in current:
             return await _fail(ctx, "Already there", "That entry is already in the list.")
-        if len(current) >= int(setting.hi or 100):
-            return await _fail(ctx, "List full", f"This list can hold up to {int(setting.hi or 100)} entries.")
+        cap = await premium_limits.list_cap(ctx.guild.id, setting)
+        if len(current) >= cap:
+            return await _fail(ctx, "List full", f"This list can hold up to {cap} entries." + (await premium_limits.hint(ctx.guild.id, premium_limits.LIST_KEYS[setting.path]) if setting.path in premium_limits.LIST_KEYS else ""))
         current.append(value)
     else:
         if value not in current:
@@ -202,11 +203,17 @@ async def show_list(ctx: commands.Context, module: str, key: str):
     await _chunked(ctx, f"{e('shield')} {setting.label}", lines or ["Nothing in this list yet."])
 
 
-async def apply_preset(ctx: commands.Context, name: str):
+async def apply_preset(ctx: commands.Context, name: str, dry: bool = False):
     e = emoji_manager.get
     name = name.lower()
     if name not in settings.PRESETS:
         return await _fail(ctx, "Unknown preset", f"Choose from: {', '.join(f'`{n}`' for n in settings.PRESETS)}")
+    if dry:
+        lines = await settings.preview_preset(ctx.guild.id, name)
+        if not lines:
+            return await ctx.send(view=info_layout(f"{e('shield')} {name.title()} preset preview", "Everything already matches this preset. Nothing would change."))
+        await chunked(ctx, f"{e('shield')} {name.title()} preset preview · {len(lines)} change(s)", lines)
+        return await ctx.send(view=info_layout(f"{e('info')} Preview only", f"Nothing was changed. Run `security preset {name}` to apply, or `security export` first to keep a copy."))
     changed = await settings.apply_preset(ctx.guild.id, name)
     await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="security_change", actor_id=ctx.author.id, detail=f"Applied the **{name}** preset ({len(changed)} change(s)).")
     body = "\n".join(changed[:25]) or "Everything already matched this preset."
@@ -221,7 +228,7 @@ async def export_settings(ctx: commands.Context):
     await ctx.send(file=discord.File(io.BytesIO(payload.encode()), filename=f"soward-security-{ctx.guild.id}.json"))
 
 
-async def import_settings(ctx: commands.Context):
+async def import_settings(ctx: commands.Context, dry: bool = False):
     e = emoji_manager.get
     if not ctx.message.attachments:
         return await _fail(ctx, "Attach a file", "Attach a security export `.json` to the command message.")
@@ -233,6 +240,22 @@ async def import_settings(ctx: commands.Context):
         clean = settings.validate_import(payload)
     except (ValueError, UnicodeDecodeError, TypeError) as exc:
         return await _fail(ctx, "Invalid file", str(exc))
+    for path, value in clean.items():
+        setting = settings._REGISTRY[path]
+        if isinstance(value, list) and len(value) > await premium_limits.list_cap(ctx.guild.id, setting):
+            hint = await premium_limits.hint(ctx.guild.id, premium_limits.LIST_KEYS[path]) if path in premium_limits.LIST_KEYS else ""
+            return await _fail(ctx, "List too long", f"{setting.label} has {len(value)} entries, more than this server can hold ({await premium_limits.list_cap(ctx.guild.id, setting)})." + hint)
+    if dry:
+        lines = []
+        for path, value in clean.items():
+            setting = settings._REGISTRY[path]
+            current = await guild_settings.get(ctx.guild.id, setting.store, setting.default)
+            if current != value:
+                lines.append(f"{setting.label}: {settings.display(setting, current)} → {settings.display(setting, value)}")
+        if not lines:
+            return await ctx.send(view=info_layout(f"{e('shield')} Import preview", "Everything in this file already matches. Nothing would change."))
+        await chunked(ctx, f"{e('shield')} Import preview · {len(lines)} change(s)", lines)
+        return await ctx.send(view=info_layout(f"{e('info')} Preview only", "Nothing was changed. Run `security import` without `preview` to apply."))
     for path, value in clean.items():
         await settings.put(ctx.guild.id, settings._REGISTRY[path], value)
     await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="security_change", actor_id=ctx.author.id, detail=f"Imported {len(clean)} setting(s) from a file.")

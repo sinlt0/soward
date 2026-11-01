@@ -52,6 +52,10 @@ Data is stored in a SQLite database on the host that runs the bot. If the operat
 
 Server data is kept while the bot is in the server. Moderation cases, tickets and levels stay until deleted by server staff or removed with the server's data. Dashboard audit log entries are kept until the server's data is removed. Web verification records are deleted after 90 days by default, and servers can choose a different period. Sessions expire automatically.
 
+## Advertising
+
+When the site operator turns it on, public pages such as the home, docs and commands pages may show a banner from the A-ADS network to visitors who are not signed in. Signed-in users do not see these banners. The ad network may collect basic request data such as your IP address, as described in its own policy. {BOT_NAME} never sends it your Discord account details.
+
 ## 7. Removing data
 
 Removing the bot from a server stops new data collection. To ask for stored data about you or your server to be deleted, contact us through the support server linked on this site and include the relevant Discord IDs. We may need to verify that you own the account or server.

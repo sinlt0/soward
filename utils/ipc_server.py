@@ -11,7 +11,7 @@ from aiohttp import web
 from discord.ext import commands
 
 import config
-from utils import db, dashboard_modules as dm, guild_settings, prefix as prefix_utils
+from utils import activity_store, db, dashboard_modules as dm, guild_settings, prefix as prefix_utils, supporters
 from utils.dash import ActionContext
 
 log = logging.getLogger("soward.ipc")
@@ -161,12 +161,12 @@ def _command_perms(command: commands.Command) -> list[str]:
 
 
 async def command_catalog(request: web.Request) -> web.Response:
-    from cogs.help import CATEGORY_DESCRIPTIONS
+    from cogs.help import CATEGORY_DESCRIPTIONS, command_hidden
 
     bot = _bot(request)
     categories: dict[str, dict] = {}
     for command in sorted(bot.walk_commands(), key=lambda c: c.qualified_name):
-        if command.hidden or command.qualified_name.split(" ")[0] in ("jsk", "jishaku"):
+        if command_hidden(command) or command.qualified_name.split(" ")[0] in ("jsk", "jishaku"):
             continue
         cog = command.cog
         category = getattr(cog, "category", None) or command.cog_name or "Other"
@@ -185,6 +185,10 @@ async def command_catalog(request: web.Request) -> web.Response:
         })
     ordered = sorted(categories.values(), key=lambda c: c["name"])
     return web.json_response({"categories": ordered})
+
+
+async def supporters_list(request: web.Request) -> web.Response:
+    return web.json_response({"supporters": await supporters.public_list(100)})
 
 
 async def team(request: web.Request) -> web.Response:
@@ -332,6 +336,34 @@ async def audit_list(request: web.Request) -> web.Response:
     ]})
 
 
+async def _appeal_user(request: web.Request) -> tuple[int, str]:
+    uid = _user_id(request)
+    return uid, request.headers.get("X-Soward-Name", str(uid))[:80]
+
+
+async def appeal_info(request: web.Request) -> web.Response:
+    cog = _bot(request).get_cog("Appeals")
+    if cog is None:
+        return _err("Appeals are unavailable.", 503)
+    uid, _ = await _appeal_user(request)
+    gid = request.match_info["gid"]
+    if not gid.isdigit():
+        raise web.HTTPNotFound(text="guild")
+    return web.json_response(await cog.web_info(int(gid), uid))
+
+
+async def appeal_submit(request: web.Request) -> web.Response:
+    cog = _bot(request).get_cog("Appeals")
+    if cog is None:
+        return _err("Appeals are unavailable.", 503)
+    uid, name = await _appeal_user(request)
+    gid = request.match_info["gid"]
+    if not gid.isdigit():
+        raise web.HTTPNotFound(text="guild")
+    body = await request.json()
+    return web.json_response(await cog.web_submit(int(gid), uid, name, body.get("answers")))
+
+
 async def public_verify_info(request: web.Request) -> web.Response:
     from utils import web_verify
     info = await web_verify.lookup_token(request.match_info["token"])
@@ -383,17 +415,96 @@ async def public_websub_push(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def public_vote_discordbotlist(request: web.Request) -> web.Response:
+    cog = _bot(request).get_cog("Votes")
+    secret = config.VOTE_DBL_SECRET
+    if cog is None or not secret:
+        return _err("Unavailable.", 503)
+    body = await request.json()
+    given = str(body.get("authorization", ""))
+    if not hmac.compare_digest(given.encode(), secret.encode()):
+        return _err("Invalid secret.", 403)
+    user_id = str(body.get("id", ""))
+    if not user_id.isdigit():
+        return _err("Invalid vote.", 400)
+    asyncio.create_task(cog.handle_vote(int(user_id), "discordbotlist"))
+    return web.json_response({"ok": True})
+
+
+def _need_track(body: dict) -> dict:
+    track = activity_store.clean_track(body.get("track"))
+    if track is None:
+        raise ValueError("That song could not be read.")
+    return track
+
+
+async def activity_library(request: web.Request) -> web.Response:
+    return web.json_response(await activity_store.library(_user_id(request)))
+
+
+async def activity_like(request: web.Request) -> web.Response:
+    uid = _user_id(request)
+    body = await request.json()
+    track = _need_track(body)
+    if not await activity_store.set_like(uid, track, bool(body.get("liked", True))):
+        raise ValueError(f"You can like up to {config.ACTIVITY_MAX_LIKES} songs.")
+    return web.json_response({"ok": True})
+
+
+async def activity_history_add(request: web.Request) -> web.Response:
+    await activity_store.add_history(_user_id(request), _need_track(await request.json()))
+    return web.json_response({"ok": True})
+
+
+async def activity_history_clear(request: web.Request) -> web.Response:
+    await activity_store.clear_history(_user_id(request))
+    return web.json_response({"ok": True})
+
+
+async def activity_playlist_create(request: web.Request) -> web.Response:
+    body = await request.json()
+    return web.json_response(await activity_store.create_playlist(_user_id(request), str(body.get("name", ""))))
+
+
+async def activity_playlist_action(request: web.Request) -> web.Response:
+    uid = _user_id(request)
+    playlist_id = request.match_info["pid"]
+    body = await request.json()
+    action = str(body.get("action", ""))
+    if action == "add":
+        return web.json_response(await activity_store.add_to_playlist(uid, playlist_id, _need_track(body)))
+    if action == "remove":
+        return web.json_response(await activity_store.remove_from_playlist(uid, playlist_id, str(body.get("track_id", ""))))
+    if action == "rename":
+        await activity_store.rename_playlist(uid, playlist_id, str(body.get("name", "")))
+        return web.json_response({"ok": True})
+    if action == "delete":
+        await activity_store.delete_playlist(uid, playlist_id)
+        return web.json_response({"ok": True})
+    raise ValueError("Unknown action.")
+
+
 def build_app(bot: commands.Bot, secret: str) -> web.Application:
     app = web.Application(middlewares=[_auth, _http_errors])
     app["bot"] = bot
     app["secret"] = secret
     app.router.add_get("/public/verify/{token}", public_verify_info)
     app.router.add_post("/public/verify/{token}", public_verify_complete)
+    app.router.add_post("/public/vote/discordbotlist", public_vote_discordbotlist)
     app.router.add_get("/public/websub/youtube", public_websub_verify)
     app.router.add_post("/public/websub/youtube", public_websub_push)
+    app.router.add_get("/appeal/{gid}", appeal_info)
+    app.router.add_post("/appeal/{gid}", appeal_submit)
+    app.router.add_get("/activity/library", activity_library)
+    app.router.add_post("/activity/like", activity_like)
+    app.router.add_post("/activity/history", activity_history_add)
+    app.router.add_post("/activity/history/clear", activity_history_clear)
+    app.router.add_post("/activity/playlists", activity_playlist_create)
+    app.router.add_post("/activity/playlists/{pid}", activity_playlist_action)
     app.router.add_get("/status", status)
     app.router.add_get("/commands", command_catalog)
     app.router.add_get("/team", team)
+    app.router.add_get("/supporters", supporters_list)
     app.router.add_post("/guilds/present", guilds_present)
     app.router.add_get("/guild/{gid}", guild_overview)
     app.router.add_post("/guild/{gid}/settings", guild_settings_update)

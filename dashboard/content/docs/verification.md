@@ -129,7 +129,7 @@ The `web` type is the only one that can look for VPNs and alt accounts, because 
 
 **What is stored.** Only one-way hashes of the address and a browser fingerprint, the country, a risk score and the outcome. Raw addresses are never saved. Records are deleted after `verification.web_retention_days` (90 by default). The page tells members what it reads.
 
-**VPN detection needs a provider.** Set `SOWARD_IPINTEL_PROVIDER` to `proxycheck` or `ipqs` on the bot (and `SOWARD_IPINTEL_KEY`). Without one, only alt matching works. The bot owner chooses the provider because the keys cost money and are shared across servers.
+**VPN detection is not always available.** It depends on a lookup service being set up on this bot. Without one, only alt matching works.
 
 **Alt detection** compares the new member with earlier web verifications in the same server. `verification.web_alt_match` picks the rule: `ip` (same address), `ip_and_fingerprint` (same address and browser) or `fingerprint`. The default action is `flag`, which lets the member in and logs the match for staff. Households, schools and mobile networks share addresses, so use `manual` or `deny` with care.
 
@@ -144,13 +144,75 @@ The `web` type is the only one that can look for VPNs and alt accounts, because 
 | `web_alt_action` | flag | `flag`, `manual` or `deny` |
 | `web_retention_days` | 90 | How long hashed records are kept |
 
-The bot needs `SOWARD_DASHBOARD_URL` set to the public site address, and the site must be reachable by members. Behind a proxy such as Render, set `SOWARD_BEHIND_PROXY=1`. These checks are signals, not proof. Determined users can still use residential proxies or separate networks.
+Web verification only works where the dashboard is available to members. These checks are signals, not proof. Determined users can still use residential proxies or separate networks.
 
 ## Troubleshooting
 
 - **"No verification type set"**: run `!verification type button`, `captcha`, `manual` or `web` first.
-- **Members get "Web verification is not set up"**: the bot has no `SOWARD_DASHBOARD_URL`.
+- **Members get "Web verification is not set up"**: the dashboard is not available on this bot.
 - **Members see the whole server**: the gate role must deny access to your channels, or your channels must require the verified role. Soward only hands out the roles, you control what they can see.
 - **Roles are not given**: the bot's top role must be above the verified role and gate role.
 - **The captcha image does not show**: make sure the bot can attach files in that channel.
 - **A member says the button does nothing in manual mode**: that is expected. Their request is logged and staff must run `!approve`.
+
+## Pause verification only
+
+`!verification disable [duration]` pauses just verification and keeps every setting. New members are not given the gate role and the pending timeout does not kick or ban anyone. `!verification enable` brings it back, and anyone still unverified then gets a fresh timeout from that moment, so nobody is removed the instant it resumes. Like the master switch it always ends by itself: 2 hours by default, 7 days at most. Only the server owner and Extra Owners can use it.
+
+## Verify members by hand
+
+`!verification verify @member [@member ...]` (also `!approve`) verifies members yourself, whatever verification type is set: they get the verified role, lose the gate role and are removed from the waiting list. Up to 25 at once. Quarantined members are skipped. `!verification verifyall` verifies everyone currently waiting after a confirmation, owner level only. Every manual verification is written to the log with who did it.
+
+## Settings reference
+
+Every verification setting, taken from the bot's settings list. Change one with `!verification set <key> <value>`, look at one with `!verification get <key>` and put one back with `!verification reset <key>`.
+
+### Verification
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `level` | `none` | `none`, `reaction`, `button`, `captcha`, `manual`, `web` | How members prove they are real. |
+| `role_id` | Not set | a role | Verified role |
+| `gate_role_id` | Not set | a role | Gate role |
+| `channel_id` | Not set | a channel | Verification channel |
+
+### Challenge
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `max_attempts` | 3 | 1 to 10 | Wrong codes allowed |
+| `lockout_seconds` | 5m 0s | 30s to 1d 0h | Lockout length |
+| `click_cooldown` | 5s | 1s to 5m 0s | Button cooldown |
+| `captcha_length` | 6 | 4 to 8 | Captcha length |
+| `captcha_lifetime` | 3m 0s | 30s to 1h 0m | Captcha lifetime |
+
+### Web verification
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `web_block_vpn` | On | On or Off | Needs a lookup service to be set up on this bot. |
+| `web_block_hosting` | Off | On or Off | Data-centre addresses are rarely real members, but some members use them. |
+| `web_vpn_action` | `deny` | `deny`, `manual`, `flag` | deny refuses, manual sends to staff, flag allows and logs. |
+| `web_unknown_action` | `allow` | `allow`, `manual`, `deny` | What to do if the provider is missing or unreachable. |
+| `web_alt_check` | On | On or Off | Web: look for alt accounts |
+| `web_alt_match` | `ip` | `ip`, `ip_and_fingerprint`, `fingerprint` | ip also matches households and shared networks. Pair it with the flag action. |
+| `web_alt_action` | `flag` | `flag`, `manual`, `deny` | Web: alt action |
+| `web_retention_days` | 90 | 7 to 365 | Hashed address records are deleted after this long. |
+
+### Requirements
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `min_account_age_hours` | 0 | 0 to 720 | Minimum account age (hours) |
+| `target` | `all` | `all`, `suspicious` | Everyone, or only suspicious accounts. |
+
+### Failure
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `fail_lockouts` | 0 | 0 to 10 | 0 turns the fail action off. |
+| `fail_action` | `kick` | `timeout`, `kick`, `ban`, `quarantine` | Fail action |
+| `pending_timeout_enabled` | Off | On or Off | Remove members who never verify |
+| `pending_timeout_minutes` | 30 | 5 to 10080 | Minutes before removal |
+| `pending_timeout_action` | `kick` | `kick`, `ban` | Removal action |
+| `log_attempts` | On | On or Off | Log verification attempts |

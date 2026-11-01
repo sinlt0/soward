@@ -64,7 +64,6 @@ Server managers can control web access from chat:
 | `!dashboard` | Shows whether web access is on for this server |
 | `!dashboard on` | Allows the dashboard to manage this server |
 | `!dashboard off` | Blocks the dashboard for this server |
-| `!dashboard global on` / `off` | Bot owners only. Switches the dashboard on or off everywhere |
 
 Turning it off does not change any settings. Commands keep working either way.
 
@@ -72,4 +71,4 @@ Turning it off does not change any settings. Commands keep working either way.
 
 - **No servers listed.** You need Manage Server in that server.
 - **Server shows Add instead of Manage.** The bot is not in that server yet.
-- **Dashboard is off.** Run `!dashboard on` in the server, or ask the bot team if it was turned off globally.
+- **Dashboard is off.** Run `!dashboard on` in the server, or ask in the support server if it still does not work.

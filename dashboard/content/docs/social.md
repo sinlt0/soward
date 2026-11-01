@@ -93,9 +93,11 @@ These take no arguments.
 
 ## Counters
 
-When you aim a command at someone, the bot keeps count and adds a small line under the GIF, for example "They've hugged each other 3x" and "Sam has been hugged 5x". The counts are saved, and they are not reset.
+When you aim a command at someone, the bot keeps count and adds a small line under the GIF. It shows how many times the two of you have done that action to each other, and how many times the target has received it. The counts are saved, and nothing resets them. Commands used without a member, and commands that never take one (such as `!sad`, `!confused` and `!sleep`), are not counted.
 
-Some commands share a counter with a similar one:
+Some GIF services also name the anime a GIF comes from. When they do, an "Anime:" line is shown under the GIF.
+
+Some commands share a counter with a similar one, so using either adds to the same total:
 
 | Shared counter | Commands |
 | --- | --- |
@@ -104,8 +106,6 @@ Some commands share a counter with a similar one:
 | stare | `!stare`, `!glare`, `!disgust` |
 | cuddle | `!cuddle`, `!snuggle` |
 | feed | `!feed`, `!nom` |
-| cry | `!cry`, `!sad` |
-| think | `!think`, `!confused` |
 
 ## Limits and defaults
 

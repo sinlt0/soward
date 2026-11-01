@@ -25,7 +25,7 @@ A template is a saved layout of a whole server: roles, categories, channels, per
 | `gaming` | Game chats, LFG, tournaments, streaming, and game and platform roles |
 | `support` | Help desk with a ticket panel, FAQ, help forum, status and feedback |
 | `dating` | Adults-only social server with strict security, captcha verification and safety reports |
-| `datingv2` | **Premium.** The full 18+ dating blueprint: gate and fam roles, staff ladder, 90 styled channels, six ticket panels with a private safety desk, verified badges, DM center, partners and level perks |
+| `datingv2` | **Premium.** The full 18+ dating blueprint: gate and fam roles, staff ladder, 90 styled channels, five ticket panels with a private safety desk, a staff application form, verified badges, DM center, partners and level perks |
 | `study` | Subject channels, focus rooms, daily goals and study level roles |
 | `creator` | Fan hub with live and video alert channels and a supporter lounge |
 
@@ -43,19 +43,32 @@ Every preset includes:
 
 Role panels, rules and welcome text are Soward embeds that you can edit afterwards. Their names start with `tpl-`, for example `tpl-rules`. See [Embeds](/docs/embeds).
 
+## Previewing a template
+
+`!template preview <preset>` shows what a template contains. `!template apply <preset> preview` shows what it would change **in your server**: roles to create, role permissions that would change (with the permissions added and removed), channels to create, channels whose permissions would change, ticket panels to create or correct, and how many settings would be replaced. Nothing is changed. Add the same parts you would apply with, such as `channels` or `keep`.
+
 ## Dating v2 (Premium)
 
 `datingv2` follows the Dating Server Blueprint. It needs Soward Premium on the server because it goes beyond the free limits. You can preview it for free with `!template preview datingv2`.
 
 - **Style:** categories look like `˚₊ lounge ₊˚`, and channels and roles look like `♡﹒general﹒˚₊☁️𓂃﹗`, each with its own emoji. Embed titles use a bold font.
 - **Gate:** members get **unverified** on join and can only see verify, rules and announcements. After verification they lose it and get **fam**, the main member role. The quarantine role from the template is used as Soward's quarantine role, with no permissions, and every channel and category denies it all permissions. The unverified and muted roles are linked to Soward's verification and quarantine settings.
-- **@everyone has no permissions.** Fam carries the real permissions. Embed links unlock at level 5 and attach files at level 10. Fam gets attach files inside the support, verification, report and safety ticket categories.
+- **@everyone has no permissions.** Fam carries the real permissions. Embed links unlock at level 5 and attach files at level 10, except in the picture channels (introductions, profiles, selfies, media, memes, couples corner and the gaming, anime, food, art, fitness and travel channels), where fam can attach files and embed links from the start. Flirty chat, rizz and ship, music, movies and books allow embed links and GIFs from the start. Fam gets attach files inside the support, verification, report and safety ticket categories.
+- **Security is fully customised, not a preset.** Every setting in the security core, AntiNuke, AntiRaid, AutoMod and verification is set one by one, the same values you would enter with `!security set`, `add` and `remove`. That includes the limit, hourly limit and watch switch for all 23 AntiNuke actions, ban for vanity URL changes and prunes, kick for added bots, quarantine for everything else, 7 backups every 6 hours, lockdown on a nuke (skipping verify, support and report), protected staff roles, every join gate filter and action, advertising name patterns, and manual review for VPN and alt hits in web verification.
+- **Semi-toxic by design.** Swearing, caps and rude banter are allowed. The banned words list holds only racial slurs (the hard-r word, kike, chink, gook, spic and wetback, with plurals) and is matched as whole words so ordinary words are never caught. One slur is enough heat for an instant timeout. Borderline words and other insults are left out. Add more with `!automod add banned_words <word>`.
+- **Whitelist built in, kept narrow.** A compromised account should not get far, so nothing is exempt by default beyond what each role needs. Founders, owner, co-owner, manager and assistant manager may add and remove the protected staff roles. Moderators may time members out without hitting the timeout limit, and every other AntiNuke limit still applies to them. Partnership managers skip the invite, link and mention filters. Event hosts skip the mention and link filters. Invites and links are allowed in the ads, partners and partner-management channels, and links in partner chat. Nobody is whitelisted for channel, role, webhook, ban or kick actions. See [granular whitelist rules](/docs/security-center).
+- **Raid relief.** While raid mode is on, ban, kick and timeout limits are five times higher and staff who hold those permissions are not limited at all, so moderators can clear raiders without AntiNuke getting in the way. It ends with raid mode. If any other AntiNuke event triggers during a raid, relief ends, whitelists are suspended and Beast Mode is forced with every limit at 1.
+- **Role rewards stack.** Level roles are kept as you climb instead of replacing the previous one.
+- **Private staff areas.** The logs category is visible to assistant managers and managers only (administrators see everything). Ticket transcripts are visible to all staff. Each ticket panel opens tickets in its own category and sends transcripts to its own transcript channel; applying the template again repairs older panels. Safety transcripts are visible to managers and the ticket team only, and safety review stays with assistant managers and managers.
+- **Personal diary.** Fam can see it and react, but cannot post or reply. Only wealthy, rich, level 50 and level 75 members and staff can start posts and reply.
+- **Moderators cannot ban.** They can kick and time out; banning is for assistant managers and above.
 - **Staff ladder:** founders, owner, co-owner, quarantine, admin, manager, assistant manager, moderator, trial mod, partnership managers, ticket team, event hosts and staff, each with the permissions from the blueprint.
 - **Roles in blueprint order:** staff, ten colour roles (two booster-only), wealthy, rich, partner rep, couples, birthday, six level roles, verified girl, boy and nonbinary, fam, unverified, muted, then the self roles.
 - **Rules and self roles use custom commands.** The rules channel has a rules panel with a dropdown (chat, DM, voice, safety and other rules). The roles channel has one CUSTOMIZE panel with a Personization Options dropdown. Each choice opens a private panel with its own banner image and dropdown for DM status, looking for, relationship status, pronouns, orientation, age range, region, pings and name colours. All of it is made with `!cc` commands you can edit afterwards, such as `!cc menu edit sr-dm 1 ...`.
 - **Self role details:** pick-one groups swap the old role, and the rest toggle. The two booster colours have their own panel in the custom role requests channel.
 - **90 channels in 21 categories:** start here, meet, dm center, lounge, interests, couples, events, activities, voice, partners, boosters and levels, help desk, six opened-ticket categories, ticket transcripts, logs and staff.
-- **Six ticket panels:** support, verified badge, report, safety desk, partnership and staff applications. Each opens tickets in its own category with its own staff. Safety tickets are visible to assistant managers and up only and write to a private safety-transcripts channel.
+- **Five ticket panels:** support, verified badge, report, safety desk and partnership. Each opens tickets in its own category with its own staff. Safety tickets are visible to assistant managers and up only and write to a private safety-transcripts channel.
+- **Staff applications use the [application system](/docs/applications).** The `staff` form has four standard questions (age, why staff, moderation experience, activity and timezone) and five scenario questions about server ads, chat revive pings, ignored Ask First DMs, fake photo scams and mute backlash. Applicants need fam and an account 30 days old who joined 14 days ago, with a 7 day cooldown. Reviews post to a private application-review channel (assistant managers and managers, with votes and a staff thread) and a denial needs a reason. Accepting gives trial mod and interview channels are deleted an hour after a decision. The apply panel is posted in staff-applications, and running the template again updates the form without losing its accepted count. An older server keeps its old Staff Application ticket panel until you delete it with `!ticket panel delete`.
 - **Logs:** Soward's five log categories (moderation, messages, member activity, security and server changes) in styled channels. Soward has no separate voice log category.
 - **Join to Create**, see [Join to Create](/docs/join-to-create), and **Booster Perks**, see [Booster Perks](/docs/booster). Rich is 1 boost and wealthy is 2 boosts. Booster-only channels use those two tier roles, and custom booster roles are placed below Discord's Server Booster role.
 - **Level roles** at 5, 10, 20, 30, 50 and 75 with display on.
@@ -75,7 +88,7 @@ Leave the parts out to apply everything. Soward shows what will be added and wai
 - **settings**: leveling, greetings, security, log channels, NSFW, verification and other Soward settings.
 - **content**: embeds, rules messages, self role panels and ticket panels. Greetings use the `tpl-welcome` embed, so apply `content` together with `settings`.
 
-By default nothing is deleted. Roles, categories and channels with the same name are reused. Settings in the template replace your current values for those settings. Discord limits (250 roles, 500 channels) are respected, and anything skipped is listed when it finishes.
+By default nothing is deleted. Roles, categories and channels with the same name are reused, and **their permissions are brought up to date**, so a server that applied an older version of a preset only needs to run `!template apply <preset>` again to get the new permissions, with no clean needed. Role permissions are set to the template's values. For categories and channels, the permissions of roles the template manages are set to match, and everything else (other roles, member overrides, the quarantine role) is left alone. Names, topics, messages and members are never touched. Add `keep` (`!template apply <preset> keep`) to reuse existing roles and channels exactly as they are. Templates saved by other servers never change existing roles or channels. Settings in the template replace your current values for those settings. Discord limits (250 roles, 500 channels) are respected, and anything skipped is listed when it finishes.
 
 ### Stopping and resuming
 
@@ -140,13 +153,14 @@ The Quarantined role is also created by a normal apply when the `roles` part is 
 !template export <code>
 !template delete <code>
 !template list
+!template info <code>
 ```
 
 `publish` saves roles, categories, channels and permission overwrites, plus Soward settings: leveling (rewards, multipliers, no-XP lists), greetings, log channels, security settings, whitelist (roles and channels), AntiNuke punishments, NSFW role and channels, ticket settings, anime daily config, embeds, posted self role panels and posted ticket panels (staff roles, category, transcript channel, button label, intake questions).
 
 Join to Create hubs and Booster Perks settings are saved too. Not saved: giveaways, alerts, open tickets and transcripts, warnings, XP and any member data. Members, bans and messages never leave your server.
 
-A new template is **private**. `unlisted` lets anyone with the code use it, and `public` also lists it in `!template browse`. You can keep 5 templates.
+A new template is **private**. `unlisted` lets anyone with the code use it, and `public` also lists it in `!template browse`. You can keep 5 templates, or 15 with Premium.
 
 ## Safety
 

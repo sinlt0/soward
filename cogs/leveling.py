@@ -13,6 +13,7 @@ from utils import db, emoji_manager, guild_settings, message_vars, security, xp_
 from utils.checks import has_guild_permission
 from utils.colors import ERROR, NEUTRAL, SUCCESS
 from utils.components import ConfirmLayout, error_layout, footer_block, info_layout, success_layout
+from utils.events_bus import LEVEL_UP, bus
 
 
 LEVELING_VARIABLE_DOCS = {
@@ -187,6 +188,7 @@ class Leveling(commands.Cog):
         return view
 
     async def _announce_level_up(self, guild: discord.Guild, member: discord.Member, result: dict, guild_config: dict):
+        await bus.publish(LEVEL_UP, guild_id=guild.id, user_id=member.id, level=result["new_level"])
         mode = guild_config["announce_mode"]
         if mode == "off":
             return

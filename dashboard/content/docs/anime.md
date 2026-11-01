@@ -65,7 +65,7 @@ The bot can post one anime or manga pick per day in a channel. It avoids repeati
 !animedaily enable
 ```
 
-All `!animedaily` commands need **Manage Server** (or a fake permission granted with `!fakeperm`, see [moderation](/docs/moderation)) and work in servers only. Administrators and the bot's owners are always allowed.
+All `!animedaily` commands need **Manage Server** (or a fake permission granted with `!fakeperm`, see [moderation](/docs/moderation)) and work in servers only. Administrators are always allowed.
 
 | Command | What it does | Needs |
 | --- | --- | --- |

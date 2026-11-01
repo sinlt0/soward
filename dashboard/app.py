@@ -30,8 +30,10 @@ NAV = [
     ("Docs", "docs_index"),
     ("Changelog", "changelog_page"),
     ("Team", "team_page"),
+    ("Support", "supporters_page"),
 ]
 
+AD_PAGES = {"home", "docs_index", "doc_page", "commands_page", "changelog_page", "team_page", "supporters_page"}
 DEFAULT_COMMANDS_TTL = 300
 DEFAULT_STATUS_TTL = 15
 
@@ -173,15 +175,18 @@ def create_app() -> Flask:
             "invite_url": invite_url(),
             "support_url": support_url,
             "csrf_token": session.get("csrf", ""),
+            "show_ad": bool(config.ADS_ENABLED and current_user() is None and request.endpoint in AD_PAGES),
+            "ad_unit": config.ADS_UNIT,
             "year": time.gmtime().tm_year,
         }
 
     @app.after_request
     def headers(response):
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
+        if not request.path.startswith("/activity"):
+            response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        if request.path.startswith(("/dashboard", "/api", "/login", "/callback", "/verify")):
+        if request.path.startswith(("/dashboard", "/api", "/login", "/callback", "/verify", "/appeal")):
             response.headers["Cache-Control"] = "no-store"
         if request.path.startswith("/verify"):
             response.headers["Referrer-Policy"] = "no-referrer"
@@ -328,6 +333,14 @@ def create_app() -> Flask:
             team = []
         return render_template("team.html", team=team)
 
+    @app.route("/supporters")
+    def supporters_page():
+        try:
+            people = _cached("supporters", 300, lambda: ipc.get("/supporters"))["supporters"]
+        except (BotUnavailable, BotError):
+            people = []
+        return render_template("supporters.html", people=people)
+
     @app.route("/invite")
     def invite():
         return redirect(invite_url())
@@ -436,6 +449,22 @@ def create_app() -> Flask:
             return Response("Unavailable.", status=503)
         except BotError as exc:
             return Response(exc.message, status=exc.status if exc.status in (403, 404) else 502)
+
+    @app.route("/vote/discordbotlist", methods=["POST"])
+    def vote_discordbotlist():
+        if (request.content_length or 0) > 4096:
+            return Response("Too large.", status=413)
+        data = request.get_json(silent=True) or {}
+        try:
+            ipc.post("/public/vote/discordbotlist", {
+                "authorization": request.headers.get("Authorization", ""),
+                "id": str(data.get("id", "")),
+            })
+            return Response("", status=200)
+        except BotUnavailable:
+            return Response("Unavailable.", status=503)
+        except BotError as exc:
+            return Response(exc.message, status=exc.status if exc.status in (400, 403) else 502)
 
     @app.route("/health")
     def health():
@@ -567,6 +596,30 @@ def create_app() -> Flask:
         entries = ipc.get(f"/guild/{gid}/audit", user["id"])["entries"]
         return render_template("audit.html", g=overview, entries=entries, grouped=_group_modules(overview))
 
+    @app.route("/appeal/<gid>")
+    @login_required
+    @bot_call
+    def appeal_page(gid: str):
+        if not gid.isdigit():
+            abort(404)
+        user = current_user()
+        info = ipc.get(f"/appeal/{gid}", user["id"])
+        return render_template("appeal.html", info=info, gid=gid)
+
+    @app.route("/api/appeal/<gid>", methods=["POST"])
+    @csrf_required
+    @bot_call
+    def api_appeal_submit(gid: str):
+        if not gid.isdigit():
+            abort(404)
+        user = current_user()
+        data = request.get_json(silent=True) or {}
+        answers = data.get("answers")
+        if not isinstance(answers, list) or len(answers) > 10:
+            return jsonify(ok=False, message="Answer every question."), 400
+        result = ipc.request("POST", f"/appeal/{gid}", user["id"], {"answers": [str(a)[:2000] for a in answers]}, name=user["name"])
+        return jsonify(result)
+
     @app.route("/api/g/<gid>/settings", methods=["POST"])
     @csrf_required
     @bot_call
@@ -627,5 +680,8 @@ def create_app() -> Flask:
         if hours:
             return f"{hours}h {minutes}m"
         return f"{minutes}m"
+
+    from dashboard import activity
+    activity.register(app, ipc, app.secret_key)
 
     return app

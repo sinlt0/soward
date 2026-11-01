@@ -9,7 +9,7 @@ group: Utility
 
 These commands show information about the bot, your members, roles, channels and your server, and let you view or change the command prefix. There is nothing to set up. Everyone can run them except changing the prefix, which needs Administrator.
 
-Most commands only work inside a server. `!ping`, `!uptime`, `!about`, `!owners` and `!avatar` are the exceptions.
+Most commands only work inside a server. `!ping`, `!uptime`, `!about` and `!avatar` are the exceptions.
 
 ## Quick start
 
@@ -27,8 +27,7 @@ Most commands only work inside a server. `!ping`, `!uptime`, `!about`, `!owners`
 | --- | --- | --- |
 | `!ping` | Shows gateway latency, REST API latency and database latency in milliseconds. | Nothing |
 | `!uptime` | Shows how long the bot has been running and when it started. | Nothing |
-| `!about` | Shows the bot version, developer, server and user counts, memory and CPU use, uptime and latency. It has an **Owners & Devs** button that lists the team privately to you. Aliases: `!credits`, `!botinfo`, `!bi`. | Nothing |
-| `!owners` | Lists the bot's owners and developers. Aliases: `!devs`, `!developers`. | Nothing |
+| `!about` | Shows the bot version, developer, server and user counts, memory and CPU use, uptime and latency. Aliases: `!credits`, `!botinfo`, `!bi`. | Nothing |
 
 ## Member, server, role and channel info
 

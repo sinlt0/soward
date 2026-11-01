@@ -35,19 +35,15 @@ class Console(commands.Cog):
             return
 
         file = console_capture.get_file(lines)
-        await ctx.send(
-            view=info_layout(f"{e('settings')} Console Output", f"Last {len(recent)} lines attached."),
-            file=discord.File(file, filename="console.txt"),
-        )
+        await ctx.send(view=info_layout(f"{e('settings')} Console Output", f"Last {len(recent)} lines attached below."))
+        await ctx.send(file=discord.File(file, filename="console.txt"))
 
     @commands.command(name="consolefile", aliases=["consoledump"], help="Get the full captured console buffer as a file, sent immediately.")
     async def consolefile(self, ctx: commands.Context):
         e = emoji_manager.get
         file = console_capture.get_file()
-        await ctx.send(
-            view=info_layout(f"{e('settings')} Console Dump", "Full captured buffer attached."),
-            file=discord.File(file, filename="console.txt"),
-        )
+        await ctx.send(view=info_layout(f"{e('settings')} Console Dump", "Full captured buffer attached below."))
+        await ctx.send(file=discord.File(file, filename="console.txt"))
 
     @tasks.loop(hours=6)
     async def console_dump_loop(self):

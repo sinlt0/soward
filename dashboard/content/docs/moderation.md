@@ -13,9 +13,9 @@ There is nothing to switch on. The commands work as soon as the bot is in your s
 
 ## Rules that apply to every action
 
-- You need the Discord permission listed for the command, or a fake permission granted with `!fakeperm` (see below). Administrators and the bot's owners are always allowed.
-- Members can only be moderated by someone whose top role is **higher** than theirs. The server owner and the bot's owners are exempt from this rule.
-- Nobody can moderate themselves, the bot or the server owner. **Extra Owners and the bot's owners are protected** from anyone below the Extra Owner tier, even if that person has a higher role. See [Security Center](/docs/security-center).
+- You need the Discord permission listed for the command, or a fake permission granted with `!fakeperm` (see below). Administrators are always allowed.
+- Members can only be moderated by someone whose top role is **higher** than theirs. The server owner is exempt from this rule.
+- Nobody can moderate themselves, the bot or the server owner. **Extra Owners are protected** from anyone below the Extra Owner tier, even if that person has a higher role. See [Security Center](/docs/security-center).
 - The bot also needs the matching permission, and its top role must be above the target's top role. When Discord refuses an action, the bot says so instead of failing silently.
 - **Quarantined moderators** cannot use moderation commands until the server owner or an Extra Owner releases them.
 - Reasons are optional. Without one the reason is saved as "No reason provided".
@@ -163,3 +163,50 @@ Dashboard actions create the same cases and log entries as the commands and foll
 - **A member with a fake permission still cannot use a command**: the node must match the command's permission name, for example `ban_members` for `!ban`. They also stop working while the member is quarantined.
 - **`!fakeperm grant` says Not Allowed**: you need the real Administrator permission, and `administrator`, `manage_guild`, `manage_roles`, `manage_channels`, `manage_webhooks` and `mention_everyone` can only be granted by the server owner or an Extra Owner.
 - **`!purge` does not delete old messages**: Discord only allows bulk deletion of messages newer than 14 days.
+
+## Timed and seasonal roles
+
+Give a role that removes itself: `!temprole add @member @role 7d [reason]`. Use `!temprole extend`, `!temprole remove` and `!temprole list` to manage them. If the member leaves and comes back before it ends, the role returns.
+
+For seasons, create a window and let members claim the role themselves while it is open:
+
+```
+!season create Winter | @Snowflake | 1 dec 00:00 | 1 jan 00:00
+!season panel <id> #roles
+!season yearly <id> on
+```
+
+Everyone who claimed the role loses it when the season ends. Times use the server timezone (`!event timezone`). `!season list` shows every season and its status. `!season delete <id>` ends it early and removes the role from everyone.
+
+## Commemorative roles
+
+Give a **permanent** role to everyone who was in the server during a period, such as Valentine 2026, Winter 2025 or Summer 2024. Create the role first, then:
+
+```
+!badge create Valentine 2026 | @Valentine 2026 | 1 feb 2026 00:00 | 15 feb 2026 00:00 | in 14d
+!badge panel <id> #roles
+```
+
+Members press **Claim role** while the claim window is open. Anyone who joined before the period ended can claim it. The last part is when claiming closes. For a period that has not ended yet you can leave it out and claiming closes when the period ends. Use `!badge grant <id>` (administrators) to hand the role to every eligible member at once, `!badge extend <id> <when>` to reopen claiming, `!badge list` to see claim counts and `!badge delete <id>` to remove a badge (members keep the role).
+
+Soward only knows when a member **last** joined, so someone who left and came back after the period cannot claim it, and members who already left cannot receive it.
+
+## Member timeline (500+ members)
+
+`!history @member` shows one list with everything staff know: cases, warns, reports for and by them, appeals, trust changes, tickets, applications, ban-evasion links and timed roles.
+
+## Smart slowmode (500+ members)
+
+`!smartslow on` raises a channel's slowmode on its own when many people flood it, then puts it back after 3 calm minutes. `!smartslow trigger <messages>` sets what counts as a flood (messages in 10 seconds from at least 4 people) and `!smartslow max <seconds>` caps it. The bot needs Manage Channels.
+
+Both features need **500 members** because they watch a lot of activity. In a smaller server they are not available. `!sizegate` shows whether they are available in yours.
+
+## Anonymous staff feedback
+
+`!feedback channel #private-channel` and `!feedback on`, then `!feedback panel` in a public channel. Members press **Send feedback** and fill in a short form. Staff see the text and which staff member it is about, never who sent it. Each member can send 3 a day. Managers can **Mark resolved** or **Block this sender** without learning who it is. `!feedback summary [days]` shows repeated words and staff who were mentioned more than once.
+
+Anonymity is real but not perfect: a very specific message can still give someone away, and the panel tells members that.
+
+## Polls with roles and weights
+
+`!poll "Question" A | B | C --roles @Member @VIP --weight @VIP=3 --hidden --duration 1d`. `--roles` limits who can vote, `--weight` makes a role's vote count more (2 to 10), `--hidden` keeps results hidden until the poll ends.

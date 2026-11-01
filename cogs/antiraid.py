@@ -8,9 +8,10 @@ from discord.ext import commands, tasks
 
 import re
 
-from utils import db, emoji_manager, guild_settings, security, security_intel, threat
+from utils import db, emoji_manager, guild_settings, join_patterns, postmortem, security, security_intel, threat
+from utils import security_master
 from utils import security_settings as settings
-from utils import security_cmds
+from utils import premium_limits, security_cmds
 from utils.checks import has_guild_permission
 from utils.converters import format_duration
 from utils.security_access import security_owner, security_staff
@@ -58,6 +59,8 @@ class AntiRaid(commands.Cog):
             await self.start_raid_mode(guild, triggered_by=triggered_by)
 
     async def _is_enabled(self, guild_id: int) -> bool:
+        if await security_master.is_off(guild_id):
+            return False
         return await settings.get(guild_id, "antiraid", "enabled")
 
     async def _is_raid_mode(self, guild_id: int) -> bool:
@@ -136,6 +139,10 @@ class AntiRaid(commands.Cog):
         gid = member.guild.id
         if not await settings.get(gid, "antiraid", "action_dm") or action == "none":
             return
+        if action == "ban":
+            appeals = self.bot.get_cog("Appeals")
+            if appeals is not None and await appeals.notify_ban(member.guild, member, f"Raid protection: {reason}", clean=True):
+                return
         text = f"You were {'banned from' if action == 'ban' else 'removed from'} **{member.guild.name}** by its raid protection: {reason}."
         if await settings.get(gid, "antiraid", "gate_age_dm") and "account too new" in reason:
             minimum = await settings.get(gid, "antiraid", "min_age_seconds")
@@ -166,6 +173,7 @@ class AntiRaid(commands.Cog):
             " VALUES (?, ?, ?, ?, ?, 1, ?)",
             (guild.id, member.id, time.time(), member.created_at.timestamp(), int(member.avatar is not None), action),
         )
+        postmortem.member_action(guild.id, member.id, action, reason)
         await threat.add(guild.id, "raid_join", f"{member.id}: {reason}")
         await bus.publish(ANTIRAID_JOIN_FLAGGED, guild_id=guild.id, user_id=member.id, reason=reason, action=action)
         await bus.publish(LOG_EVENT, guild_id=guild.id, action="antiraid_action", user_id=member.id, reason=reason, action_taken=action)
@@ -189,13 +197,17 @@ class AntiRaid(commands.Cog):
         if not await security.is_panic_mode_active(guild.id):
             await security.trigger_panic_mode(guild.id, triggered_by=f"antiraid:{triggered_by}", duration_seconds=duration)
 
+        postmortem.begin(guild.id, "raid", f"raid mode: {triggered_by}")
         await self._raise_verification(guild)
+        if await guild_settings.get(guild.id, "antiraid_prev_verification_level") is not None:
+            postmortem.flag(guild.id, "verification", "Verification level raised to High")
         swept = await self._sweep_recent_joins(guild)
         await threat.add(guild.id, "raid_mode", triggered_by)
         if await settings.get(guild.id, "security", "lockdown_on_raid"):
             lockdown = self.bot.get_cog("Lockdown")
             if lockdown is not None:
                 await lockdown.start(guild, f"raid:{triggered_by}", None)
+                postmortem.flag(guild.id, "lockdown", "Server lockdown started")
 
         await bus.publish(ANTIRAID_RAID_MODE_STARTED, guild_id=guild.id, triggered_by=triggered_by)
         await bus.publish(LOG_EVENT, guild_id=guild.id, action="antiraid_raid_mode", active=True, triggered_by=triggered_by)
@@ -264,6 +276,9 @@ class AntiRaid(commands.Cog):
         return swept
 
     async def end_raid_mode(self, guild: discord.Guild, ended_by: Optional[int] = None):
+        if await guild_settings.get(guild.id, "antiraid_prev_verification_level") is not None:
+            postmortem.undone(guild.id, "verification level restored")
+        postmortem.note(guild.id, "Raid mode ended" + (f" by <@{ended_by}>" if ended_by else ""))
         await self._restore_verification(guild)
         await db.raw_execute(
             "UPDATE antiraid_state SET raid_mode=0, raid_mode_expires_at=NULL WHERE guild_id=?",
@@ -373,6 +388,9 @@ class AntiRaid(commands.Cog):
         if await settings.get(guild_id, "antiraid", "invite_tracking"):
             await security_intel.used_invite(member.guild, member)
 
+        if await self._pattern_flag(member, in_raid_mode):
+            return
+
         findings = await self._evaluate_join(member)
         exempt = (in_raid_mode or findings) and await security.is_exempt(guild_id, member, "antiraid")
         if exempt:
@@ -396,6 +414,36 @@ class AntiRaid(commands.Cog):
             await self._revoke_flagged_invites(member.guild, member.id)
         else:
             await self._log_clean_join(member)
+
+    async def _pattern_flag(self, member: discord.Member, in_raid_mode: bool) -> bool:
+        guild = member.guild
+        gid = guild.id
+        if not await settings.get(gid, "antiraid", "pattern_detect"):
+            return False
+        count = int(await settings.get(gid, "antiraid", "pattern_count"))
+        window = float(await settings.get(gid, "antiraid", "pattern_window"))
+        entry = join_patterns.signals(member, security_intel.invite_for(gid, member.id))
+        hit = join_patterns.check(gid, entry, count, window)
+        if hit is None:
+            return False
+        reason, user_ids = hit
+        fresh = join_patterns.unflagged(gid, user_ids)
+        if not fresh:
+            return False
+        action = await settings.get(gid, "antiraid", "pattern_action")
+        acted_on_member = False
+        for user_id in fresh:
+            target = guild.get_member(user_id)
+            if target is None or target.bot or await security.is_exempt(gid, target, "antiraid"):
+                continue
+            if action == "none":
+                await bus.publish(LOG_EVENT, guild_id=gid, action="antiraid_action", user_id=user_id, reason=f"join pattern: {reason}", action_taken="flagged")
+                continue
+            await self._take_action(guild, target, action, f"join pattern: {reason}")
+            acted_on_member = acted_on_member or user_id == member.id
+        if not in_raid_mode and await settings.get(gid, "antiraid", "pattern_raid_mode") and len(user_ids) >= count * 2:
+            await self.start_raid_mode(guild, triggered_by=f"pattern:{reason}")
+        return acted_on_member
 
     async def _revoke_flagged_invites(self, guild: discord.Guild, user_id: int):
         gid = guild.id
@@ -603,8 +651,9 @@ class AntiRaid(commands.Cog):
         if action == "add":
             if len(needle) < 3 or len(needle) > 40:
                 return await ctx.send(view=error_layout("Invalid pattern", "Patterns must be 3-40 characters."))
-            if len(current) >= 50:
-                return await ctx.send(view=error_layout("Too many patterns", "A server can have up to 50 patterns."))
+            cap = await premium_limits.get(ctx.guild.id, "antiraid_patterns")
+            if len(current) >= cap:
+                return await ctx.send(view=error_layout("Too many patterns", f"A server can have up to {cap} patterns." + await premium_limits.hint(ctx.guild.id, "antiraid_patterns")))
             if needle not in current:
                 current.append(needle)
             await guild_settings.set(ctx.guild.id, "antiraid_name_filter", current)

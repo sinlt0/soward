@@ -57,7 +57,7 @@ Leaving a box empty clears that part. Image and link URLs must be valid addresse
 
 ## Command reference
 
-`!embed` needs **Manage Server** (or the fake permission `manage_guild`). Bot owners are always allowed. Subcommands marked "Anyone" can be used by all members.
+`!embed` needs **Manage Server** (or the fake permission `manage_guild`). Subcommands marked "Anyone" can be used by all members.
 
 | Command | What it does | Needs |
 | --- | --- | --- |

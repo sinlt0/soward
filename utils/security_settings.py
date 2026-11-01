@@ -98,6 +98,14 @@ def _build() -> None:
     _bool("security", "auto_backup", False, "Automatic backups", "Snapshot roles and channels on a schedule so they can be restored.")
     _int("security", "backup_interval_hours", 6, 1, 168, "Backup interval (hours)")
     _int("security", "backup_keep", 5, 1, 25, "Automatic backups to keep")
+    _bool("security", "postmortem", True, "Incident post-mortems", "Post a summary of what happened, who was actioned and what was undone when a raid or attack ends.")
+    _bool("security", "whitelist_report", True, "Weekly whitelist report", "Post a weekly list of unused, stale and expiring whitelist entries to the security log.")
+    _int("security", "whitelist_stale_days", 30, 7, 365, "Days before a whitelist entry counts as stale")
+    _bool("antiraid", "pattern_detect", True, "Join pattern detection", "Flag accounts that join together with the same avatar, invite or name pattern before a raid reaches its limit.", group="Raid detection")
+    _int("antiraid", "pattern_count", 3, 2, 25, "Matching accounts to flag", "How many recent joins must share a signal before they are flagged.", group="Raid detection")
+    _duration("antiraid", "pattern_window", 600, 60, 3600, "Pattern window", "How far back joins are compared.", group="Raid detection")
+    _choice("antiraid", "pattern_action", "quarantine", ("none", "timeout", "quarantine", "kick", "ban"), "Pattern action", "What happens to flagged accounts. Quarantine holds them until staff review them.", group="Raid detection")
+    _bool("antiraid", "pattern_raid_mode", False, "Start raid mode on a large pattern", "Also start raid mode when a pattern reaches twice the flag count.", group="Raid detection")
     _duration("security", "lockdown_duration", 1800, 60, 86400, "Lockdown length", "How long a lockdown lasts before it lifts on its own.")
     _bool("security", "lockdown_on_nuke", False, "Lock the server after an AntiNuke trigger")
     _bool("security", "lockdown_on_raid", False, "Lock the server when raid mode starts")
@@ -109,6 +117,7 @@ def _build() -> None:
 
     _bool("antinuke", "enabled", False, "AntiNuke", "Master switch for AntiNuke.", critical=True)
     _bool("antinuke", "restore_from_backup", False, "Restore from backup after an attack", "After an AntiNuke incident, recreate missing roles, channels and bans from the latest backup.")
+    _bool("antinuke", "restore_repair", False, "Also repair edited roles and channels", "When restoring after an attack, put edited role permissions and channel permissions, names and topics back to the backup too.")
     _bool("antinuke", "strict_mode", config.ANTINUKE_STRICT_MODE_DEFAULT, "Strict mode", "Any dangerous permission grant by an untrusted member is punished at once.")
     _bool("antinuke", "admin_bypass", config.ANTINUKE_ADMIN_BYPASS_DEFAULT, "Administrator bypass", "Let members with Administrator skip AntiNuke without being trusted.", critical=True)
     _bool("antinuke", "watch_quarantined", config.ANTINUKE_WATCH_QUARANTINED_DEFAULT, "Watch quarantined members", "Any action by a quarantined member is punished immediately.")
@@ -119,6 +128,10 @@ def _build() -> None:
     _bool("antinuke", "protect_everyone", True, "Protect @everyone", "Revert and punish dangerous permissions given to @everyone at once.")
     _bool("antinuke", "alert_owner", config.ANTINUKE_ALERT_OWNER_DEFAULT, "DM the owner")
     _channel("antinuke", "alert_channel_id", "Alert channel")
+    _int("antinuke", "raid_relief_factor", 4, 1, 20, "Raid limit multiplier", "While raid mode is on, ban, kick and timeout limits are multiplied by this so staff can remove raiders. 1 turns it off.")
+    _bool("antinuke", "raid_relief_exempt", False, "Raid mode staff exemption", "While raid mode is on, members who already hold the Discord permission can ban, kick and time out without AntiNuke limits. Ends when raid mode ends.")
+    _bool("antinuke", "raid_escalate", True, "Raid escalation", "If any AntiNuke event triggers while raid relief is active, end the relief, suspend all whitelists, force Beast Mode and drop every limit to 1.")
+    _duration("antinuke", "raid_escalate_duration", 1800, 60, 86400, "Raid escalation length", "How long escalation lasts. `security beast off` ends it early.")
     _duration("antinuke", "window", config.ANTINUKE_THRESHOLD_WINDOW_SECONDS, 3, 3600, "Short window", "Actions are counted over this window against the per-action limit.")
     _choice("antinuke", "punishment", config.ANTINUKE_DEFAULT_PUNISHMENT, PUNISH_ACTIONS, "Default punishment")
     _duration("antinuke", "punish_cooldown", config.ANTINUKE_PUNISH_COOLDOWN_SECONDS, 5, 600, "Repeat punishment cooldown")
@@ -159,7 +172,7 @@ def _build() -> None:
     _choice("antiraid", "gate_noavatar_action", "default", ("default",) + GATE_ACTIONS[1:], "No avatar action", group="Join gate")
     _bool("antiraid", "gate_name_enabled", False, "Advertising name filter", "Names containing invites or links.", group="Join gate")
     _choice("antiraid", "gate_name_action", "default", ("default",) + GATE_ACTIONS[1:], "Advertising name action", group="Join gate")
-    _list("antiraid", "name_filter", "words", "Blocked name patterns", "Joins whose name contains one of these are flagged.", group="Join gate", limit=50)
+    _list("antiraid", "name_filter", "words", "Blocked name patterns", "Joins whose name contains one of these are flagged.", group="Join gate", limit=config.PREMIUM_LIMITS["antiraid_patterns"][1])
     _choice("antiraid", "name_filter_action", "default", ("default",) + GATE_ACTIONS[1:], "Name pattern action", group="Join gate")
     _bool("antiraid", "gate_unverified_bots", False, "Unverified bot filter", "Bots without Discord's verified badge.", group="Join gate")
     _choice("antiraid", "gate_unverified_bots_action", "kick", GATE_ACTIONS[1:], "Unverified bot action", group="Join gate")
@@ -190,11 +203,11 @@ def _build() -> None:
     _float("automod", "duplicate_similarity", config.AUTOMOD_DUPLICATE_SIMILARITY, 0.5, 1.0, "Duplicate similarity", group="Filters")
     for name, default in {"scamlinks": True, "caps": True, "zalgo": True, "duplicates": True, "emoji": True, "attachments": True, "wholeword": False}.items():
         _bool("automod", f"filter_{name}", default, f"Filter: {name}", group="Filters")
-    _list("automod", "banned_words", "words", "Banned words", group="Lists", limit=200)
-    _list("automod", "link_blocklist", "domains", "Blocked domains", group="Lists", limit=200)
-    _list("automod", "link_allowlist", "domains", "Allowed domains", "Once set, only these domains are permitted.", group="Lists", limit=200)
-    _list("automod", "exempt_channels", "channels", "Exempt channels", group="Lists", limit=50)
-    _list("automod", "exempt_roles", "roles", "Exempt roles", group="Lists", limit=50)
+    _list("automod", "banned_words", "words", "Banned words", group="Lists", limit=config.PREMIUM_LIMITS["automod_words"][1])
+    _list("automod", "link_blocklist", "domains", "Blocked domains", group="Lists", limit=config.PREMIUM_LIMITS["automod_domains"][1])
+    _list("automod", "link_allowlist", "domains", "Allowed domains", "Once set, only these domains are permitted.", group="Lists", limit=config.PREMIUM_LIMITS["automod_domains"][1])
+    _list("automod", "exempt_channels", "channels", "Exempt channels", group="Lists", limit=config.PREMIUM_LIMITS["automod_exempt"][1])
+    _list("automod", "exempt_roles", "roles", "Exempt roles", group="Lists", limit=config.PREMIUM_LIMITS["automod_exempt"][1])
     _float("automod", "mute_threshold", config.AUTOMOD_HEAT_MUTE_THRESHOLD, 3, 200, "Heat that triggers a punishment", group="Heat")
     _float("automod", "panic_threshold", config.AUTOMOD_HEAT_PANIC_THRESHOLD, 5, 500, "Heat that triggers the severe action", group="Heat")
     _float("automod", "decay", config.AUTOMOD_HEAT_DECAY_PER_SECOND, 0.1, 20, "Heat lost per second", group="Heat")
@@ -435,7 +448,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         "antinuke.threshold_channel_create": 2, "antinuke.threshold_role_create": 2, "antinuke.threshold_webhook_create": 1,
         "antinuke.threshold_emoji_change": 3, "antinuke.threshold_sticker_change": 3, "antinuke.threshold_channel_update": 3, "antinuke.threshold_role_update": 2,
         "antinuke.punishment": "ban", "antinuke.restore": True, "antinuke.bot_add_block": True, "antinuke.quarantine_hold": True,
-        "antinuke.monitor_overwrites": True, "antinuke.protect_everyone": True, "antinuke.restore_from_backup": True,
+        "antinuke.monitor_overwrites": True, "antinuke.protect_everyone": True, "antinuke.restore_from_backup": True, "antinuke.restore_repair": True,
         "antiraid.gate_impersonation_enabled": True, "antiraid.gate_evasion_enabled": True, "antiraid.invite_tracking": True, "antiraid.revoke_invites": True,
         "automod.webhook_protection": True, "automod.burst_lockdown": True, "automod.warn_ladder_enabled": True,
         "antiraid.enabled": True, "antiraid.join_velocity_count": 5, "antiraid.join_velocity_window": 10, "antiraid.min_age_seconds": 30 * 86400,
@@ -447,6 +460,21 @@ PRESETS: dict[str, dict[str, Any]] = {
         "security.threat_score": True, "security.lock": True, "security.auto_backup": True, "security.lockdown_on_nuke": True,
     },
 }
+
+
+async def preview_preset(guild_id: int, name: str, skip: tuple = ()) -> list[str]:
+    lines = []
+    for path, value in PRESETS[name].items():
+        if path.split(".", 1)[0] in skip:
+            continue
+        setting = _REGISTRY[path]
+        if setting.kind == "enum":
+            value = parse_scalar(setting, value)
+        current = await guild_settings.get(guild_id, setting.store, setting.default)
+        if current == value:
+            continue
+        lines.append(f"{setting.label}: {display(setting, current)} → {display(setting, value)}")
+    return lines
 
 
 async def apply_preset(guild_id: int, name: str, skip: tuple = ()) -> list[str]:

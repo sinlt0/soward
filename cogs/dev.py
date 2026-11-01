@@ -229,7 +229,9 @@ class Dev(commands.Cog):
         if not updater:
             return await ctx.send(view=error_layout("Not Ready", "The stats updater hasn't initialized yet — try again shortly after startup."))
 
-        await updater.update()
+        ok, detail = await updater.update()
+        if not ok:
+            return await ctx.send(view=error_layout("Stats Update Failed", detail[:1500]))
         await ctx.send(view=success_layout(f"{e('check')} Stats Updated", "DB stats image refreshed in the dev server."))
 
     @commands.command(name="devbackup", aliases=["devsync"], help="Force an immediate SQLite → MongoDB row-level sync.")

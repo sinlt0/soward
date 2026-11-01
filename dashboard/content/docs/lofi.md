@@ -31,7 +31,7 @@ This starts the currently selected station (Groove Salad by default) in that cha
 
 ## Lofi commands
 
-All of these need **Manage Server**. You can also use a fake permission granted with `!fakeperm`. Administrators and the bot's owners are always allowed.
+All of these need **Manage Server**. You can also use a fake permission granted with `!fakeperm`. Administrators are always allowed.
 
 | Command | What it does | Needs |
 | --- | --- | --- |
@@ -121,12 +121,12 @@ Dashboard rules:
 - The bot needs **Connect** and **Speak** in the voice channel you pick. Stage channels work too.
 - A key can only use lowercase letters, numbers and underscores, up to 20 characters, and cannot match a built-in key.
 - A stream URL must start with `http://` or `https://`, up to 500 characters.
-- Station names are up to 50 characters. The limit is 20 custom stations per server.
+- Station names are up to 50 characters. The limit is 20 custom stations per server, or 60 with Premium.
 - The dashboard cannot play songs or edit the queue. Use commands for that.
 
 ## Troubleshooting
 
-- **"Failed to start" or "Could not connect or stream that station"**: check the bot has **Connect** and **Speak** in the channel, and that the stream URL works. If you host Soward yourself, `ffmpeg` must be installed.
+- **"Failed to start" or "Could not connect or stream that station"**: check the bot has **Connect** and **Speak** in the channel, and that the stream URL works.
 - **"Unplayable" when testing a station**: the bot could not load that URL. Try a direct audio stream link.
 - **Lofi stopped by itself**: the bot checks every 30 seconds and restarts the stream if it dropped, as long as lofi is still enabled.
 - **Lofi vanished after playing a song**: normal music takes over the voice connection. Run `!lofi 247 #channel` again.

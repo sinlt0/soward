@@ -14,7 +14,7 @@ import wavelink
 from discord.ext import commands, tasks
 from PIL import Image, ImageDraw
 
-from utils import db, emoji_manager, guild_settings
+from utils import db, emoji_manager, guild_settings, premium_limits
 from utils.checks import has_guild_permission
 from utils.colors import ERROR, NEUTRAL, SUCCESS
 import config
@@ -1707,7 +1707,7 @@ class Music(commands.Cog):
         tracks_data = json.loads(row["tracks"])
         loaded = 0
         first = not player.playing
-        for td in tracks_data[:config.MUSIC_MAX_PLAYLIST_TRACKS]:
+        for td in tracks_data[:await premium_limits.get(ctx.guild.id, "music_playlist_tracks")]:
             try:
                 results = await wavelink.Playable.search(td.get("uri") or f"ytmsearch:{td['title']}")
                 if not results:

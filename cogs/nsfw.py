@@ -5,8 +5,7 @@ import typing
 import discord
 from discord.ext import commands
 
-import config
-from utils import emoji_manager, nsfw
+from utils import emoji_manager, nsfw, premium_limits
 from utils.checks import has_guild_permission
 from utils.components import ConfirmLayout, error_layout, info_layout, success_layout
 from utils.events_bus import LOG_EVENT, bus
@@ -51,6 +50,7 @@ class NSFW(commands.Cog):
         else:
             role_line = "**NSFW role:** *not set - run* `nsfw role <@role>`"
 
+        nsfw_cap = await premium_limits.get(guild.id, "nsfw_channels")
         lines = []
         for cid in ids:
             channel = guild.get_channel(cid)
@@ -63,7 +63,7 @@ class NSFW(commands.Cog):
         channels_block = "\n".join(lines) if lines else "*No channels registered. Use* `nsfw addchannel #channel`"
 
         footer = (
-            f"\n\n-# {len(ids)}/{config.NSFW_MAX_CHANNELS} channels · "
+            f"\n\n-# {len(ids)}/{nsfw_cap} channels · "
             "NSFW commands only run in registered channels that are locked to the role."
         )
         return info_layout(f"{e('lock')} NSFW Channels", f"{role_line}\n\n{channels_block}{footer}")
@@ -202,11 +202,12 @@ class NSFW(commands.Cog):
             snapshots = await nsfw.get_snapshots(guild.id)
 
             added, already, failed, skipped = [], [], [], []
+            nsfw_cap = await premium_limits.get(guild.id, "nsfw_channels")
             for channel in dict.fromkeys(channels):
                 if channel.id in ids:
                     already.append(channel)
                     continue
-                if len(ids) >= config.NSFW_MAX_CHANNELS:
+                if len(ids) >= nsfw_cap:
                     skipped.append(channel)
                     continue
                 if role is not None:
@@ -234,7 +235,7 @@ class NSFW(commands.Cog):
         if already:
             parts.append(f"{e('info')} Already registered: " + ", ".join(c.mention for c in already))
         if skipped:
-            parts.append(f"{e('warn')} Limit of {config.NSFW_MAX_CHANNELS} reached, skipped: " + ", ".join(c.mention for c in skipped))
+            parts.append(f"{e('warn')} Limit of {nsfw_cap} reached, skipped: " + ", ".join(c.mention for c in skipped) + await premium_limits.hint(guild.id, "nsfw_channels"))
         for c, x in failed:
             parts.append(f"{e('cross')} {c.mention}: {_fmt_error(x)}")
         ok = bool(added) and not failed

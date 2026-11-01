@@ -1,11 +1,13 @@
 import time
 from collections import defaultdict, deque
 
+from utils import postmortem
 from utils import security_settings as settings
 from utils.events_bus import LOG_EVENT, bus
 
 _events: dict[int, deque] = defaultdict(lambda: deque(maxlen=200))
 _beast_until: dict[int, float] = {}
+_forced_until: dict[int, float] = {}
 
 POINTS = {
     "antinuke": 4.0,
@@ -41,8 +43,23 @@ def is_beast(guild_id: int) -> bool:
     return False
 
 
+def is_forced(guild_id: int) -> bool:
+    until = _forced_until.get(guild_id, 0)
+    if until and time.time() < until:
+        return True
+    _forced_until.pop(guild_id, None)
+    return False
+
+
+def force_beast(guild_id: int, seconds: int) -> None:
+    until = time.time() + seconds
+    _beast_until[guild_id] = max(_beast_until.get(guild_id, 0), until)
+    _forced_until[guild_id] = until
+
+
 def deactivate(guild_id: int) -> bool:
-    return _beast_until.pop(guild_id, None) is not None
+    forced = _forced_until.pop(guild_id, None) is not None
+    return (_beast_until.pop(guild_id, None) is not None) or forced
 
 
 async def add(guild_id: int, kind: str, reason: str = "") -> float:
@@ -54,6 +71,8 @@ async def add(guild_id: int, kind: str, reason: str = "") -> float:
     if total >= threshold and not is_beast(guild_id):
         window = await settings.get(guild_id, "security", "threat_window")
         _beast_until[guild_id] = time.time() + window
+        postmortem.begin(guild_id, "beast", f"threat score {total:.1f}")
+        postmortem.flag(guild_id, "beast", "Beast Mode entered")
         await bus.publish(LOG_EVENT, guild_id=guild_id, action="beast_mode", active=True, reason=f"threat score {total:.1f}")
     return total
 

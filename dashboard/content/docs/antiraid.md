@@ -15,7 +15,7 @@ AntiRaid looks at every new member (bots are handled separately) in three ways:
 
 AntiRaid is **off by default**. While it is off, joins are only recorded and nobody is actioned.
 
-Never actioned: members with Administrator, the bot's owners, the server owner, Extra Owners, Trusted Admins, AntiNuke trusted members and anyone on the [whitelist](/docs/security-center) for AntiRaid.
+Never actioned: members with Administrator, the server owner, Extra Owners, Trusted Admins, AntiNuke trusted members and anyone on the [whitelist](/docs/security-center) for AntiRaid.
 
 ## Who can change what
 
@@ -94,6 +94,17 @@ When it starts, AntiRaid can:
 
 While raid mode is on, new members get the **raid action** (`raid_mode_action`, kick by default). `raid_target` decides who: `all` (every non-exempt member) or `flagged` (only those a gate filter caught). Raid mode lasts 10 minutes (`raid_mode_duration`) and ends by itself, or earlier with `!antiraid raidmode`.
 
+## Join pattern detection
+
+Raid mode needs a certain number of joins. Join pattern detection acts earlier and on fewer accounts. When `pattern_count` recent joins (3 by default, inside `pattern_window`) share one of these signals, every account in the group gets the **pattern action** (`pattern_action`, quarantine by default):
+
+- the same custom avatar
+- accounts under two weeks old from the same invite (needs `invite_tracking`)
+- the same name pattern once digits and punctuation are removed
+- accounts created within ten minutes of each other
+
+Exempt members are skipped. With `pattern_raid_mode` on, a pattern twice that size also starts raid mode. Turn the detector off with `pattern_detect`. Flagged accounts show up in the AntiRaid logs and in the [incident post-mortem](/docs/security-center).
+
 ## Invite tracking
 
 With `invite_tracking` on, AntiRaid remembers which invite each member used. With `revoke_invites` on as well, an invite is deleted once `revoke_invite_min` (3) flagged joins came through it within `invite_window` (10 minutes). This needs the Manage Server permission. If the bot was offline when an invite was used, that join cannot be traced.
@@ -142,3 +153,75 @@ Open **AntiRaid** under Security. The page has the on/off switch and the main se
 **An invite was not revoked.** Invite tracking needs Manage Server, only counts joins it saw, and needs `revoke_invite_min` flagged joins through the same invite.
 
 **No alert appeared.** Set `!antiraid alertchannel` and let the bot send messages there. If none is set, the main log channel is used.
+
+## Settings reference
+
+Every antiraid setting, taken from the bot's settings list. Change one with `!antiraid set <key> <value>`, look at one with `!antiraid get <key>` and put one back with `!antiraid reset <key>`.
+
+### Raid detection
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `pattern_detect` | On | On or Off | Flag accounts that join together with the same avatar, invite or name pattern before a raid reaches its limit. |
+| `pattern_count` | 3 | 2 to 25 | How many recent joins must share a signal before they are flagged. |
+| `pattern_window` | 10m 0s | 1m 0s to 1h 0m | How far back joins are compared. |
+| `pattern_action` | `quarantine` | `none`, `timeout`, `quarantine`, `kick`, `ban` | What happens to flagged accounts. Quarantine holds them until staff review them. |
+| `pattern_raid_mode` | Off | On or Off | Also start raid mode when a pattern reaches twice the flag count. |
+| `join_velocity_count` | 10 | 2 to 200 | Joins that trigger a raid |
+| `join_velocity_window` | 10s | 2s to 10m 0s | Join window |
+| `raid_mode_duration` | 10m 0s | 1m 0s to 1d 0h | Raid mode length |
+| `raid_mode_action` | `kick` | `timeout`, `kick`, `ban`, `quarantine` | Action during raid mode |
+| `raid_target` | `all` | `all`, `suspicious` | All new joins, or only suspicious ones. |
+| `sweep` | On | On or Off | Sweep the join burst |
+| `raise_verification` | On | On or Off | Raise server verification level |
+| `follow_antinuke` | On | On or Off | Start raid mode on AntiNuke triggers |
+| `id_cluster` | On | On or Off | Raid mode when many accounts created close together join. |
+| `id_window` | 1h 0m | 1m 0s to 7d 0h | Account creation spread |
+| `id_count` | 4 | 2 to 50 | Accounts in the cluster |
+| `similar_names` | On | On or Off | Raid mode when many joiners share the same name pattern. |
+| `similar_count` | 4 | 2 to 50 | Similar names to trigger |
+| `alert_channel_id` | Not set | a channel | Alert channel |
+
+### General
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `enabled` | Off | On or Off | Master switch for AntiRaid. |
+
+### Join gate
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `action_dm` | Off | On or Off | Tell the member why before they are kicked or banned. |
+| `join_action` | `kick` | `timeout`, `kick`, `ban`, `quarantine` | Default gate action |
+| `gate_age_enabled` | On | On or Off | Account age filter |
+| `min_age_seconds` | 7d 0h | 0s to 365d 0h | Minimum account age |
+| `gate_age_action` | `default` | `default`, `timeout`, `kick`, `ban`, `quarantine` | Account age action |
+| `gate_age_dm` | Off | On or Off | Show the age requirement in the DM |
+| `gate_noavatar_enabled` | On | On or Off | No avatar filter |
+| `gate_noavatar_action` | `default` | `default`, `timeout`, `kick`, `ban`, `quarantine` | No avatar action |
+| `gate_name_enabled` | Off | On or Off | Names containing invites or links. |
+| `gate_name_action` | `default` | `default`, `timeout`, `kick`, `ban`, `quarantine` | Advertising name action |
+| `name_filter` | Empty | list, up to 50 (150 with Premium) | Joins whose name contains one of these are flagged. |
+| `name_filter_action` | `default` | `default`, `timeout`, `kick`, `ban`, `quarantine` | Name pattern action |
+| `gate_unverified_bots` | Off | On or Off | Bots without Discord's verified badge. |
+| `gate_unverified_bots_action` | `kick` | `timeout`, `kick`, `ban`, `quarantine` | Unverified bot action |
+| `gate_suspicious_enabled` | Off | On or Off | Scores new accounts by age, avatar, name and badges. |
+| `gate_suspicious_score` | 3 | 1 to 10 | Suspicion score needed |
+| `gate_suspicious_action` | `default` | `default`, `timeout`, `kick`, `ban`, `quarantine` | Suspicious account action |
+| `timeout_duration` | 1h 0m | 1m 0s to 28d 0h | Timeout length |
+| `gate_impersonation_enabled` | Off | On or Off | Joins whose name is nearly the same as a staff member's. |
+| `impersonation_threshold` | 0.88 | 0.7 to 1 | How alike two names must be, from 0.7 to 1.0. |
+| `gate_impersonation_action` | `default` | `default`, `timeout`, `kick`, `ban`, `quarantine` | Impersonation action |
+| `gate_evasion_enabled` | Off | On or Off | Joins that look like a banned user: same avatar or a very similar name. A heuristic, not proof. |
+| `evasion_threshold` | 0.92 | 0.8 to 1 | Ban evasion name similarity |
+| `gate_evasion_action` | `default` | `default`, `timeout`, `kick`, `ban`, `quarantine` | Ban evasion action |
+
+### Invites
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `invite_tracking` | Off | On or Off | Remember which invite each member used. Needs Manage Server. |
+| `revoke_invites` | Off | On or Off | Delete an invite when several flagged joins came through it. |
+| `revoke_invite_min` | 3 | 2 to 50 | Flagged joins before revoking |
+| `invite_window` | 10m 0s | 1m 0s to 1d 0h | How far back flagged joins are counted. |

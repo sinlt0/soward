@@ -63,7 +63,7 @@ The bot itself needs **Manage Channels** and **Manage Roles** for `role`, `addch
 | Channel types | Text channels and forum channels |
 | Delay between channel edits | About a third of a second, so large changes take a moment |
 
-If you try to register more than 25 channels, the extras are skipped and listed in the reply.
+If you try to register more than 25 channels (50 with Premium), the extras are skipped and listed in the reply.
 
 ## Automatic cleanup
 

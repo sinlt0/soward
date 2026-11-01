@@ -26,6 +26,11 @@ def access(kind: str, staff: tuple = STAFF) -> Optional[dict]:
         keys = kind[6:].split(",")
         grant = _ow([VIEW, "send_messages", "connect", "speak", "add_reactions", "read_message_history"])
         return {"everyone": _ow(deny=[VIEW]), "member": _ow(deny=[VIEW]), **{k: _ow([VIEW, "send_messages", "connect", "speak"]) for k in staff}, **{k: grant for k in keys}}
+    if kind.startswith("post:"):
+        keys = kind[5:].split(",")
+        grant = _ow([VIEW, "send_messages", "create_public_threads", "send_messages_in_threads", "add_reactions", "read_message_history"])
+        viewer = _ow([VIEW, "read_message_history", "add_reactions"], ["send_messages", "create_public_threads", "create_private_threads", "send_messages_in_threads"])
+        return {"everyone": _ow(deny=[VIEW]), "member": viewer, **{k: _ow([VIEW, "send_messages", "create_public_threads", "send_messages_in_threads"]) for k in staff}, **{k: grant for k in keys}}
     if kind.startswith("only:"):
         keys = kind[5:].split(",")
         return {"everyone": _ow(deny=[VIEW]), "member": _ow(deny=[VIEW]), **{k: _ow([VIEW, "send_messages", "connect", "speak", "read_message_history"]) for k in keys}}
@@ -34,6 +39,13 @@ def access(kind: str, staff: tuple = STAFF) -> Optional[dict]:
         return {"everyone": _ow(deny=[VIEW]), "member": _ow([VIEW]), **staff_view}
     if kind == "readonly":
         return {"everyone": _ow(deny=[VIEW] + SEND), "member": _ow([VIEW], SEND), **staff_view}
+    if kind == "threadtalk":
+        blocked = ["send_messages", "create_public_threads", "create_private_threads"]
+        return {
+            "everyone": _ow(deny=[VIEW] + SEND),
+            "member": _ow([VIEW, "read_message_history", "add_reactions", "send_messages_in_threads"], blocked),
+            **{k: _ow([VIEW, "send_messages", "send_messages_in_threads", "create_public_threads", "manage_threads"]) for k in staff},
+        }
     if kind == "staff":
         return {"everyone": _ow(deny=[VIEW]), **staff_view}
     if kind == "gate":
@@ -58,6 +70,7 @@ class Builder:
         self.embeds: list[dict] = []
         self.messages: list[dict] = []
         self.panels: list[dict] = []
+        self.applications: list[dict] = []
         self.tickets: list[dict] = []
         self.settings: dict = {}
         self.tables: dict = {}
@@ -66,6 +79,7 @@ class Builder:
         self.logs: dict = {}
         self.commands: list[dict] = []
         self.fixed_order = False
+        self.keepsakes: dict = {"badges": [], "seasons": []}
         self.staff: tuple = STAFF
         self._cat: Optional[dict] = None
         self._n = 0
@@ -109,8 +123,20 @@ class Builder:
             "menu": {"placeholder": placeholder, "options": [dict(o) for o in options]},
         }})
 
-    def post_special(self, channel_key, special, pin=False):
-        self.messages.append({"channel": channel_key, "special": special, "pin": pin})
+    def post_special(self, channel_key, special, pin=False, forms=None):
+        message = {"channel": channel_key, "special": special, "pin": pin}
+        if forms:
+            message["forms"] = list(forms)
+        self.messages.append(message)
+
+    def badge(self, name, role_key, start, end):
+        self.keepsakes["badges"].append({"name": name, "role": role_key, "start": start, "end": end})
+
+    def season(self, name, role_key, start, end):
+        self.keepsakes["seasons"].append({"name": name, "role": role_key, "start": list(start), "end": list(end)})
+
+    def application(self, name, form):
+        self.applications.append({"name": name, "form": form})
 
     def post_command(self, channel_key, trigger, pin=False):
         self.messages.append({"channel": channel_key, "command": trigger, "pin": pin})
@@ -164,7 +190,8 @@ class Builder:
         return {
             "version": 1, "meta": meta, "roles": self.roles, "categories": self.categories, "settings": self.settings,
             "tables": self.tables, "greetings": self.greetings, "logs": self.logs, "commands": self.commands, "nsfw": None, "embeds": self.embeds,
-            "panels": self.panels, "tickets": self.tickets, "messages": self.messages, "flags": self.flags, "prefix": None,
+            "panels": self.panels, "tickets": self.tickets, "messages": self.messages, "applications": self.applications, "flags": self.flags, "prefix": None,
+            "keepsakes": self.keepsakes if self.keepsakes["badges"] or self.keepsakes["seasons"] else None,
         }
 
 
@@ -728,6 +755,282 @@ def _cc_panel(b: "Builder", channel, trigger, title, desc, items, unique=False, 
         b.post_command(channel, trigger)
 
 
+SCENARIOS = (
+    ("Scenario 1: server hype", "Scenario 1: A user in main chat excitedly talks about a Discord server they are building and tells people to look forward to it, but posts no invite links or direct ads. How do you handle it, and at what point does it become a punishment?"),
+    ("Scenario 2: chat revive ping", "Scenario 2: Main chat has been dead for hours. A regular member (not staff) uses a command or role mention (like @chat revive) to ping a large group of people to wake the chat. How do you handle this?"),
+    ("Scenario 3: ignored Ask First", "Scenario 3: A member DMs someone with the 'Ask First' status. The recipient says they don't want to chat and asks to be left alone. The member ignores this and sends 'Stop being boring, just talk to me.' The victim opens a support ticket. How do you handle it?"),
+    ("Scenario 4: fake photos and scam", "Scenario 4: A user is reported for sending fake or stolen photos, pretending to be a model, and trying to get members to send money or personal details in DMs. What is the appropriate rule enforcement?"),
+    ("Scenario 5: riot after mute", "Scenario 5: You mute someone for spamming emojis. They then spam general chat saying you are a bad moderator who abuses power, that your decision is unfair, and tell everyone to riot against you. How do you handle this user?"),
+)
+
+
+def _staff_application(b: Builder, interview_category):
+    questions = [
+        {"type": "text", "text": "How old are you? (You must be 18 or older.)", "label": "Your age", "required": True, "options": []},
+        {"type": "paragraph", "text": "Why do you want to join the staff team, and what would you bring to it?", "label": "Why staff?", "required": True, "options": []},
+        {"type": "paragraph", "text": "Do you have moderation experience? Tell us where, for how long and what you did.", "label": "Moderation experience", "required": True, "options": []},
+        {"type": "text", "text": "How many hours a week can you be active, and what is your timezone?", "label": "Activity and timezone", "required": True, "options": []},
+    ] + [{"type": "paragraph", "text": text, "label": label, "required": True, "options": []} for label, text in SCENARIOS]
+    b.application("staff", {
+        "title": "Staff Application",
+        "description": "Apply to join the staff team. You must be 18 or older, active and familiar with the rules. Answer in your own words, there are no copy-paste answers.",
+        "enabled": True, "channel_id": {"$channel": "app_review"}, "color": "#FFB3D9", "cooldown_hours": 168,
+        "min_account_days": 30, "min_join_days": 14, "slots": 0, "thread": True, "votes": True, "require_reason": True,
+        "autodeny_leave": True, "interview_category_id": {"$channel": interview_category}, "interview_delete": True,
+        "interview_delay_minutes": 60,
+        "roles": {
+            "ping": [{"$role": "asstmanager"}, {"$role": "manager"}],
+            "required": [{"$role": "member"}],
+            "blocked": [{"$role": "quarantine"}, {"$role": "unverified"}, {"$role": "muted"}],
+            "reviewers": [{"$role": "asstmanager"}, {"$role": "manager"}],
+            "accept_add": [{"$role": "trialmod"}],
+            "accept_remove": [], "deny_add": [], "deny_remove": [],
+        },
+        "questions": questions,
+    })
+    b.post_special("applications", "application_panel", forms=["staff"])
+
+
+def _datingv2_security(b: Builder):
+    from utils import security_whitelist as sw
+
+    log = {"$channel": "l_security"}
+    staff_roles = ["founders", "owner", "coowner", "admin", "manager", "asstmanager", "mod", "trialmod", "quarantine"]
+    b.settings.update({
+        "security_lock": True,
+        "security_log_channel_id": log,
+        "security_alert_channel_id": log,
+        "security_alert_role_id": {"$role": "manager"},
+        "security_alert_owner": True,
+        "security_auto_backup": True,
+        "security_backup_interval_hours": 12,
+        "security_backup_keep": 14,
+        "security_threat_score": True,
+        "security_threat_threshold": 8,
+        "security_lockdown_on_nuke": True,
+        "security_lockdown_on_raid": False,
+        "security_lockdown_duration": 1800,
+        "security_lockdown_skip_channels": [{"$channel": "verify"}, {"$channel": "support"}, {"$channel": "report"}],
+        "security_protected_roles": [{"$role": key} for key in staff_roles],
+        "antinuke_enabled": True,
+        "antinuke_strict_mode": True,
+        "antinuke_admin_bypass": False,
+        "antinuke_watch_quarantined": True,
+        "antinuke_quarantine_hold": True,
+        "antinuke_restore": True,
+        "antinuke_restore_from_backup": True,
+        "antinuke_restore_repair": True,
+        "antinuke_bot_add_block": True,
+        "antinuke_monitor_overwrites": True,
+        "antinuke_protect_everyone": True,
+        "antinuke_alert_owner": True,
+        "antinuke_alert_channel_id": log,
+        "antinuke_window": 10,
+        "antinuke_punishment": "quarantine",
+        "antinuke_threshold_ban": 3,
+        "antinuke_threshold_kick": 3,
+        "antinuke_threshold_channel_delete": 2,
+        "antinuke_threshold_channel_create": 4,
+        "antinuke_threshold_role_delete": 2,
+        "antinuke_threshold_role_create": 4,
+        "antinuke_threshold_webhook_create": 1,
+        "antinuke_threshold_webhook_delete": 2,
+        "antinuke_threshold_timeout": 5,
+        "antinuke_hourly_timeout": 20,
+        "antinuke_raid_relief_factor": 5,
+        "antinuke_raid_relief_exempt": True,
+        "antinuke_hourly_ban": 15,
+        "antinuke_hourly_kick": 15,
+        "antinuke_hourly_channel_delete": 6,
+        "antinuke_hourly_role_delete": 6,
+        "antiraid_enabled": True,
+        "antiraid_join_velocity_count": 7,
+        "antiraid_join_velocity_window": 10,
+        "antiraid_raid_mode_action": "ban",
+        "antiraid_raid_mode_duration": 1800,
+        "antiraid_join_action": "kick",
+        "antiraid_sweep": True,
+        "antiraid_follow_antinuke": True,
+        "antiraid_raise_verification": True,
+        "antiraid_min_age_seconds": 14 * 86400,
+        "antiraid_gate_noavatar_enabled": True,
+        "antiraid_gate_name_enabled": True,
+        "antiraid_gate_suspicious_enabled": True,
+        "antiraid_gate_unverified_bots": True,
+        "antiraid_gate_impersonation_enabled": True,
+        "antiraid_gate_evasion_enabled": True,
+        "antiraid_invite_tracking": True,
+        "antiraid_revoke_invites": True,
+        "antiraid_action_dm": True,
+        "antiraid_alert_channel_id": log,
+        "automod_enabled": True,
+        "automod_block_invites": True,
+        "automod_mute_action": "timeout",
+        "automod_panic_action": "quarantine",
+        "automod_webhook_protection": True,
+        "automod_burst_lockdown": True,
+        "automod_warn_ladder_enabled": True,
+        "automod_warn_on_punish": True,
+        "automod_filter_scamlinks": True,
+        "verification_max_attempts": 3,
+        "verification_min_account_age_hours": 24,
+        "verification_fail_lockouts": 2,
+        "verification_fail_action": "kick",
+        "verification_log_attempts": True,
+    })
+
+    limits = {
+        "channel_delete": (2, 6), "channel_create": (4, 15), "channel_update": (5, 30), "role_delete": (2, 6), "role_create": (4, 15),
+        "role_update": (3, 15), "ban": (3, 15), "kick": (3, 15), "timeout": (5, 20), "prune": (1, 1), "webhook_create": (1, 3),
+        "webhook_delete": (2, 6), "emoji_change": (5, 20), "sticker_change": (5, 20), "bot_add": (1, 2), "permission_escalation": (1, 3),
+        "guild_update": (2, 6), "integration_change": (1, 3), "vanity_change": (1, 1), "invite_delete": (5, 20), "quarantine_touch": (1, 1),
+        "protected_role": (1, 3), "channel_permission": (1, 3),
+    }
+    for action, (short, hourly) in limits.items():
+        b.settings[f"antinuke_threshold_{action}"] = short
+        b.settings[f"antinuke_hourly_{action}"] = hourly
+        b.settings[f"antinuke_enabled_{action}"] = True
+    b.tables["antinuke_action_punishments"] = [
+        {"action_type": "bot_add", "punishment": "kick_bot"},
+        {"action_type": "vanity_change", "punishment": "ban"},
+        {"action_type": "prune", "punishment": "ban"},
+    ]
+    slurs = [
+        "nigger", "niggers", "kike", "kikes", "chink", "chinks", "gook", "gooks", "spic", "spics", "wetback", "wetbacks",
+    ]
+    b.settings.update({
+        "security_threat_window": 600,
+        "antinuke_raid_escalate": True,
+        "antinuke_raid_escalate_duration": 1800,
+        "antinuke_punish_cooldown": 30,
+        "antinuke_rollback_window": 300,
+        "antiraid_raid_target": "all",
+        "antiraid_id_cluster": True,
+        "antiraid_id_window": 3600,
+        "antiraid_id_count": 4,
+        "antiraid_similar_names": True,
+        "antiraid_similar_count": 4,
+        "antiraid_gate_age_enabled": True,
+        "antiraid_gate_age_action": "default",
+        "antiraid_gate_age_dm": True,
+        "antiraid_gate_noavatar_action": "default",
+        "antiraid_gate_name_action": "kick",
+        "antiraid_name_filter": ["discord.gg", "free nitro", "nitro gift", "onlyfans", "cashapp", "telegram", "t.me/"],
+        "antiraid_name_filter_action": "kick",
+        "antiraid_gate_unverified_bots_action": "kick",
+        "antiraid_gate_suspicious_score": 3,
+        "antiraid_gate_suspicious_action": "default",
+        "antiraid_timeout_duration": 3600,
+        "antiraid_impersonation_threshold": 0.88,
+        "antiraid_gate_impersonation_action": "kick",
+        "antiraid_evasion_threshold": 0.92,
+        "antiraid_gate_evasion_action": "quarantine",
+        "antiraid_revoke_invite_min": 3,
+        "antiraid_invite_window": 600,
+        "automod_mention_limit": 5,
+        "automod_attachment_limit": 6,
+        "automod_emoji_limit": 12,
+        "automod_caps_min_length": 15,
+        "automod_caps_ratio": 0.8,
+        "automod_wall_length": 800,
+        "automod_duplicate_window": 30,
+        "automod_duplicate_similarity": 0.9,
+        "automod_filter_caps": True,
+        "automod_filter_zalgo": True,
+        "automod_filter_duplicates": True,
+        "automod_filter_emoji": True,
+        "automod_filter_attachments": True,
+        "automod_filter_wholeword": True,
+        "automod_banned_words": slurs,
+        "automod_link_blocklist": ["grabify.link", "iplogger.org", "2no.co", "blasze.com"],
+        "automod_link_allowlist": [],
+        "automod_exempt_channels": [{"$channel": "staff_resources"}, {"$channel": "staff_cmds"}],
+        "automod_exempt_roles": [],
+        "automod_mute_threshold": 10,
+        "automod_panic_threshold": 28,
+        "automod_decay": 1.0,
+        "automod_base_mute": 300,
+        "automod_max_multiplier": 6,
+        "automod_multiplier_reset": 3600,
+        "automod_reset_heat_on_punish": True,
+        "automod_raid_heat_factor": 2.0,
+        "automod_unverified_heat_factor": 2.0,
+        "automod_warn_window": 2592000,
+        "automod_warn_timeout_at": 3,
+        "automod_warn_timeout_duration": 3600,
+        "automod_warn_kick_at": 5,
+        "automod_warn_ban_at": 7,
+        "automod_webhook_delete": True,
+        "automod_burst_count": 5,
+        "automod_burst_window": 30,
+        "automod_delete_flagged": True,
+        "automod_notify": True,
+        "automod_notify_delete_after": 8,
+        "automod_purge_on_punish": True,
+        "automod_weight_message": 2.0,
+        "automod_weight_mention": 1.5,
+        "automod_weight_link": 2.0,
+        "automod_weight_invite": 4.0,
+        "automod_weight_banned_word": 8.0,
+        "automod_weight_duplicate_message": 3.0,
+        "automod_weight_everyone": 4.0,
+        "automod_weight_phishing": 12.0,
+        "automod_weight_iplogger": 12.0,
+        "automod_weight_caps": 1.0,
+        "automod_weight_zalgo": 3.0,
+        "automod_weight_attachments": 2.0,
+        "automod_weight_emoji": 1.5,
+        "automod_weight_wall": 1.0,
+        "verification_channel_id": {"$channel": "verify"},
+        "verification_lockout_seconds": 600,
+        "verification_click_cooldown": 5,
+        "verification_captcha_length": 6,
+        "verification_captcha_lifetime": 180,
+        "verification_web_block_vpn": True,
+        "verification_web_block_hosting": False,
+        "verification_web_vpn_action": "manual",
+        "verification_web_unknown_action": "manual",
+        "verification_web_alt_check": True,
+        "verification_web_alt_match": "ip_and_fingerprint",
+        "verification_web_alt_action": "manual",
+        "verification_web_retention_days": 90,
+        "verification_target": "all",
+        "verification_pending_timeout_enabled": True,
+        "verification_pending_timeout_minutes": 1440,
+        "verification_pending_timeout_action": "kick",
+    })
+
+    modules: list[dict] = []
+    rules: list[dict] = []
+
+    def role_target(key):
+        return {"target_id": {"$role": key}, "target_type": "role"}
+
+    def channel_target(key):
+        return {"target_id": {"$channel": key}, "target_type": "channel"}
+
+    def trust(target, scopes):
+        modules.extend({**target, "scope": scope} for scope in scopes)
+
+    def allow(key, *actions):
+        names = []
+        for action in actions:
+            names.extend(sw.ACTION_GROUPS.get(action, (action,)))
+        rules.extend({**role_target(key), "scope": f"antinuke.{name}", "value": ""} for name in dict.fromkeys(names))
+
+    for key in ("founders", "owner", "coowner", "manager", "asstmanager"):
+        allow(key, "protected_role")
+    allow("mod", "timeout")
+    trust(role_target("partnermgr"), ["invites", "links", "mentions"])
+    trust(role_target("eventhosts"), ["mentions", "links"])
+    trust(channel_target("ads"), ["invites", "links"])
+    trust(channel_target("partners"), ["invites", "links"])
+    trust(channel_target("partner_chat"), ["links"])
+    trust(channel_target("partner_mgmt"), ["invites", "links"])
+    b.tables["security_whitelist"] = modules
+    b.tables["security_whitelist_rules"] = rules
+
+
 def datingv2() -> dict:
     b = Builder()
     b.fixed_order = True
@@ -746,7 +1049,7 @@ def datingv2() -> dict:
         "manage_channels", "manage_roles", "manage_nicknames", "manage_expressions", "manage_events", "manage_messages", "manage_threads",
         "kick_members", "ban_members", "moderate_members", "view_audit_log", "mention_everyone", "mute_members", "deafen_members", "move_members"], True)
     role("mod", "moderator", "🔨", 0xB3C6FF, [
-        "kick_members", "ban_members", "moderate_members", "manage_messages", "manage_threads", "manage_nicknames", "mute_members", "deafen_members",
+        "kick_members", "moderate_members", "manage_messages", "manage_threads", "manage_nicknames", "mute_members", "deafen_members",
         "move_members", "view_audit_log"], True)
     role("trialmod", "trial-mod", "🌱", 0xB3E0FF, ["moderate_members", "manage_messages", "manage_nicknames", "mute_members"], True)
     role("partnermgr", "partnership-managers", "🤝", 0xFFD1A9, ["mention_everyone"], True)
@@ -760,6 +1063,27 @@ def datingv2() -> dict:
     role("partner", "partner-rep", "🤝", 0xFFCBA4, None, True)
     role("couples", "couples", "💑", 0xFFB3C6)
     role("birthday", "birthday", "🎂", 0xFFD6F0)
+    seasons = (
+        ("s_valentine", "valentine-season", "💘", 0xFF6B9D, "Valentine", (2, 1), (2, 15)),
+        ("s_summer", "summer-season", "☀️", 0xFFD166, "Summer", (6, 1), (9, 1)),
+        ("s_halloween", "halloween-season", "🎃", 0xFF8C42, "Halloween", (10, 15), (11, 2)),
+        ("s_christmas", "christmas-season", "🎄", 0x5BC96B, "Christmas", (12, 1), (12, 31)),
+        ("s_winter", "winter-season", "❄️", 0x8EC5FF, "Winter", (12, 1), (3, 1)))
+    for key, slug, emoji, color, label, start, end in seasons:
+        role(key, slug, emoji, color)
+        b.season(label, key, start, end)
+    badges = (
+        ("b_val26", "valentine-2026", "💌", 0xFF8FB8, "Valentine 2026", "2026-02-01", "2026-02-15"),
+        ("b_spr26", "spring-2026", "🌸", 0xFFB7D5, "Spring 2026", "2026-03-20", "2026-06-01"),
+        ("b_sum26", "summer-2026", "🌞", 0xFFC857, "Summer 2026", "2026-06-01", "2026-09-01"),
+        ("b_aut26", "autumn-2026", "🍂", 0xD98B4A, "Autumn 2026", "2026-09-22", "2026-12-01"),
+        ("b_hal26", "halloween-2026", "👻", 0xB48CFF, "Halloween 2026", "2026-10-15", "2026-11-02"),
+        ("b_win26", "winter-2026", "⛄", 0x9FD3FF, "Winter 2026", "2026-12-01", "2027-03-01"),
+        ("b_xmas26", "christmas-2026", "🎁", 0x7BD88F, "Christmas 2026", "2026-12-01", "2026-12-31"),
+        ("b_val27", "valentine-2027", "💞", 0xFF7AA8, "Valentine 2027", "2027-02-01", "2027-02-15"))
+    for key, slug, emoji, color, label, start, end in badges:
+        role(key, slug, emoji, color)
+        b.badge(label, key, start, end)
     lv = []
     for level, key, slug, emoji, perms in (
             (75, "lvl75", "lvl-75-servers-honey", "👑", None), (50, "lvl50", "lvl-50-sweetheart", "💎", None), (30, "lvl30", "lvl-30-heartthrob", "💘", None),
@@ -841,10 +1165,10 @@ def datingv2() -> dict:
         ("🧸 Meet people", "Introduce yourself, make a post in the profiles forum and use looking-for and matchmaking.", 0),
         ("💌 DMs", "Check someone's DM role first. Use ask-to-dm when they are set to Ask First.", 0),
         ("🎀 Verified badge", "Optional. Open a ticket in the verified badge channel to get Verified Girl, Boy or Nonbinary.", 0),
-        ("🎟️ Help desk", "Support, reports, safety concerns, partnerships and staff applications all use tickets.", 0)])
+        ("🎟️ Help desk", "Support, reports, safety concerns and partnerships use tickets. Staff applications use the application form.", 0)])
     b.embed("tpl-faq", "🍡 FAQ", "Quick answers to common questions.", 0xE91E63, [
         ("How do I get in?", "Press the button in the verify channel.", 0),
-        ("How do I unlock GIFs and uploads?", "Level 5 unlocks GIFs and link previews. Level 10 unlocks attaching photos and videos.", 0),
+        ("How do I unlock GIFs and uploads?", "Selfies, media, memes, art and the other picture channels allow images and GIFs from the start. Everywhere else, level 5 unlocks GIFs and link previews and level 10 unlocks attaching photos and videos.", 0),
         ("How do I DM someone?", "Check their DM role. If it says Ask First, use the ask-to-dm channel.", 0),
         ("Someone is bothering me", "Block them and open a report or safety ticket in the help desk.", 0),
         ("Are verified badges guaranteed?", "No. A badge lowers the catfishing risk but is not a guarantee.", 0)])
@@ -856,6 +1180,8 @@ def datingv2() -> dict:
         ("Verify before you trust", "A verified badge helps, but ask for a video call before meeting.", 0),
         ("Meeting in person", "Meet in a public place, tell a friend and arrange your own transport.", 0),
         ("Never send money", "Anyone asking for money, gift cards or crypto is a scammer. Report them.", 0),
+        ("Report a message", "Right-click a message, choose Apps, then Report message. Staff see the message and what was said around it. Nobody is told who reported.", 0),
+        ("If you are banned", "Check your DMs for the ban message. It has an Appeal this ban button that opens a form after you log in with Discord.", 0),
         ("Trust your instincts", "If something feels wrong, stop talking and open a safety ticket.", 0),
         ("In danger", "If you are in immediate danger, contact your local emergency services first.", 0)])
     b.embed("tpl-verify-info", "🎀 Verified Badge", "An optional badge that shows a real person is behind the profile.", 0xFFB3C6, [
@@ -863,7 +1189,7 @@ def datingv2() -> dict:
         ("2. Send proof", "The ticket team will tell you what to send. Proof stays inside the private ticket and is deleted after approval. No ID is ever needed.", 0),
         ("3. Get your badge", "The ticket team gives you the badge role and closes the ticket.", 0),
         ("Note", "A badge lowers the catfishing risk but is not a guarantee.", 0)])
-    b.embed("tpl-profile", "💘 Profile Format", "Copy this into a post in the profiles forum. One post per member, edit instead of reposting.", 0xE91E63, [
+    b.embed("tpl-profile", "💘 Profile Format", "Copy this into a post in the profiles forum. One post per member, edit instead of reposting. Use **!profile edit** to make your profile card, which speed dating uses to match you.", 0xE91E63, [
         ("Template", "**Name or nickname:**\n**Age:**\n**Pronouns:**\n**Region:**\n**Interests:**\n**Looking for:**\n**About me:**\n**DM status:**", 0),
         ("Rules", "SFW only. No contact details. No photos of other people.", 0)])
     b.embed("tpl-dm-rules", "📌 DM Rules", "Direct messages are a privilege. Keep them respectful.", 0xE91E63, [
@@ -884,7 +1210,7 @@ def datingv2() -> dict:
         ("Removal", "Partnerships end if either server breaks the agreement.", 0)])
     b.embed("tpl-perks", "✨ Perks", "What you get for boosting, levelling and inviting.", 0xFFD700, [
         ("Boost perks", "**Rich** for 1 boost and **Wealthy** for 2 boosts, booster-only colours, a custom role request channel and the personal diary.", 0),
-        ("Level perks", "Level 5 unlocks GIFs and link previews. Level 10 unlocks attaching media. Level 50 unlocks the personal diary.", 0),
+        ("Level perks", "Level 5 unlocks GIFs and link previews everywhere. Level 10 unlocks attaching media everywhere. Level 50 unlocks posting in the personal diary.", 0),
         ("Invite rewards", "Invite friends with your own link and ask staff about rewards.", 0),
         ("Keep it", "If you stop boosting your roles are removed after 24 hours and come back if you boost again.", 0)])
     b.embed("tpl-custom-role", "🧵 Custom Roles", "Boosters can make their own role.", 0xF47FFF, [
@@ -909,6 +1235,7 @@ def datingv2() -> dict:
             ("rules", "rules", "📜", "text", "gate"),
             ("verify", "verify", "🥤", "text", "gate"),
             ("self_roles", "roles", "🌷", "text", "readonly"),
+            ("keepsakes", "keepsakes", "🏅", "text", "readonly"),
             ("guide", "server-guide", "🗺️", "text", "readonly"),
             ("announcements", "announcements", "📢", "announcement", "gate")]),
         ("˚₊ meet ₊˚", "members", [
@@ -930,7 +1257,7 @@ def datingv2() -> dict:
             ("media", "media", "🖼️", "text", None),
             ("memes", "memes", "🐸", "text", None),
             ("vent", "vent", "🫧", "text", None),
-            ("diary", "personal-diary", "📔", "forum", "roles:wealthy,rich,lvl50,lvl75")]),
+            ("diary", "personal-diary", "📔", "forum", "post:wealthy,rich,lvl50,lvl75")]),
         ("˚₊ interests ₊˚", "members", [
             ("int_gaming", "gaming", "🎮", "text", None),
             ("int_anime", "anime", "🍥", "text", None),
@@ -948,7 +1275,7 @@ def datingv2() -> dict:
         ("˚₊ events ₊˚", "members", [
             ("events", "events", "🎉", "announcement", "readonly"),
             ("birthdays", "birthdays", "🎂", "text", None),
-            ("giveaways", "giveaways", "🎁", "text", None),
+            ("giveaways", "giveaways", "🎁", "text", "readonly"),
             ("polls", "polls", "📊", "text", None),
             ("speed_dating", "speed-dating", "⏳", "voice", "voice"),
             ("game_night", "game-night", "🎲", "voice", "voice")]),
@@ -958,7 +1285,7 @@ def datingv2() -> dict:
             ("counting", "counting", "🔢", "text", None),
             ("icebreakers", "icebreakers", "🎯", "text", None),
             ("rizz", "rizz-and-ship", "😎", "text", None),
-            ("confessions", "confessions", "🤫", "text", "readonly")]),
+            ("confessions", "confessions", "🤫", "text", "threadtalk")]),
         ("˚₊ voice ₊˚", "voice", [
             ("vc1", "lounge", "🎙️", "voice", None),
             ("date1", "date night 1", "🕯️", "voice", None, {"user_limit": 2}),
@@ -989,8 +1316,21 @@ def datingv2() -> dict:
             ("partnership", "partnership", "🤝", "text", "readonly"),
             ("applications", "staff-applications", "📝", "text", "readonly"),
             ("suggestions", "suggestions", "💡", "text", None),
+            ("feedback", "staff-feedback", "📮", "text", "readonly"),
             ("safety_tips", "safety-tips", "🛡️", "text", "readonly")]),
     ])
+
+    media_full = ("introductions", "profiles", "selfies", "media", "memes", "couples_corner", "int_gaming", "int_anime", "int_food", "int_art", "int_fitness", "int_travel")
+    media_links = ("flirt", "rizz", "int_music", "int_movies", "int_books")
+    found = set()
+    for category in b.categories:
+        for channel in category["channels"]:
+            if channel["key"] in media_full or channel["key"] in media_links:
+                found.add(channel["key"])
+                if channel["overwrites"] is None:
+                    grant = ["attach_files", "embed_links"] if channel["key"] in media_full else ["embed_links"]
+                    channel["overwrites"] = {"member": {"allow": grant, "deny": []}}
+    assert found == set(media_full) | set(media_links), (set(media_full) | set(media_links)) - found
 
     def ticket_category(title, kind, attach=False):
         key = b.category(_dc(title), kind)
@@ -1003,12 +1343,12 @@ def datingv2() -> dict:
     cat_report = ticket_category("report tickets", "only:ticketteam,mod,asstmanager,manager", True)
     cat_safety = ticket_category("safety tickets", "only:asstmanager,manager", True)
     cat_partner = ticket_category("partner tickets", "only:partnermgr,manager")
-    cat_app = ticket_category("application tickets", "only:asstmanager,manager")
+    cat_app = ticket_category("application interviews", "only:asstmanager,manager")
     _rooms(b, [
         ("˚₊ ticket transcripts ₊˚", "staff", [
             ("transcripts", "ticket-transcripts", "🧾", "text", None),
-            ("safety_tx", "safety-transcripts", "🔐", "text", "only:asstmanager,manager", {"merge": False})]),
-        ("˚₊ logs ₊˚", "staff", [
+            ("safety_tx", "safety-transcripts", "🔐", "text", "only:manager,ticketteam", {"merge": False})]),
+        ("˚₊ logs ₊˚", "only:asstmanager,manager", [
             ("l_mod", "mod-logs", "🔨", "text", None),
             ("l_message", "message-logs", "✉️", "text", None),
             ("l_member", "member-logs", "👥", "text", None),
@@ -1020,12 +1360,19 @@ def datingv2() -> dict:
             ("mod_chat", "mod-chat", "🛠️", "text", None),
             ("staff_resources", "staff-resources", "📂", "text", None),
             ("review_queue", "review-queue", "🔍", "text", None),
+            ("app_review", "application-review", "📝", "text", "only:asstmanager,manager", {"merge": False}),
             ("safety_review", "safety-review", "🆘", "text", "only:asstmanager,manager", {"merge": False}),
             ("partner_mgmt", "partner-management", "🤲", "text", None),
             ("event_planning", "event-planning", "🗓️", "text", None),
+            ("appeal_review", "appeal-review", "🕊️", "text", None),
+            ("feedback_inbox", "feedback-inbox", "📬", "text", "only:asstmanager,manager", {"merge": False}),
+            ("report_review", "message-reports", "🚩", "text", None),
+            ("staff_activity", "staff-activity", "📊", "text", "only:asstmanager,manager", {"merge": False}),
+            ("shift_handover", "shift-handover", "🔄", "text", None),
             ("staff_cmds", "staff-commands", "⌨️", "text", None),
             ("staff_meeting", "staff-meeting", "🎙️", "voice", None)]),
     ])
+    speed_cat = b.category(_dc("speed dates"), "staff")
     b.logs = {"mod": {"$channel": "l_mod"}, "message": {"$channel": "l_message"}, "member": {"$channel": "l_member"},
               "security": {"$channel": "l_security"}, "server": {"$channel": "l_server"}}
     for cat in b.categories:
@@ -1103,15 +1450,13 @@ def datingv2() -> dict:
     b.ticket("partnership", "Partnership", ("partnermgr", "manager"), category=cat_partner, transcript="transcripts",
              welcome="Thanks for your interest. Share your server details and what you propose.", button="Partner With Us",
              questions=("Server name and invite?", "Member count?", "What do you propose?"))
-    b.ticket("applications", "Staff Application", ("asstmanager", "manager"), category=cat_app, transcript="transcripts",
-             welcome="Thanks for applying. Answer the questions and a manager will review your application.", button="Apply for Staff",
-             questions=("How old are you?", "Why do you want to join staff?", "Do you have moderation experience?", "How many hours can you give each week?"))
+    _staff_application(b, cat_app)
 
     b.embed("tpl-welcome", "👋 Welcome to {server}!", "Pass verification, pick your roles in the roles channel and read the safety tips. Get an optional **Verified Girl, Boy or Nonbinary** badge from the verified badge channel.", 0xFF69B4, footer="Member #{membercount}")
     b.greeting("join", "welcome", "{user}", embed="tpl-welcome")
     b.greeting("leave", "welcome", "**{username}** has left **{server}**. We are now **{membercount}** members.", enabled=0)
     b.greeting("boost", "general", "💜 Thank you {user} for boosting **{server}**! You unlocked the booster perks.")
-    b.levels(lv, "level_up", voice_xp_per_minute=12)
+    b.levels(lv, "level_up", voice_xp_per_minute=12, role_stack_mode="stack")
     b.tables["jtc_hubs"] = [{"channel_id": {"$channel": "jtc_hub"}, "category_id": {"$channel": voice_cat}, "name_template": "♡﹒{user}'s room﹒˚₊🎧𓂃﹗", "user_limit": 0, "bitrate": 0}]
     b.tables["booster_config"] = [{
         "enabled": 1, "tier_mode": "count", "stack_mode": "highest", "base_role_id": None, "grace_hours": 24, "custom_enabled": 1,
@@ -1130,17 +1475,55 @@ def datingv2() -> dict:
     b.settings["bday_channel_id"] = {"$channel": "birthdays"}
     b.settings["bday_role_id"] = {"$role": "birthday"}
     b.settings["confess_channel_id"] = {"$channel": "confessions"}
+    b.settings["confess_threads"] = True
     b.settings["sug_channel_id"] = {"$channel": "suggestions"}
     b.post_special("confessions", "confess_panel", pin=True)
+    b.settings["appeal_enabled"] = True
+    b.settings["appeal_channel_id"] = {"$channel": "appeal_review"}
+    b.settings["appeal_ping_role_id"] = {"$role": "mod"}
+    b.settings["appeal_rejoin_channel_id"] = {"$channel": "welcome"}
+    b.settings["appeal_votes_needed"] = 2
+    b.settings["appeal_cooldown_days"] = 14
+    b.settings["report_enabled"] = True
+    b.settings["report_channel_id"] = {"$channel": "report_review"}
+    b.settings["report_ping_role_id"] = {"$role": "mod"}
+    b.settings["report_alert_threshold"] = 3
+    b.settings["staff_report_enabled"] = True
+    b.settings["staff_report_channel_id"] = {"$channel": "staff_activity"}
+    b.settings["staff_spike_limit"] = 8
+    b.settings["match_enabled"] = True
+    b.settings["match_channel_id"] = {"$channel": "matchmaking"}
+    b.settings["match_category_id"] = {"$channel": speed_cat}
+    b.settings["match_role_id"] = {"$role": "member"}
+    b.settings["match_min_account_days"] = 14
+    b.settings["match_minutes"] = 10
+    b.settings["event_channel_id"] = {"$channel": "events"}
+    b.settings["event_ping_role_id"] = {"$role": "ping_events"}
+    b.post_special("matchmaking", "match_panel", pin=True)
+    b.settings["evasion_enabled"] = True
+    b.settings["evasion_channel_id"] = {"$channel": "l_security"}
+    b.settings["evasion_threshold"] = 60
+    b.settings["feedback_enabled"] = True
+    b.settings["feedback_channel_id"] = {"$channel": "feedback_inbox"}
+    b.post_special("feedback", "feedback_panel", pin=True)
+    b.settings["shift_enabled"] = True
+    b.settings["shift_channel_id"] = {"$channel": "shift_handover"}
+    b.settings["milestone_channel_id"] = {"$channel": "level_up"}
+    b.settings["milestone_anniversary"] = True
+    b.settings["milestone_levels_enabled"] = True
+    b.settings["milestone_levels"] = [10, 25, 50, 75, 100]
+    b.settings["milestone_welcomeback"] = "channel"
+    b.settings["milestone_away_days"] = 30
+    b.post_special("keepsakes", "keepsake_panels")
     b.settings["verification_gate_role_id"] = {"$role": "unverified"}
     b.settings["antinuke_quarantine_role_id"] = {"$role": "quarantine"}
-    b.flags["security_preset"] = "strict"
+    _datingv2_security(b)
     b.flags["everyone_perms"] = []
     b.flags["quarantine_role"] = "quarantine"
     _verify(b, "verify", 3)
     _style_embeds(b.embeds)
     return b.result({"id": "datingv2", "name": "Dating and Social 18+ v2 (Premium)", "emoji": "💞", "premium": True,
-                     "summary": "Premium. A full 18+ dating blueprint: styled staff, colour, level, verified badge and self roles, gate and Fam permissions, six ticket panels with per-type categories and a private safety desk, DM center, partners, Join to Create voice and Booster Perks."})
+                     "summary": "Premium. A full 18+ dating blueprint: styled staff, colour, level, verified badge and self roles, gate and Fam permissions, five ticket panels with per-type categories and a private safety desk, a staff application form with scenario questions, DM center, partners, Join to Create voice and Booster Perks."})
 
 
 BUILDERS = {"community": community, "gaming": gaming, "support": support, "dating": dating, "datingv2": datingv2, "study": study, "creator": creator}

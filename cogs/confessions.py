@@ -87,11 +87,18 @@ class Confessions(commands.Cog):
         except discord.HTTPException:
             return await interaction.response.send_message("I could not post in the confession channel.", ephemeral=True)
         self.last_sent[key] = time.monotonic()
+        thread_id = None
+        if await guild_settings.get(guild.id, "confess_threads", True):
+            try:
+                thread = await message.create_thread(name=f"Confession #{number}", auto_archive_duration=1440, reason="Confession discussion thread")
+                thread_id = thread.id
+            except discord.HTTPException:
+                thread_id = None
         await db.raw_execute(
             "INSERT INTO confessions (guild_id, number, user_id, channel_id, message_id, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (guild.id, number, user.id, channel.id, message.id, text, time.time()),
         )
-        await interaction.response.send_message(f"Your confession was posted as **#{number}**. Nobody can see who sent it.", ephemeral=True)
+        await interaction.response.send_message(f"Your confession was posted as **#{number}**. Nobody can see who sent it." + (f" Replies go in <#{thread_id}>." if thread_id else ""), ephemeral=True)
         log_channel = await self._channel(guild, "confess_log_channel_id")
         if log_channel is not None:
             try:
@@ -161,6 +168,15 @@ class Confessions(commands.Cog):
         current = await guild_settings.get(ctx.guild.id, "confess_enabled", True)
         await guild_settings.set(ctx.guild.id, "confess_enabled", not current)
         await ctx.send(view=success_layout(f"{e('check')} Confessions", f"Confessions are now **{'off' if current else 'on'}**."))
+
+    @confess.command(name="threads", help="Turn the automatic public thread under every confession on or off.")
+    @has_guild_permission("manage_guild")
+    async def confess_threads(self, ctx: commands.Context, toggle: Optional[bool] = None):
+        e = emoji_manager.get
+        current = await guild_settings.get(ctx.guild.id, "confess_threads", True)
+        value = (not current) if toggle is None else toggle
+        await guild_settings.set(ctx.guild.id, "confess_threads", value)
+        await ctx.send(view=success_layout(f"{e('check')} Confession threads", f"Every confession now {'gets its own public thread for replies' if value else 'is posted without a thread'}. Soward needs Create Public Threads and Send Messages in Threads in the confession channel."))
 
     async def _row(self, ctx: commands.Context, number: int):
         row = await db.raw_fetchone("SELECT * FROM confessions WHERE guild_id=? AND number=?", (ctx.guild.id, number))

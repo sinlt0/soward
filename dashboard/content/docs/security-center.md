@@ -41,6 +41,30 @@ The whitelist exempts a member, a role or a channel. Each entry has one or more 
 !whitelist scopes
 ```
 
+### Granular rules
+
+Scopes exempt a whole system. Granular rules allow one specific thing instead.
+
+```
+!whitelist action @Builder channel_create channel_update
+!whitelist action @Mod members
+!whitelist invite #partners discord.gg/abc123
+!whitelist invite @Partners 123456789012345678
+!whitelist link server youtube.com
+!whitelist word #memes heck
+!whitelist rules
+!whitelist revoke #partners invite discord.gg/abc123
+!whitelist clearrules
+```
+
+- **Actions** (member or role): allowed to do only the named AntiNuke actions, such as `channel_create` without `channel_delete`. Groups: `channels`, `roles`, `members`, `webhooks`, `emojis`, `server`. Everything else is still watched.
+- **Invites**: allow one invite link or code, or every invite to one server by giving its server ID. Use a channel to allow it in that channel only, or `server` to allow it everywhere.
+- **Links**: allow one domain, including its subdomains. Scam and phishing filters still apply.
+- **Words**: allow one banned word.
+- Invite, link and word rules accept a member, role, channel, category or `server` as the target.
+- Rules are mirrored to the backup database like other settings. A server can have up to 500.
+
+
 | Scope | Exempts from |
 |---|---|
 | `all` | Every security system |
@@ -76,13 +100,15 @@ Plain Administrators can only view while the tier lock is on.
 | `!security setup [preview\|preset]` | Scan the server and set up protection automatically | Extra Owner |
 | `!security preset <name>`, `export`, `import`, `reset` | Presets, export, import, reset | Extra Owner |
 | `!whitelist add / remove / clear` | Edit the whitelist | Extra Owner |
+| `!whitelist action / invite / link / word / revoke / clearrules` | Edit granular rules | Extra Owner |
+| `!whitelist rules` | View granular rules | Trusted Admin |
 | `!backup restore <id>` | Restore a backup | Extra Owner |
 
 "Extra Owner" means an Extra Owner or the server owner.
 
 ## Customizing everything
 
-Every security module exposes the same commands. Over 220 settings in total.
+Every security module exposes the same commands. Over 240 settings in total.
 
 | Command | What it does |
 |---|---|
@@ -185,18 +211,68 @@ Aliases: `!panic`, `!slock`. Lockdown denies sending messages, reactions, thread
 
 ## Backups
 
+`!backup` saves roles and channels for free. Premium servers can also use [deep backups](/docs/deep-backups), which save Soward's settings, embeds, panels and custom commands too.
+
 ```
 !backup create [label]
 !backup list
 !backup info <id>
-!backup restore <id> [roles|channels|bans|settings|all] [repair]
+!backup diff <id>
+!backup restore <id> [roles|channels|bans|settings|all] [repair] [preview]
 !backup delete <id>
 !backup auto on
 ```
 
 A backup keeps roles, role permissions, categories, channels and their permission overwrites, the ban list (up to 1000) and a few server settings. **Restore only creates what is missing.** Nothing existing is deleted. Restore `roles`, `channels`, `bans` (bans that went missing), `settings` (name, verification level, content filter, notifications and AFK timeout) or `all`. Add `repair` to also reset the permissions of roles that still exist. Members' role assignments and messages are not part of a backup. Restoring is owner-only.
 
+`backup diff <id>` lists what changed since a backup: deleted roles and channels, and edited role permissions, channel names, topics, categories and permissions, plus channels created afterwards. `backup restore <id> preview` shows what a restore would do without changing anything. `repair` now also puts edited **channels** back (name, category, topic, slowmode and permission overwrites), not only role permissions.
+
+Turn on `antinuke.restore_from_backup` to restore automatically after an AntiNuke incident, and `antinuke.restore_repair` to also repair edited roles and channels at the same time. Dating v2 turns both on.
+
 Automatic backups run every few hours (`security.backup_interval_hours`) and keep the newest few (`security.backup_keep`). Manual backups keep the newest 25.
+
+## Incident post-mortems
+
+When a raid, a Beast Mode period or an AntiNuke incident calms down (no raid mode, no Beast Mode, no lockdown and three quiet minutes), Soward posts a summary in the alert channel:
+
+- what started it and how long it lasted
+- which protections were raised (raid mode, Beast Mode, suspended whitelists, lockdown, verification level)
+- accounts that were kicked, banned, timed out or quarantined, and why
+- which AntiNuke limits fired and the punishment
+- what was undone (restored channels and roles, objects the attacker created that were removed, verification level and lockdown put back, backup restores)
+
+`!postmortem` lists the last incidents, `!postmortem <id>` reads one and `!postmortem end` closes the current one early. Turn it off with `security.postmortem`.
+
+## Whitelist audit and expiry
+
+Every whitelist entry and granular rule now records when it was **last used**, and can **expire**.
+
+```
+!whitelist add @Contractor all 7d
+!whitelist action @Mod channel_create 12h
+!whitelist invite #partners discord.gg/example 30d
+!whitelist expire @Contractor 3d
+!whitelist expire @Contractor never
+!whitelist audit
+```
+
+A trailing length such as `12h`, `7d` or `4w` sets an expiry. Expired entries are removed automatically and logged. `whitelist audit` lists entries that were never used, are stale (unused for `security.whitelist_stale_days`, 30 by default), expire within a week, or point at a member, role or channel that no longer exists. A weekly report with the same findings goes to the security log when `security.whitelist_report` is on. The first report arrives a week after the update.
+
+"Last used" means the last time a security check matched that entry.
+
+## Previewing changes
+
+Add `preview` to see what would change without changing anything:
+
+```
+!security preset strict preview
+!security import preview
+!whitelist add @Mod all 7d preview
+!whitelist action @Mod channel_create preview
+!whitelist remove @Mod preview
+!backup restore <id> all repair preview
+!template apply datingv2 preview
+```
 
 ## Extra protections
 
@@ -225,3 +301,31 @@ All of these are off by default. The strict preset switches on impersonation fil
 - Counts and threat scores are kept in memory and reset when the bot restarts.
 - Ban evasion and impersonation checks are heuristics: they compare avatars and names, not people.
 - VPN and alt detection only exist in the `web` verification type, which needs an IP intelligence provider for VPNs. See [Verification](/docs/verification#web-verification).
+
+## Settings reference
+
+Every security setting, taken from the bot's settings list. Change one with `!security set security <key> <value>`, look at one with `!security get <key>` and put one back with `!security reset security <key>`.
+
+### General
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `lock` | On | On or Off | When on, only the owner, Extra Owners and Trusted Admins can change security settings. |
+| `log_channel_id` | Not set | a channel | Where every security action is logged. |
+| `alert_channel_id` | Not set | a channel | Where urgent alerts are posted. Falls back to the log channel. |
+| `alert_role_id` | Not set | a role | Pinged when AntiNuke triggers or a raid starts. |
+| `alert_owner` | On | On or Off | Direct message the server owner on serious detections. |
+| `auto_backup` | Off | On or Off | Snapshot roles and channels on a schedule so they can be restored. |
+| `backup_interval_hours` | 6 | 1 to 168 | Backup interval (hours) |
+| `backup_keep` | 5 | 1 to 25 | Automatic backups to keep |
+| `postmortem` | On | On or Off | Post a summary of what happened, who was actioned and what was undone when a raid or attack ends. |
+| `whitelist_report` | On | On or Off | Post a weekly list of unused, stale and expiring whitelist entries to the security log. |
+| `whitelist_stale_days` | 30 | 7 to 365 | Days before a whitelist entry counts as stale |
+| `lockdown_duration` | 30m 0s | 1m 0s to 1d 0h | How long a lockdown lasts before it lifts on its own. |
+| `lockdown_on_nuke` | Off | On or Off | Lock the server after an AntiNuke trigger |
+| `lockdown_on_raid` | Off | On or Off | Lock the server when raid mode starts |
+| `lockdown_skip_channels` | Empty | list, up to 50 | Channels left open during a lockdown. |
+| `protected_roles` | Empty | list, up to 25 | Only trusted members can give or remove these roles. |
+| `threat_score` | On | On or Off | Raise protection automatically when many detections happen close together. |
+| `threat_threshold` | 8 | 2 to 100 | Threat points that trigger Beast Mode |
+| `threat_window` | 10m 0s | 1m 0s to 1d 0h | Threat window |

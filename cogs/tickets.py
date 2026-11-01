@@ -1,4 +1,5 @@
 import asyncio
+import io
 import json
 import logging
 import re
@@ -10,7 +11,7 @@ import discord
 from discord.ext import commands, tasks
 
 import config
-from utils import db, emoji_manager, tickets
+from utils import db, emoji_manager, premium_limits, ticket_pro, tickets
 from utils.checks import has_guild_permission
 from utils.colors import ERROR, NEUTRAL, SUCCESS
 from utils.components import ConfirmLayout, error_layout, footer_block, info_layout, success_layout
@@ -117,6 +118,21 @@ async def _announce(bot: commands.Bot, guild: discord.Guild, user_id: Optional[i
     await bus.publish(LOG_EVENT, guild_id=guild.id, action="ticket_action", user_id=user_id, detail=detail)
 
 
+
+def rating_view(ticket_id: str, guild_name: str, number: int, thanks: Optional[int] = None) -> discord.ui.LayoutView:
+    view = discord.ui.LayoutView(timeout=None)
+    container = discord.ui.Container(accent_color=SUCCESS if thanks else NEUTRAL)
+    if thanks:
+        container.add_item(discord.ui.TextDisplay(f"## Thanks for your feedback\nYou rated ticket #{number:04d} in **{guild_name}** {thanks}/5."))
+    else:
+        container.add_item(discord.ui.TextDisplay(f"## How did we do?\nPlease rate the support you got in ticket #{number:04d} in **{guild_name}**."))
+        row = discord.ui.ActionRow()
+        for score in range(1, 6):
+            row.add_item(discord.ui.Button(label=str(score), style=discord.ButtonStyle.secondary, custom_id=f"tkr:{ticket_id}:{score}"))
+        container.add_item(row)
+    view.add_item(container)
+    return view
+
 async def close_ticket(
     bot: commands.Bot,
     guild: discord.Guild,
@@ -150,6 +166,12 @@ async def close_ticket(
     if cog is not None:
         cog.open_channels.discard(ticket["channel_id"])
 
+    paid = await premium_limits.is_premium(guild.id)
+    if paid and data is not None:
+        try:
+            await ticket_pro.archive(ticket, data)
+        except Exception:
+            log.warning("Transcript archive failed for ticket %s", ticket["ticket_id"], exc_info=True)
     owner = guild.get_member(ticket["owner_id"])
     panel = await tickets.get_panel(ticket["panel_id"]) if ticket.get("panel_id") else None
     transcript_target = panel["transcript_channel_id"] if panel else None
@@ -177,6 +199,11 @@ async def close_ticket(
                 pass
     else:
         await _post_log(guild, _layout(f"{e('lock')} Ticket Closed", summary, color=ERROR), None, transcript_target)
+    if paid and owner is not None and closer is not None and closer.id != owner.id:
+        try:
+            await owner.send(view=rating_view(ticket["ticket_id"], guild.name, ticket["number"]))
+        except discord.HTTPException:
+            pass
 
     await _announce(bot, guild, closer.id if closer else None, f"Closed ticket #{ticket['number']:04d} ({reason_text})")
 
@@ -455,6 +482,25 @@ class Tickets(commands.Cog):
         self._last_touch: dict[int, float] = {}
         self.autoclose_loop.start()
 
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        if interaction.type is not discord.InteractionType.component:
+            return
+        custom_id = str((interaction.data or {}).get("custom_id", ""))
+        if not custom_id.startswith("tkr:"):
+            return
+        parts = custom_id.split(":")
+        if len(parts) != 3 or not parts[2].isdigit() or not 1 <= int(parts[2]) <= 5:
+            return
+        row = await db.raw_fetchone("SELECT * FROM tickets WHERE ticket_id=?", (parts[1],))
+        if row is None or interaction.user.id != row["owner_id"]:
+            return await interaction.response.send_message("This rating is not for you.", ephemeral=True)
+        score = int(parts[2])
+        if not await ticket_pro.save_rating(dict(row), interaction.user.id, score):
+            return await interaction.response.send_message("You already rated this ticket.", ephemeral=True)
+        guild = self.bot.get_guild(row["guild_id"])
+        await interaction.response.edit_message(view=rating_view(parts[1], guild.name if guild else "the server", row["number"], score))
+
     async def cog_load(self):
         self.open_channels = await tickets.open_channel_ids()
         control = discord.ui.LayoutView(timeout=None)
@@ -550,7 +596,8 @@ class Tickets(commands.Cog):
             "`rename <name>` · `priority <level>` · `transcript` · `info`\n"
             "**Staff:** `ticket list` · `ticket stats`\n\n"
             "**Setup (Manage Server):** `ticket panel create|list|info|send|delete|staff|category|question|transcript|unique|label|text|subject` · "
-            "`ticket log <#channel>` · `ticket limit <n>` · `ticket autoclose <hours|off>` · `ticket settings`"
+            "`ticket check [fix]` · `ticket log <#channel>` · `ticket limit <n>` · `ticket autoclose <hours|off>` · `ticket settings`\n"
+            "**Premium:** `ticket canned list|add|remove|send` · `ticket ratings` · `ticket archive [number]`"
         )
         await ctx.send(view=info_layout(f"{e('ticket')} Tickets", body))
 
@@ -659,6 +706,92 @@ class Tickets(commands.Cog):
             view=_layout(f"{e('ticket')} Transcript", f"Transcript of ticket #{found[0]['number']:04d}.", attachment=name),
             file=tickets.transcript_file(data, ctx.channel.id),
         )
+
+    @ticket.group(name="canned", aliases=["reply", "macro"], invoke_without_command=True, help="Saved replies for tickets (Premium).")
+    @commands.guild_only()
+    async def canned(self, ctx: commands.Context):
+        found = await self._require_ticket(ctx, staff_only=True)
+        if found is None:
+            return
+        await ctx.send(view=info_layout("Canned replies", "`ticket canned list` · `ticket canned send <name>` · `ticket canned add <name> <text>` · `ticket canned remove <name>`"))
+
+    @canned.command(name="list", help="List saved replies.")
+    @commands.guild_only()
+    @has_guild_permission("manage_messages")
+    async def canned_list(self, ctx: commands.Context):
+        rows = await ticket_pro.canned_list(ctx.guild.id)
+        if not rows:
+            return await ctx.send(view=info_layout("Canned replies", "None saved. Add one with `ticket canned add <name> <text>` (Premium)."))
+        await ctx.send(view=info_layout("Canned replies", "\n".join(f"`{r['name']}` {r['content'][:70].replace(chr(10), ' ')}" for r in rows)), allowed_mentions=discord.AllowedMentions.none())
+
+    @canned.command(name="add", aliases=["set", "create"], help="Save a reply. Usage: ticket canned add <name> <text>")
+    @commands.guild_only()
+    @has_guild_permission("manage_guild")
+    async def canned_add(self, ctx: commands.Context, name: str, *, text: str):
+        if not await premium_limits.gate(ctx, "Canned ticket replies"):
+            return
+        name = name.lower()
+        if not ticket_pro.NAME.match(name):
+            return await ctx.send(view=error_layout("Invalid name", "Names use letters, numbers, `_` and `-`, up to 30 characters."))
+        if len(text) > 1800:
+            return await ctx.send(view=error_layout("Too long", "A canned reply can be up to 1800 characters."))
+        existing = await ticket_pro.canned_list(ctx.guild.id)
+        if len(existing) >= config.TICKET_CANNED_MAX and not any(r["name"] == name for r in existing):
+            return await ctx.send(view=error_layout("Limit reached", f"A server can keep {config.TICKET_CANNED_MAX} canned replies."))
+        await ticket_pro.canned_set(ctx.guild.id, name, text, ctx.author.id)
+        await ctx.send(view=success_layout("Reply saved", f"`{name}` is ready. Staff can run `ticket canned send {name}` inside a ticket."))
+
+    @canned.command(name="remove", aliases=["delete"], help="Delete a saved reply. Usage: ticket canned remove <name>")
+    @commands.guild_only()
+    @has_guild_permission("manage_guild")
+    async def canned_remove(self, ctx: commands.Context, name: str):
+        if not await ticket_pro.canned_delete(ctx.guild.id, name):
+            return await ctx.send(view=error_layout("Not found", "No canned reply with that name."))
+        await ctx.send(view=success_layout("Reply deleted", f"`{name.lower()}` was removed."))
+
+    @canned.command(name="send", aliases=["use"], help="Send a saved reply in this ticket. Usage: ticket canned send <name>")
+    @commands.guild_only()
+    async def canned_send(self, ctx: commands.Context, name: str):
+        found = await self._require_ticket(ctx, staff_only=True)
+        if found is None:
+            return
+        if not await premium_limits.gate(ctx, "Canned ticket replies"):
+            return
+        row = await ticket_pro.canned_get(ctx.guild.id, name)
+        if row is None:
+            return await ctx.send(view=error_layout("Not found", "No canned reply with that name. See `ticket canned list`."))
+        await ctx.send(view=_layout(f"Reply from {ctx.author.display_name}", f"<@{found[0]['owner_id']}>\n{row['content']}"), allowed_mentions=discord.AllowedMentions(users=[discord.Object(found[0]["owner_id"])]))
+
+    @ticket.command(name="ratings", aliases=["rating", "csat"], help="Satisfaction ratings from closed tickets (Premium).")
+    @commands.guild_only()
+    @has_guild_permission("manage_guild")
+    async def ticket_ratings(self, ctx: commands.Context):
+        if not await premium_limits.gate(ctx, "Ticket ratings"):
+            return
+        stats = await ticket_pro.rating_stats(ctx.guild.id)
+        if not stats["count"]:
+            return await ctx.send(view=info_layout("Ticket ratings", "No ratings yet. After a staff member closes a ticket, the member gets a 1 to 5 rating prompt by direct message."))
+        bars = "\n".join(f"{n} star{'s' if n != 1 else ''} · **{stats['spread'].get(n, 0)}**" for n in (5, 4, 3, 2, 1))
+        staff = "\n".join(f"<@{uid}> · **{avg:.2f}** from {n}" for uid, n, avg in stats["staff"]) or "No ratings are linked to a claimed ticket yet."
+        await ctx.send(view=info_layout("Ticket ratings", f"**Average:** {stats['avg']:.2f} / 5 from {stats['count']} ratings (last 90 days)\n\n{bars}\n\n**By staff member (claimed tickets)**\n{staff}"), allowed_mentions=discord.AllowedMentions.none())
+
+    @ticket.command(name="archive", aliases=["transcripts"], help="Stored transcripts of closed tickets (Premium). Usage: ticket archive [number]")
+    @commands.guild_only()
+    @has_guild_permission("manage_guild")
+    async def ticket_archive(self, ctx: commands.Context, number: typing.Optional[int] = None):
+        if not await premium_limits.gate(ctx, "The ticket transcript archive"):
+            return
+        if number is None:
+            rows = await ticket_pro.archive_list(ctx.guild.id)
+            if not rows:
+                return await ctx.send(view=info_layout("Ticket archive", "Nothing stored yet. Transcripts of tickets closed while Premium is active are kept here."))
+            lines = [f"**#{r['number']:04d}** · <@{r['owner_id']}> · closed <t:{int(r['closed_at'])}:R>" for r in rows]
+            return await ctx.send(view=info_layout("Ticket archive", "\n".join(lines) + f"\n\nGet one with `ticket archive <number>`. The newest {config.TICKET_ARCHIVE_KEEP} are kept."), allowed_mentions=discord.AllowedMentions.none())
+        found = await ticket_pro.archive_get(ctx.guild.id, number)
+        if found is None:
+            return await ctx.send(view=error_layout("Not found", "No stored transcript for that ticket number."))
+        row, data = found
+        await ctx.send(view=info_layout("Ticket archive", f"Transcript of ticket #{row['number']:04d}."), file=discord.File(io.BytesIO(data), filename=f"ticket-{row['number']:04d}.html"))
 
     @ticket.command(name="info", help="Show details about this ticket.")
     @commands.guild_only()
@@ -1061,6 +1194,88 @@ class Tickets(commands.Cog):
         await tickets.update_settings(ctx.guild.id, auto_close_hours=hours)
         text = f"Inactive tickets close after **{hours}** hour(s)." if hours else "Auto-close is off."
         await ctx.send(view=success_layout(f"{e('check')} Auto-close updated", text))
+
+    @ticket.command(name="check", aliases=["health", "doctor"], help="Check every panel for broken categories, transcript channels, staff roles and permissions. Add `fix` to repair what can be repaired.")
+    @has_guild_permission("manage_guild")
+    @commands.guild_only()
+    async def ticket_check(self, ctx: commands.Context, mode: Optional[str] = None):
+        e = emoji_manager.get
+        fix = (mode or "").lower() == "fix"
+        panels = await tickets.list_panels(ctx.guild.id)
+        if not panels:
+            return await ctx.send(view=info_layout(f"{e('ticket')} Ticket check", "No panels to check."))
+        settings = await tickets.get_settings(ctx.guild.id)
+        log_id = settings.get("log_channel_id")
+        me = ctx.guild.me
+        problems: list[str] = []
+        fixed: list[str] = []
+        transcripts_seen: dict[int, list[str]] = {}
+        for panel in panels:
+            name = panel["name"]
+            categories = tickets.parse_ids(panel["category_ids"])
+            legacy = panel.get("category_id")
+            changes: dict = {}
+            if not categories and legacy and ctx.guild.get_channel(legacy) is not None:
+                categories = [legacy]
+                changes["category_ids"] = json.dumps(categories)
+                problems.append(f"**{name}**: its category was saved in an old field, so tickets opened outside it")
+                fixed.append(f"**{name}**: category moved to the active field")
+            live = [c for c in categories if isinstance(ctx.guild.get_channel(c), discord.CategoryChannel)]
+            if len(live) != len(categories):
+                problems.append(f"**{name}**: {len(categories) - len(live)} category(ies) no longer exist")
+                changes["category_ids"] = json.dumps(live)
+                fixed.append(f"**{name}**: removed deleted categories")
+            if not live:
+                problems.append(f"**{name}**: no category set, tickets open at the top of the channel list (`ticket panel category add`)")
+            for cid in live:
+                category = ctx.guild.get_channel(cid)
+                if len(category.channels) >= 50:
+                    problems.append(f"**{name}**: category {category.name} is full (50 channels), add another with `ticket panel category add`")
+                if me is not None and not category.permissions_for(me).manage_channels:
+                    problems.append(f"**{name}**: Soward cannot manage channels in {category.name}")
+            transcript_id = panel["transcript_channel_id"]
+            if transcript_id:
+                channel = ctx.guild.get_channel(transcript_id)
+                if channel is None:
+                    problems.append(f"**{name}**: the transcript channel was deleted, transcripts fall back to the server log")
+                    changes["transcript_channel_id"] = None
+                    fixed.append(f"**{name}**: transcript setting cleared")
+                else:
+                    transcripts_seen.setdefault(transcript_id, []).append(name)
+                    if me is not None and not channel.permissions_for(me).send_messages:
+                        problems.append(f"**{name}**: Soward cannot send in {channel.mention}")
+            elif not log_id:
+                problems.append(f"**{name}**: no transcript channel and no server ticket log, transcripts are not saved anywhere")
+            else:
+                transcripts_seen.setdefault(log_id, []).append(name)
+            roles = tickets.parse_ids(panel["staff_role_ids"])
+            live_roles = [r for r in roles if ctx.guild.get_role(r) is not None]
+            if not roles:
+                problems.append(f"**{name}**: no staff roles, nobody can see its tickets (`ticket panel staff`)")
+            elif len(live_roles) != len(roles):
+                problems.append(f"**{name}**: {len(roles) - len(live_roles)} staff role(s) were deleted")
+                changes["staff_role_ids"] = json.dumps(live_roles)
+                fixed.append(f"**{name}**: removed deleted staff roles")
+            posted = ctx.guild.get_channel(panel["channel_id"]) if panel["channel_id"] else None
+            if panel["message_id"] and posted is None:
+                problems.append(f"**{name}**: the channel holding its panel message is gone (`ticket panel send`)")
+            elif not panel["message_id"]:
+                problems.append(f"**{name}**: panel not posted yet (`ticket panel send`)")
+            if fix and changes:
+                await tickets.update_panel(panel["panel_id"], **changes)
+        shared = [f"{', '.join(names)} all send transcripts to <#{cid}>" for cid, names in transcripts_seen.items() if len(names) > 1]
+        info = [f"-# {line}. Use `ticket panel transcript <panel> <#channel>` if each should have its own." for line in shared]
+        if not problems:
+            body = f"All {len(panels)} panel(s) look healthy."
+            return await ctx.send(view=success_layout(f"{e('check')} Ticket check", "\n".join([body] + info)))
+        lines = [f"- {p}" for p in problems]
+        if fix:
+            lines.append("\n**Repaired**")
+            lines.extend(f"- {f}" for f in fixed or ["Nothing here could be repaired automatically."])
+        else:
+            lines.append("\n-# Run `ticket check fix` to repair the items that can be repaired automatically.")
+        lines.extend(info)
+        await ctx.send(view=info_layout(f"{e('ticket')} Ticket check · {len(problems)} issue(s)", "\n".join(lines)[:3800]))
 
     @ticket.command(name="settings", help="Show ticket settings.")
     @has_guild_permission("manage_guild")

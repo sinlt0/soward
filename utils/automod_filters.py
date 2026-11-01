@@ -13,6 +13,10 @@ INVITE_PATTERN = re.compile(
     r"(?:discord(?:app)?\s*\.\s*(?:gg|com\s*/\s*invite)|dsc\.gg|invite\.gg|discord\.me|discord\.link|disboard\.org/server/join)\s*/?\s*[a-z0-9-]{2,}",
     re.IGNORECASE,
 )
+INVITE_CODE_PATTERN = re.compile(
+    r"(?:discord(?:app)?\s*\.\s*(?:gg|com\s*/\s*invite)|dsc\.gg|invite\.gg|discord\.me|discord\.link|disboard\.org/server/join)\s*/?\s*([a-z0-9-]{2,})",
+    re.IGNORECASE,
+)
 URL_PATTERN = re.compile(r"(?:https?://|www\.)([^\s/?#<>\"'\]\)]+)", re.IGNORECASE)
 BARE_DOMAIN_PATTERN = re.compile(r"(?<![\w@.-])((?:[a-z0-9-]{1,63}\.)+[a-z]{2,24})(?![\w-])", re.IGNORECASE)
 EMOJI_PATTERN = re.compile(r"<a?:[a-zA-Z0-9_]+:[0-9]+>|[\U0001F000-\U0001FFFF☀-➿]")
@@ -70,6 +74,10 @@ def has_invite(content: str) -> bool:
     return bool(INVITE_PATTERN.search(normalize(content)))
 
 
+def invite_codes(content: str) -> list[str]:
+    return INVITE_CODE_PATTERN.findall(normalize(content))
+
+
 def clean_domain(raw: str) -> str:
     text = raw.strip().lower()
     text = re.sub(r"^[a-z]+://", "", text)
@@ -105,19 +113,25 @@ def host_matches(host: str, domain: str) -> bool:
     return bool(target) and (host == target or host.endswith("." + target))
 
 
-def blocked_host(content: str, blocklist: Iterable[str]) -> Optional[str]:
+def blocked_host(content: str, blocklist: Iterable[str], ignore: Iterable[str] = ()) -> Optional[str]:
     entries = [clean_domain(d) for d in blocklist if clean_domain(d)]
+    skipped = [clean_domain(d) for d in ignore if clean_domain(d)]
     for host in all_hosts(content):
+        if any(host_matches(host, d) for d in skipped):
+            continue
         if any(host_matches(host, d) for d in entries):
             return host
     return None
 
 
-def disallowed_host(content: str, allowlist: Iterable[str]) -> Optional[str]:
+def disallowed_host(content: str, allowlist: Iterable[str], ignore: Iterable[str] = ()) -> Optional[str]:
     entries = [clean_domain(d) for d in allowlist if clean_domain(d)]
+    skipped = [clean_domain(d) for d in ignore if clean_domain(d)]
     if not entries:
         return None
     for host in url_hosts(content):
+        if any(host_matches(host, d) for d in skipped):
+            continue
         if not any(host_matches(host, d) for d in entries):
             return host
     return None

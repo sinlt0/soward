@@ -6,7 +6,7 @@ from discord.ext import commands, tasks
 
 import config
 from utils import booster as bst
-from utils import db, emoji_manager, guild_settings
+from utils import db, emoji_manager, guild_settings, premium_limits
 from utils.checks import has_guild_permission
 from utils.components import error_layout, info_layout, success_layout
 
@@ -268,8 +268,9 @@ class Booster(commands.Cog):
         if number < 1 or number > 9999:
             return await ctx.send(view=error_layout("Invalid", "Use a number from 1 to 9999."))
         tiers = await bst.list_tiers(ctx.guild.id)
-        if len(tiers) >= config.BOOSTER_MAX_TIERS and not any(t["boosts"] == number for t in tiers):
-            return await ctx.send(view=error_layout("Limit reached", f"A server can have {config.BOOSTER_MAX_TIERS} tiers."))
+        cap = await premium_limits.get(ctx.guild.id, "booster_tiers")
+        if len(tiers) >= cap and not any(t["boosts"] == number for t in tiers):
+            return await ctx.send(view=error_layout("Limit reached", f"A server can have {cap} tiers." + await premium_limits.hint(ctx.guild.id, "booster_tiers")))
         await db.raw_execute("INSERT OR REPLACE INTO booster_tiers (guild_id, boosts, role_id) VALUES (?, ?, ?)", (ctx.guild.id, number, role.id))
         cfg = await bst.get_cfg(ctx.guild.id)
         await ctx.send(view=success_layout("Tier saved", f"**{number}+ {bst.metric_label(cfg)}** gives {role.mention}."))

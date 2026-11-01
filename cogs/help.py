@@ -65,6 +65,18 @@ async def _is_privileged(bot, user):
                 return True
     return False
 
+def command_hidden(cmd, privileged=False):
+    if cmd.hidden:
+        return True
+    if privileged:
+        return False
+    node = cmd
+    while node is not None:
+        if node.qualified_name in config.HELP_HIDDEN_COMMANDS:
+            return True
+        node = node.parent
+    return False
+
 def _category_map(bot):
     mapping = {}
     for cog_name, cog in bot.cogs.items():
@@ -79,7 +91,7 @@ def _visible_category_map(bot, privileged):
     for category, cog_names in _category_map(bot).items():
         if category in config.HELP_HIDDEN_CATEGORIES and not privileged:
             continue
-        visible_cogs = [n for n in cog_names if any(not c.hidden for c in bot.cogs[n].get_commands())]
+        visible_cogs = [n for n in cog_names if any(not command_hidden(c, privileged) for c in bot.cogs[n].get_commands())]
         if visible_cogs:
             result[category] = visible_cogs
     return result
@@ -100,15 +112,15 @@ def _submodule_description(group_name, member_cogs):
         return _cog_description(member_cogs[0])
     return f"{len(member_cogs)} module{'s' if len(member_cogs) != 1 else ''}: {', '.join(_humanize(c) for c in member_cogs)}"
 
-def _command_lines_for_cogs(bot, cog_names):
+def _command_lines_for_cogs(bot, cog_names, privileged=False):
     lines = []
     for cog_name in cog_names:
         cog = bot.cogs[cog_name]
         for cmd in cog.get_commands():
-            if cmd.hidden:
+            if command_hidden(cmd, privileged):
                 continue
             if isinstance(cmd, commands.Group):
-                sub_names = ", ".join(s.name for s in cmd.commands)
+                sub_names = ", ".join(s.name for s in cmd.commands if not command_hidden(s, privileged))
                 lines.append(f"**{cmd.name}** — {cmd.help or 'No description'}\n*Subcommands: {sub_names}*")
             else:
                 lines.append(f"**{cmd.name}** — {cmd.help or 'No description'}")
@@ -165,7 +177,7 @@ class HelpLayout(discord.ui.LayoutView):
             return
 
         self.stage = "category"
-        self.pages = _paginate(_command_lines_for_cogs(self.bot, flat_cogs))
+        self.pages = _paginate(_command_lines_for_cogs(self.bot, flat_cogs, self.privileged))
         self.page_index = 0
         self.render()
 
@@ -176,7 +188,7 @@ class HelpLayout(discord.ui.LayoutView):
 
         self.current_category = category
         self.current_submodule = group_name
-        self.pages = _paginate(_command_lines_for_cogs(self.bot, member_cogs))
+        self.pages = _paginate(_command_lines_for_cogs(self.bot, member_cogs, self.privileged))
         self.page_index = 0
         self.stage = "submodule"
         self.render()
@@ -332,7 +344,7 @@ class HelpLayout(discord.ui.LayoutView):
                 item.disabled = True
 
 class CommandDetailLayout(discord.ui.LayoutView):
-    def __init__(self, cmd, prefix):
+    def __init__(self, cmd, prefix, privileged=False):
         super().__init__(timeout=60)
 
         lines = [
@@ -342,8 +354,9 @@ class CommandDetailLayout(discord.ui.LayoutView):
         ]
         if cmd.aliases:
             lines.append(f"**Aliases:** {', '.join(cmd.aliases)}")
-        if isinstance(cmd, commands.Group) and cmd.commands:
-            sub_text = "\n".join(f"`{s.name}` — {s.help or 'No description'}" for s in cmd.commands)
+        shown = [s for s in getattr(cmd, "commands", ()) if not command_hidden(s, privileged)]
+        if isinstance(cmd, commands.Group) and shown:
+            sub_text = "\n".join(f"`{s.name}` — {s.help or 'No description'}" for s in shown)
             lines.append(f"**Subcommands**\n{sub_text}")
 
         container = discord.ui.Container(accent_color=NEUTRAL)
@@ -374,12 +387,14 @@ class Help(commands.Cog):
 
         if query:
             cmd = self.bot.get_command(query.lower())
+            if cmd and command_hidden(cmd, privileged) and not cmd.hidden:
+                return await ctx.send(view=NotFoundLayout(query))
             if cmd:
                 cog = cmd.cog
                 category = getattr(cog, "category", None) or (cog.qualified_name if cog else None)
                 if category in config.HELP_HIDDEN_CATEGORIES and not privileged:
                     return await ctx.send(view=NotFoundLayout(query))
-                return await ctx.send(view=CommandDetailLayout(cmd, ctx.prefix))
+                return await ctx.send(view=CommandDetailLayout(cmd, ctx.prefix, privileged))
 
             resolved = _resolve_query(self.bot, query, privileged)
             if not resolved:

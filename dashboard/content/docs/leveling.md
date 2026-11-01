@@ -58,7 +58,7 @@ If a member has no XP yet, `!rank` says they have not earned any.
 
 ## Settings commands
 
-All of these need **Manage Server** (or the matching fake permission, see [moderation](/docs/moderation)). Bot owners are always allowed. The main command is `!leveling`, with the alias `!lvlconfig`.
+All of these need **Manage Server** (or the matching fake permission, see [moderation](/docs/moderation)). The main command is `!leveling`, with the alias `!lvlconfig`.
 
 | Command | What it does | Needs |
 | --- | --- | --- |

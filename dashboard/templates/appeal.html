@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Ban appeal · {{ info.guild }}{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/verify.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/appeal.css') }}">
+{% endblock %}
+{% block content %}
+<div class="wrap verify">
+  <div class="verify__card appeal" id="appeal" data-submit="{{ url_for('api_appeal_submit', gid=gid) }}" data-max="{{ info.max_answer }}">
+    <div class="appeal__head">
+      {% if info.icon %}<img class="appeal__icon" src="{{ info.icon }}" alt="" width="48" height="48">{% endif %}
+      <div>
+        <h1>Ban appeal</h1>
+        <p class="appeal__guild">{{ info.guild }}</p>
+      </div>
+    </div>
+    <p class="appeal__who">Signed in as <strong>{{ user.name }}</strong>. <a href="{{ url_for('logout') }}">Not you?</a></p>
+
+    {% if info.state == "open" %}
+      {% if info.reason %}<div class="verify__status appeal__reason"><strong>Reason given:</strong> {{ info.reason }}</div>{% endif %}
+      <p class="verify__lead">Answer honestly. Staff read every appeal, and lying or copying text will count against you.</p>
+      <form id="appeal-form" novalidate>
+        {% for question in info.questions %}
+        <label class="appeal__field">
+          <span>{{ loop.index }}. {{ question }}</span>
+          <textarea name="answer" rows="4" maxlength="{{ info.max_answer }}" required></textarea>
+          <small class="appeal__count">0 / {{ info.max_answer }}</small>
+        </label>
+        {% endfor %}
+        <div class="verify__status" id="appeal-status" role="status" aria-live="polite">Ready when you are.</div>
+        <button class="btn btn--primary verify__go" id="appeal-go" type="submit">Send appeal</button>
+      </form>
+      <p class="verify__note">You can only have one appeal open at a time. You will get a message from the bot when staff decide, so keep your direct messages open.</p>
+    {% elif info.state == "pending" %}
+      <div class="verify__status" data-state="work">Your appeal is waiting for staff to review it. You will get a message from the bot when they decide.</div>
+    {% elif info.state == "cooldown" %}
+      <div class="verify__status" data-state="bad">Your last appeal was denied. You can appeal again <span data-time="{{ info.ready_at|int }}">later</span>.</div>
+    {% elif info.state == "not_banned" %}
+      <div class="verify__status" data-state="ok">You are not banned from this server, so there is nothing to appeal.</div>
+    {% elif info.state == "disabled" %}
+      <div class="verify__status" data-state="bad">This server does not take ban appeals through Soward.</div>
+    {% else %}
+      <div class="verify__status" data-state="bad">Appeals are unavailable right now. Try again in a few minutes.</div>
+    {% endif %}
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/appeal.js') }}" defer></script>
+{% endblock %}

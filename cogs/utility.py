@@ -218,6 +218,9 @@ class Utility(commands.Cog):
             f"**Top Role:** {member.top_role.mention}\n"
             f"**Roles ({len(roles)}):** {roles_text}"
         )
+        if ctx.author.guild_permissions.manage_messages:
+            from utils import trust as trust_utils
+            body += "\n\n" + await trust_utils.line(ctx.guild, member)
         await ctx.send(view=_layout(f"{e('info')} {member}", body, thumbnail=member.display_avatar.url))
 
     @commands.command(name="serverinfo", aliases=["si", "guildinfo"], help="Display information about this server.")

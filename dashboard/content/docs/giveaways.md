@@ -16,7 +16,7 @@ A giveaway is a message with an **Enter Giveaway** button. Members press the but
 - If there are fewer entrants than winners, the number of winners is lowered to match.
 - Giveaways keep working after the bot restarts.
 
-Every giveaway command needs **Manage Server** (or the matching fake permission, see [moderation](/docs/moderation)), except `ginfo`, `glist` and `pollresults`, which anyone can use. Bot owners are always allowed.
+Every giveaway command needs **Manage Server** (or the matching fake permission, see [moderation](/docs/moderation)), except `ginfo`, `glist` and `pollresults`, which anyone can use.
 
 ## Quick start
 

@@ -7,7 +7,7 @@ from typing import Optional
 import discord
 
 import config
-from utils import cases, db, guild_settings, nsfw, security
+from utils import cases, db, guild_settings, nsfw, premium_limits, security
 from utils.security_access import LEVEL_OWNER, level_of
 from utils.dash.base import (
     ActionContext, action, button, fld, need_channel, need_choice, need_int, need_role, need_text, row, section, table,
@@ -108,6 +108,7 @@ async def nsfw_role_section(guild: discord.Guild) -> dict:
 async def nsfw_channels_section(guild: discord.Guild) -> dict:
     role_id = await nsfw.get_role_id(guild.id)
     ids = await nsfw.get_channel_ids(guild.id)
+    nsfw_cap = await premium_limits.get(guild.id, "nsfw_channels")
     rows = []
     for cid in ids:
         channel = guild.get_channel(cid)
@@ -121,7 +122,7 @@ async def nsfw_channels_section(guild: discord.Guild) -> dict:
                         actions=[button("nsfw_channel_remove", "Remove", style="danger",
                                         confirm="Unregister this channel and restore its original permissions?")]))
     return table(
-        "nsfw_channels", f"NSFW channels ({len(ids)}/{config.NSFW_MAX_CHANNELS})", ["Channel", "State"], rows,
+        "nsfw_channels", f"NSFW channels ({len(ids)}/{nsfw_cap})", ["Channel", "State"], rows,
         "No channels registered.",
         buttons=[
             button("nsfw_channel_add", "Add channel", [fld("channel", "Channel", "channel")], style="primary",
@@ -208,8 +209,9 @@ async def nsfw_channel_add(ctx: ActionContext, payload: dict) -> list:
         ids = await nsfw.get_channel_ids(guild.id)
         if channel.id in ids:
             raise ValueError("That channel is already registered.")
-        if len(ids) >= config.NSFW_MAX_CHANNELS:
-            raise ValueError(f"Limit of {config.NSFW_MAX_CHANNELS} NSFW channels reached.")
+        nsfw_cap = await premium_limits.get(guild.id, "nsfw_channels")
+        if len(ids) >= nsfw_cap:
+            raise ValueError(f"Limit of {nsfw_cap} NSFW channels reached.{await premium_limits.hint(guild.id, 'nsfw_channels')}")
         role_id = await nsfw.get_role_id(guild.id)
         role = guild.get_role(role_id) if role_id else None
         snapshots = await nsfw.get_snapshots(guild.id)

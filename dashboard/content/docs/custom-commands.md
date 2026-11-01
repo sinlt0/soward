@@ -13,7 +13,7 @@ A custom command is a trigger plus a response. When a message (or a reaction, or
 - A custom command never overrides a built-in command. If a message is already a valid bot command, the bot runs that and ignores custom commands.
 - When a new command is added, its trigger cannot match the name or alias of an existing bot command.
 - Only the first matching command runs for a message.
-- There is no free or premium difference. Every server gets the same limits.
+- Free servers get the limits below. Premium servers get higher ones, shown in the Premium column.
 
 ## Quick start
 
@@ -34,7 +34,7 @@ The command now picks one of its two responses at random, can be used once every
 
 ## Command reference
 
-Most `!cc` subcommands need **Manage Server** (or the fake permission `manage_guild`, see [moderation](/docs/moderation)). Bot owners are always allowed. Subcommands marked "Anyone" can be used by every member.
+Most `!cc` subcommands need **Manage Server** (or the fake permission `manage_guild`, see [moderation](/docs/moderation)). Subcommands marked "Anyone" can be used by every member.
 
 ### Creating and managing commands
 
@@ -73,7 +73,7 @@ Most `!cc` subcommands need **Manage Server** (or the fake permission `manage_gu
 
 | Command | What it does | Needs |
 | --- | --- | --- |
-| `!cc addresponse <trigger> <response>` | Adds another response. One is picked at random each time. Alias: `!cc ar`. Up to 10 per command. | Manage Server |
+| `!cc addresponse <trigger> <response>` | Adds another response. One is picked at random each time. Alias: `!cc ar`. Up to 10 per command, or 25 with Premium. | Manage Server |
 | `!cc removeresponse <trigger> <number>` | Removes a response by its position (starting at 1). You cannot remove the last one. Alias: `!cc rr`. | Manage Server |
 | `!cc embed <trigger> [title] [color]` | Switches embed mode on or off, and optionally sets the embed title and hex color. | Manage Server |
 | `!cc deleteafter <trigger> [trigger seconds] [response seconds]` | Deletes the trigger message and/or the response after a delay. `0` turns each off. Alias: `!cc da`. | Manage Server |
@@ -174,7 +174,7 @@ These two types have no triggering message, so they can only use a small set of 
 ## Responses
 
 - A response can be up to 4000 characters.
-- A command can hold up to 10 responses. One is chosen at random each time it runs.
+- A command can hold up to 10 responses, or 25 with Premium. One is chosen at random each time it runs.
 - Turn on embed mode with `!cc embed <trigger> [title] [color]`. The response becomes the embed description. Running the command again turns embed mode off, so check the reply to see which state you are in. Put titles with spaces in quotes.
 - You can also build the embed from inside the response with the embed builder action tags.
 - You can use random blocks inside a single response: `{random}one{|}two{|}three{endrandom}` picks one option each time.
@@ -387,11 +387,14 @@ Put group names with spaces in quotes when a command takes the group as a single
 
 ## Limits
 
+| Setting | Free | Premium |
+| --- | --- | --- |
+| Custom commands per server | 100 | 250 |
+| Groups per server | 20 | 50 |
+| Responses per command | 10 | 25 |
+
 | Setting | Value |
 | --- | --- |
-| Custom commands per server | 100 |
-| Groups per server | 20 |
-| Responses per command | 10 |
 | Trigger length | 50 characters |
 | Response length | 4000 characters |
 | Group name length | 50 characters |

@@ -41,6 +41,8 @@ A member who stops boosting completely loses the roles and their count resets.
 | `!booster tier create <number> <name> [colour]` | Create the role and the tier |
 | `!booster tier remove <number>` | Remove a tier. The role itself is not deleted |
 | `!booster tier xp <number> <multiplier>` | XP multiplier for that tier, 1 removes it |
+| `!booster settings` (alias `config`) | Show every booster setting |
+| `!booster toggle <on\|off>` | Turn booster perks on or off |
 | `!booster tier list` | Show tiers |
 | `!booster stack <highest\|all>` | Give only the highest tier, or every tier reached |
 | `!booster base <@role\|off>` | A role every booster gets |
@@ -84,6 +86,6 @@ Members use `!booster role`:
 
 ## Limits to know about
 
-- A server holds up to 15 tiers and Discord's 250 role limit applies.
+- A server holds up to 15 tiers, or 30 with Premium, and Discord's 250 role limit applies.
 - Count mode only knows about boosts it saw. Use `booster backfill` once, then `booster set` for any fix.
 - Soward checks boosters every 15 minutes in case it was offline when something changed.

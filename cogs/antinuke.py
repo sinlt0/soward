@@ -7,7 +7,8 @@ from typing import Optional
 import discord
 from discord.ext import commands
 
-from utils import db, emoji_manager, guild_settings, incident, security, threat
+from utils import db, emoji_manager, guild_settings, incident, postmortem, security, threat
+from utils import security_master
 from utils import security_settings as settings
 from utils import security_whitelist as whitelist
 from utils import security_cmds
@@ -44,6 +45,7 @@ ACTION_LABELS = {
     "role_update": "Role update",
     "ban": "Ban",
     "kick": "Kick",
+    "timeout": "Member timeout",
     "prune": "Member prune",
     "webhook_create": "Webhook create",
     "webhook_delete": "Webhook delete",
@@ -55,6 +57,7 @@ ACTION_LABELS = {
     "integration_change": "Integration change",
 }
 
+RAID_RELIEF_ACTIONS = {"ban": "ban_members", "kick": "kick_members", "timeout": "moderate_members"}
 OVERWRITE_DANGEROUS = ("manage_channels", "manage_roles", "manage_webhooks", "mention_everyone")
 VALID_PUNISHMENTS = ("ban", "kick", "kick_bot", "strip_roles", "quarantine")
 
@@ -124,14 +127,33 @@ class AntiNuke(commands.Cog):
             return await security.is_trusted_id(guild.id, actor_id, guild.owner_id)
         return await security.is_trusted(guild.id, member)
 
+    async def _action_whitelisted(self, guild: discord.Guild, actor_id: int, action: str) -> bool:
+        return await whitelist.action_whitelisted(guild.id, action, actor_id, guild.get_member(actor_id))
+
+    async def _raid_relief(self, guild_id: int, action: str) -> bool:
+        return action in RAID_RELIEF_ACTIONS and await security.is_raid_relief_active(guild_id)
+
+    async def _raid_exempt(self, guild: discord.Guild, actor_id: int, action: str) -> bool:
+        if not await self._raid_relief(guild.id, action) or not await settings.get(guild.id, "antinuke", "raid_relief_exempt"):
+            return False
+        member = guild.get_member(actor_id)
+        return member is not None and getattr(member.guild_permissions, RAID_RELIEF_ACTIONS[action], False)
+
     async def _get_threshold(self, guild_id: int, action: str) -> int:
+        if threat.is_forced(guild_id):
+            return 1
         limit = int(await settings.get(guild_id, "antinuke", f"threshold_{action}"))
+        if await self._raid_relief(guild_id, action):
+            return limit * int(await settings.get(guild_id, "antinuke", "raid_relief_factor"))
         if threat.is_beast(guild_id):
             return max(1, limit // 2)
         return limit
 
     async def _get_hourly(self, guild_id: int, action: str) -> int:
-        return int(await settings.get(guild_id, "antinuke", f"hourly_{action}"))
+        hourly = int(await settings.get(guild_id, "antinuke", f"hourly_{action}"))
+        if hourly and await self._raid_relief(guild_id, action):
+            return hourly * int(await settings.get(guild_id, "antinuke", "raid_relief_factor"))
+        return hourly
 
     async def _action_enabled(self, guild_id: int, action: str) -> bool:
         return bool(await settings.get(guild_id, "antinuke", f"enabled_{action}"))
@@ -140,6 +162,8 @@ class AntiNuke(commands.Cog):
         return int(await settings.get(guild_id, "antinuke", "window"))
 
     async def _is_enabled(self, guild_id: int) -> bool:
+        if await security_master.is_off(guild_id):
+            return False
         return await guild_settings.get(guild_id, "antinuke_enabled", False)
 
     async def _is_strict_mode(self, guild_id: int) -> bool:
@@ -204,7 +228,22 @@ class AntiNuke(commands.Cog):
             return "strip_roles" if punishment in ("strip_roles", "kick_bot") else f"{punishment} (fell back to strip_roles)"
         return f"{punishment} (failed)"
 
+    async def _escalate_raid(self, guild: discord.Guild, actor_id: int, action: str):
+        if not await settings.get(guild.id, "antinuke", "raid_escalate") or not await security.is_raid_relief_active(guild.id):
+            return
+        seconds = int(await settings.get(guild.id, "antinuke", "raid_escalate_duration"))
+        security.revoke_raid_relief(guild.id, seconds)
+        threat.force_beast(guild.id, seconds)
+        postmortem.begin(guild.id, "beast", f"raid escalation: {ACTION_LABELS.get(action, action)} by {actor_id}")
+        postmortem.flag(guild.id, "beast")
+        postmortem.flag(guild.id, "whitelist_suspended", "Whitelists suspended and every limit dropped to 1")
+        await bus.publish(
+            LOG_EVENT, guild_id=guild.id, action="beast_mode", active=True,
+            reason=f"raid escalation: {ACTION_LABELS.get(action, action)} by {actor_id}. Whitelists suspended and every limit is 1.",
+        )
+
     async def _punish_actor(self, guild: discord.Guild, actor_id: int, action: str, reason: str, count: int, threshold: int):
+        await self._escalate_raid(guild, actor_id, action)
         key = (guild.id, actor_id)
         now = time.time()
         if now - _recent_punish.get(key, 0) < int(await settings.get(guild.id, "antinuke", "punish_cooldown")):
@@ -230,6 +269,7 @@ class AntiNuke(commands.Cog):
         else:
             applied = await self._apply_punishment(guild, actor, punishment, audit_reason)
 
+        postmortem.limit_fired(guild.id, actor_id, action, count, threshold, applied)
         await self._rollback(guild, actor_id)
         await incident.escalate(guild.id, actor_id)
         await threat.add(guild.id, "antinuke", f"{action} by {actor_id}")
@@ -237,6 +277,7 @@ class AntiNuke(commands.Cog):
             lockdown = self.bot.get_cog("Lockdown")
             if lockdown is not None:
                 await lockdown.start(guild, f"antinuke:{actor_id}", None)
+                postmortem.flag(guild.id, "lockdown", "Server lockdown started")
 
         log_id = str(uuid.uuid4())[:8].upper()
         await db.raw_execute(
@@ -314,20 +355,25 @@ class AntiNuke(commands.Cog):
         created = [i for i in _created.pop(key, []) if now - i[-1] < window]
         deleted = [i for i in _deleted.pop(key, []) if now - i[-1] < window]
 
+        removed = 0
         for kind, object_id, _ in created:
             target = guild.get_channel(object_id) if kind == "channel" else guild.get_role(object_id)
             if target is None:
                 continue
             try:
                 await target.delete(reason="AntiNuke: rolled back an object created by a flagged member")
+                removed += 1
             except discord.HTTPException:
                 pass
+        postmortem.undone(guild.id, "objects created by the attacker removed", removed)
 
+        restored_channels = restored_roles = 0
         deleted.sort(key=lambda i: (0 if i[0] == "role" else 1, getattr(i[1], "position", 0)))
         for kind, obj, _ in deleted:
             try:
                 if kind == "channel":
                     clone = await obj.clone(reason="AntiNuke: restored a channel deleted by a flagged member")
+                    restored_channels += 1
                     try:
                         await clone.edit(position=obj.position)
                     except discord.HTTPException:
@@ -338,12 +384,15 @@ class AntiNuke(commands.Cog):
                         hoist=obj.hoist, mentionable=obj.mentionable,
                         reason="AntiNuke: restored a role deleted by a flagged member",
                     )
+                    restored_roles += 1
                     try:
                         await restored.edit(position=obj.position)
                     except discord.HTTPException:
                         pass
             except discord.HTTPException:
                 pass
+        postmortem.undone(guild.id, "deleted channels restored", restored_channels)
+        postmortem.undone(guild.id, "deleted roles restored", restored_roles)
 
     async def _rollback_if_punished(self, guild: discord.Guild, actor_id: int):
         cooldown = int(await settings.get(guild.id, "antinuke", "punish_cooldown"))
@@ -357,6 +406,10 @@ class AntiNuke(commands.Cog):
             return False
         watched = await security.is_quarantined(guild.id, actor_id) and await self._watches_quarantined(guild.id)
         if not watched and await self._is_trusted(guild, actor_id):
+            return False
+        if not watched and await self._action_whitelisted(guild, actor_id, action):
+            return False
+        if not watched and await self._raid_exempt(guild, actor_id, action):
             return False
 
         window = await self._get_window(guild.id)
@@ -419,7 +472,7 @@ class AntiNuke(commands.Cog):
             gained = [p for p in OVERWRITE_DANGEROUS if getattr(new, p, None) is True and getattr(old, p, None) is not True]
         for entry in await self._entries(guild, discord.AuditLogAction.channel_update, target_id=after.id):
             actor_id = entry.user.id
-            if gained and not (await self._is_trusted(guild, actor_id) and not await security.is_quarantined(guild.id, actor_id)):
+            if gained and not (await self._is_trusted(guild, actor_id) and not await security.is_quarantined(guild.id, actor_id)) and not await self._action_whitelisted(guild, actor_id, "channel_permission"):
                 await self._check_action(guild, actor_id, "channel_permission", f"gave @everyone {', '.join(gained)} in #{after.name}", immediate=True)
                 await self._revert_overwrites(before, after)
             await self._check_action(guild, actor_id, "channel_update", f"#{after.name}")
@@ -452,7 +505,7 @@ class AntiNuke(commands.Cog):
             actor_id = entry.user.id
             if await self._is_trusted(guild, actor_id) and not await security.is_quarantined(guild.id, actor_id):
                 continue
-            if added:
+            if added and not await self._action_whitelisted(guild, actor_id, "permission_escalation"):
                 triggered = await self._check_action(guild, actor_id, "permission_escalation", f"granted {', '.join(added)} to @{after.name}", immediate=strict or public)
                 if triggered or strict or public:
                     try:
@@ -470,6 +523,18 @@ class AntiNuke(commands.Cog):
         if member is not None:
             return await whitelist.is_whitelisted(guild.id, ("quarantine",), member)
         return actor_id in await whitelist.user_ids_for(guild.id, "quarantine")
+
+    @commands.Cog.listener("on_member_update")
+    async def watch_timeouts(self, before: discord.Member, after: discord.Member):
+        if after.timed_out_until is None or before.timed_out_until == after.timed_out_until:
+            return
+        guild = after.guild
+        if not await self._ready(guild):
+            return
+        for entry in await self._entries(guild, discord.AuditLogAction.member_update, target_id=after.id):
+            if getattr(entry.after, "timed_out_until", None) is None:
+                continue
+            await self._check_action(guild, entry.user.id, "timeout", f"timed out {after}")
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
@@ -507,7 +572,11 @@ class AntiNuke(commands.Cog):
             actor_id = entry.user.id
             if await self._is_trusted(guild, actor_id) and not await security.is_quarantined(guild.id, actor_id):
                 continue
-            if touched:
+            protected_ok = await self._action_whitelisted(guild, actor_id, "protected_role")
+            escalation_ok = await self._action_whitelisted(guild, actor_id, "permission_escalation")
+            if protected_ok and (escalation_ok or not added_dangerous):
+                continue
+            if touched and not protected_ok:
                 names = ", ".join(f"@{r.name}" for r in touched)
                 await self._check_action(guild, actor_id, "protected_role", f"changed protected roles ({names}) on {after}", immediate=True)
                 regained = [r for r in touched if r.id in before_ids and r.id not in after_ids]
@@ -519,7 +588,7 @@ class AntiNuke(commands.Cog):
                         await after.remove_roles(*removed, reason="AntiNuke: removed a protected role given by an untrusted member")
                 except discord.HTTPException:
                     pass
-            if added_dangerous:
+            if added_dangerous and not escalation_ok:
                 names = ", ".join(f"@{r.name}" for r in added_dangerous)
                 triggered = await self._check_action(guild, actor_id, "permission_escalation", f"gave {names} to {after}", immediate=strict)
                 if triggered or strict:
@@ -623,6 +692,7 @@ class AntiNuke(commands.Cog):
         for entry in await self._entries(guild, discord.AuditLogAction.bot_add, target_id=member.id):
             actor_id = entry.user.id
             actor_trusted = await self._is_trusted(guild, actor_id) and not await security.is_quarantined(guild.id, actor_id)
+            actor_trusted = actor_trusted or await self._action_whitelisted(guild, actor_id, "bot_add")
             await self._check_action(guild, actor_id, "bot_add", str(member))
             if block and not actor_trusted and not await security.is_trusted(guild.id, member):
                 try:

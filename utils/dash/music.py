@@ -4,14 +4,13 @@ import re
 
 import discord
 
-from utils import db
+from utils import db, premium_limits
 from utils.dash.base import (
     ActionContext, action, button, fld, need_choice, need_text, opt_channel, row, section, table,
 )
 
 VOICE = (discord.VoiceChannel, discord.StageChannel)
 KEY_PATTERN = re.compile(r"[a-z0-9_]{1,20}")
-MAX_CUSTOM_STATIONS = 20
 
 
 def _cog(ctx: ActionContext):
@@ -103,8 +102,9 @@ async def stations_section(guild: discord.Guild) -> dict:
             [button("station_remove", "Remove", style="danger", confirm=f"Remove the station {s['name']}?")] if custom else [],
         ))
     custom_count = sum(1 for s in stations.values() if s.get("custom"))
+    station_cap = await premium_limits.get(guild.id, "music_stations")
     return table(
-        "stations", f"Stations ({custom_count}/{MAX_CUSTOM_STATIONS} custom)", ["Name", "Key", "Type", "Stream"], rows, "No stations.",
+        "stations", f"Stations ({custom_count}/{station_cap} custom)", ["Name", "Key", "Type", "Stream"], rows, "No stations.",
         description="Built in stations are available everywhere. Add your own stream URLs.",
         buttons=[button("station_add", "Add station", [
             fld("key", "Key", "text", maxlen=20, help="Short id with letters, numbers and underscores."),
@@ -216,8 +216,9 @@ async def station_add(ctx: ActionContext, payload: dict) -> list:
     if await db.raw_fetchone("SELECT 1 FROM custom_lofi_stations WHERE guild_id=? AND key=?", (ctx.guild.id, key)):
         raise ValueError("A station with that key already exists.")
     count = await db.raw_fetchone("SELECT COUNT(*) AS c FROM custom_lofi_stations WHERE guild_id=?", (ctx.guild.id,))
-    if count and count["c"] >= MAX_CUSTOM_STATIONS:
-        raise ValueError(f"Servers can have up to {MAX_CUSTOM_STATIONS} custom stations.")
+    station_cap = await premium_limits.get(ctx.guild.id, "music_stations")
+    if count and count["c"] >= station_cap:
+        raise ValueError(f"Servers can have up to {station_cap} custom stations.{await premium_limits.hint(ctx.guild.id, 'music_stations')}")
     await db.raw_execute(
         "INSERT INTO custom_lofi_stations (guild_id, key, name, url, added_by) VALUES (?, ?, ?, ?, ?)",
         (ctx.guild.id, key, name, url, ctx.user_id),

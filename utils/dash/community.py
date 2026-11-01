@@ -9,7 +9,7 @@ import uuid
 import discord
 
 import config
-from utils import db, emoji_manager
+from utils import db, emoji_manager, premium_limits
 from utils.colors import ERROR, SUCCESS
 from utils.dash.base import (
     ActionContext, action, button, fld, need_bool, need_channel, need_choice, need_int, need_role, need_text, opt_role, row,
@@ -455,7 +455,6 @@ async def rr_bind_remove(ctx: ActionContext, payload: dict) -> list:
 
 
 CC_TYPES = ("command", "starts_with", "contains", "regex", "exact_match")
-CC_MAX = 100
 
 
 def _cc_cog(ctx: ActionContext):
@@ -481,8 +480,7 @@ async def _cc_form_fields() -> list:
 
 @section("custom_commands")
 async def cc_section(guild: discord.Guild) -> dict:
-    from cogs.custom_commands import MAX_COMMANDS_PER_GUILD
-
+    cc_cap = await premium_limits.get(guild.id, "custom_commands")
     found = await db.raw_fetch("SELECT trigger, data FROM custom_commands WHERE guild_id=? ORDER BY trigger", (guild.id,))
     fields = await _cc_form_fields()
     rows = []
@@ -505,7 +503,7 @@ async def cc_section(guild: discord.Guild) -> dict:
                         actions=acts, values=values))
     create = [fld("trigger", "Trigger", "text", maxlen=50, help="The command name or the text that triggers it.")] + fields
     return table(
-        "commands", f"Commands ({len(rows)}/{MAX_COMMANDS_PER_GUILD})", ["Trigger", "Type", "Responses", "State", "Cooldown"], rows,
+        "commands", f"Commands ({len(rows)}/{cc_cap})", ["Trigger", "Type", "Responses", "State", "Cooldown"], rows,
         "No custom commands yet.",
         description="Extra responses, restrictions, intervals and reactions are still set with the cc commands in Discord.",
         buttons=[button("cc_save", "Create command", create, style="primary", title="Create command", submit="Create command")],
@@ -531,8 +529,9 @@ async def cc_save(ctx: ActionContext, payload: dict) -> list:
             raise ValueError(f"{trigger} conflicts with an existing bot command.")
         if trigger in cmds:
             raise ValueError("A custom command with that trigger already exists.")
-        if len(cmds) >= CC_MAX:
-            raise ValueError(f"A server can have at most {CC_MAX} custom commands.")
+        cc_cap = await premium_limits.get(ctx.guild.id, "custom_commands")
+        if len(cmds) >= cc_cap:
+            raise ValueError(f"A server can have at most {cc_cap} custom commands.{await premium_limits.hint(ctx.guild.id, 'custom_commands')}")
         cmd = None
 
     response = need_text(values, "response", "Response", maxlen=4000)
@@ -643,8 +642,9 @@ async def alert_add(ctx: ActionContext, payload: dict) -> list:
     target = need_text(values, "target", "Channel or username", maxlen=100)
     channel = need_channel(ctx.guild, values, "channel", "Announcement channel")
     count = await db.raw_fetchone("SELECT COUNT(*) AS c FROM alert_subscriptions WHERE guild_id=? AND platform=?", (ctx.guild.id, platform))
-    if count and count["c"] >= config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM:
-        raise ValueError(f"A server can have at most {config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM} {platform.title()} subscriptions.")
+    alert_cap = await premium_limits.get(ctx.guild.id, "alert_subscriptions")
+    if count and count["c"] >= alert_cap:
+        raise ValueError(f"A server can have at most {alert_cap} {platform.title()} subscriptions.{await premium_limits.hint(ctx.guild.id, 'alert_subscriptions')}")
     if platform == "youtube":
         if not config.YOUTUBE_API_KEY:
             raise ValueError("The bot owner has not set up a YouTube API key.")

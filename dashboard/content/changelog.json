@@ -1,9 +1,74 @@
 [
   {
+    "version": "3.4",
+    "title": "Shifts, Ladder and Milestones",
+    "date": "2026-10-28",
+    "items": [
+      "Staff shifts: clock in and out, leave handover notes, see what is waiting, and get an alert when nobody is covering the server (!shift)",
+      "Warning ladder commands: see and change the timeout, kick and ban steps and check how close a member is to the next one (!ladder)",
+      "Incident post-mortems are now documented: read what happened during past raids and attacks (!postmortem)",
+      "Milestones: server anniversaries, level milestones and welcome back messages for members who return after a long absence (!milestones)",
+      "The Dating v2 template sets up a shift handover channel and the milestone settings",
+      "Applications: close a form with !application close and its panel button turns red; pressing it says applications are currently closed (!application open, close)",
+      "Buy premium with Bitcoin or Litecoin and no KYC: every purchase gets its own payment address, premium turns on automatically after confirmation (!premium buy)",
+      "Premium now raises limits in more systems: 250 custom commands, 25 application forms, 10 join-to-create hubs, 15 alert subscriptions, bigger AutoMod lists and more. Free limits are unchanged (!premium limits)",
+      "Audit Vault: search, count and export every moderation and server event. Free keeps 7 days, Premium keeps 365 and can export CSV (!vault)",
+      "Scheduled actions for Premium: post messages or embeds, lock and unlock channels and give or remove roles at a set time or on a repeat (!schedule)",
+      "Premium ticket tools: satisfaction ratings, canned replies and a stored transcript archive (!ticket ratings, canned, archive)",
+      "Deep backups for Premium: automatic full backups of roles, channels and Soward settings with one-command restore (!deepbackup)",
+      "No-prefix mode can now be limited to chosen roles and members, like staff only, with a master on/off switch (!premium np server, add, remove, list, enable, disable)",
+      "Music App: a full music player that runs inside Discord as an Activity, with search, queue, playlists, liked songs, history and a Listening to status while you play (!musicapp)",
+      "Premium trial: every server can claim one free 3-day trial with !premium trial claim and gets a reminder 24 hours before it ends",
+      "Vote for Soward on discordbotlist.com to get global no-prefix for a while, plus a thank-you message and a vote streak (!vote)",
+      "Support Soward: tip with Bitcoin or Litecoin to help cover hosting, get a supporter role and an optional place on the supporters page (!support)",
+      "Games App: play chess with friends inside the same Activity, with a lobby, rooms, spectators, draw offers, rematches and a Playing Chess status (!gamesapp)"
+    ]
+  },
+  {
+    "version": "3.3",
+    "title": "Appeals and Social",
+    "date": "2026-10-25",
+    "items": [
+      "Web ban appeals: banned members get a message with an Appeal this ban button that opens a Discord-login page on the dashboard; staff accept or deny in Discord or the dashboard and accepted members are unbanned automatically (!appeal)",
+      "Report message: right-click a message or reply with !report to send staff the message and the messages around it, with Warn, Timeout, Ban, Dismiss and Delete buttons and an alert when several members report the same person (!report)",
+      "Trust score from 0 to 100 for every member, shown to staff in !userinfo (!trust)",
+      "Staff activity report: !staff stats shows actions, tickets, applications, appeals and reports per moderator, with an optional weekly report and spike alerts",
+      "Member profile cards with bio, interests and privacy controls (!profile)",
+      "Speed dating: interest-based matching with private two-person voice rooms and mutual-interest reveal (!match)",
+      "Events: scheduled events with Going, Maybe and Can't go buttons, capacity and waitlist, reminders and repeats (!event)",
+      "Timed and seasonal roles: roles that remove themselves after a set time (!temprole), and seasons members claim with a button that end automatically and can repeat every year (!season)",
+      "Dating and Social 18+ v2 template now sets up web appeals, message reports, the staff activity report, speed dating (panel, private room category) and events, with matching staff channels",
+      "Commemorative roles: permanent roles like Valentine 2026 or Winter 2025 that members who were here during that period can claim in a limited window, or that admins can grant to everyone eligible (!badge)",
+      "Dating and Social 18+ v2 template adds a keepsakes channel with yearly seasonal roles (Valentine, Summer, Halloween, Christmas, Winter) and permanent commemorative roles from Valentine 2026 to Valentine 2027",
+      "Ban evasion detection: new members that look like a banned account (avatar, name, invite, account age) trigger a scored alert with Ban and Not the same person buttons (!evasion)",
+      "Anonymous staff feedback box with a private inbox, daily limit, sender blocking without revealing identity and theme summaries (!feedback)",
+      "Polls can limit who votes, give roles extra weight and hide results until they end (!poll --roles, --weight, --hidden)",
+      "Member timeline (!history) and smart slowmode (!smartslow) for servers with 500+ members",
+      "Master security switch: !security disable pauses AntiNuke, AntiRaid, AutoMod, verification and ban evasion alerts for a set time while keeping every setting, and !security enable brings it all back; it always switches back on by itself",
+      "Verification can be paused on its own with !verification disable and resumed with !verification enable; the pending timeout stops kicking while paused and members get a fresh timeout afterwards",
+      "Manual verification: !verification verify @member (several at once) and !verification verifyall let staff verify members by hand"
+    ]
+  },
+  {
     "version": "3.2",
     "title": "Community",
     "date": "2026-10-21",
     "items": [
+      "Confessions: every confession gets its own public thread (!confess threads). Dating v2 lets members talk in those threads but not post in the channel, and its giveaways channel is now read-only",
+      "Incident post-mortems: when a raid, Beast Mode or AntiNuke incident ends Soward posts who started it, which accounts were actioned, which limits fired and what was undone (!postmortem)",
+      "Whitelist entries can expire and track when they were last used; !whitelist audit and a weekly report list unused, stale and expiring entries",
+      "Backups: !backup diff shows what changed since a snapshot, restore can repair edited channels, and AntiNuke can repair edited roles and channels after an attack",
+      "Join pattern detection flags accounts that join with the same avatar, invite, name pattern or creation time before a raid reaches its limit",
+      "Preview mode for security presets, imports, whitelist changes, backup restores and template apply (add preview)",
+      "!ticket check inspects every panel for broken categories, transcript channels and staff roles and can fix them",
+      "Fixed template ticket panels: tickets now open inside each panel's own category and each panel sends its transcripts to its own transcript channel; applying a template again corrects existing panels in place",
+      "Dating v2 now uses the application system for staff applications, with scenario questions, a private review channel and interview cleanup instead of a ticket panel",
+      "Applying a template again now updates the permissions of roles, categories and channels that already exist, so older servers get new permissions without a clean (add keep to skip)",
+      "AntiNuke raid escalation: any AntiNuke trigger during a raid ends the relief, suspends whitelists, forces Beast Mode and drops every limit to 1",
+      "AntiNuke raid relief: during raid mode, ban, kick and timeout limits rise and staff with the matching permission can optionally act without limits",
+      "Dating v2 now sets every security setting individually (including per-action limits and punishments and a racial-slurs-only word filter) with a narrow built-in whitelist and stacks level role rewards",
+      "AntiNuke now watches member timeouts, so mass timeouts by a compromised moderator can be limited or whitelisted",
+      "Added granular whitelist rules: allow single AntiNuke actions per member or role, and allow specific invites, domains or words per member, role, channel or the whole server",
       "Added birthdays: members save a day and month, Soward announces it, gives a birthday role for the day and lists upcoming birthdays",
       "Added anonymous confessions with a Confess button, numbered posts, an optional staff log, and blocking a sender by confession number without revealing them",
       "Added suggestions with voting buttons and approve, deny, consider and implement reviews",
@@ -11,7 +76,10 @@
       "Added dropdown menus to custom commands, including linked sub menus, and custom commands in server templates",
       "The Dating v2 template now uses custom commands for rules and self roles and sets up birthdays, confessions and suggestions",
       "Added counting, a daily Wordle with stats and a leaderboard, would you rather, never have I ever, rizz and icebreaker commands, and a daily question autopost",
-      "Level-up messages now use Components V2 with a level-up card"
+      "Level-up messages now use Components V2 with a level-up card",
+      "Join to Create now has a shared voice interface with dropdown menus for channel settings, members, limits, quality and region, created when a temporary channel exists and removed when none are active",
+      "Added an advanced application system: multiple forms, five question types, a private step-by-step form, review posts with accept, deny, votes, staff threads and interview channels, role rewards, cooldowns, slots, age requirements, withdrawals, statistics and CSV export",
+      "Applications now have a dashboard page with accept, deny and interview buttons, plus an option to delete interview channels automatically after a decision"
     ]
   },
   {

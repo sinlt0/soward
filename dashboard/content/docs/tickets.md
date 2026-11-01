@@ -35,7 +35,7 @@ If a panel name has spaces, put it in quotes whenever more arguments follow it, 
 
 ## Who can do what
 
-Commands marked **Manage Server** also accept the matching fake permission (see [moderation](/docs/moderation)). Bot owners are always allowed.
+Commands marked **Manage Server** also accept the matching fake permission (see [moderation](/docs/moderation)).
 
 - **Staff** means a member with one of the panel's staff roles, or anyone with Administrator, Manage Server or Manage Channels.
 - **Ticket owner** is the member who opened the ticket.
@@ -109,6 +109,14 @@ When a ticket is closed, by command, button, dashboard or auto-close:
 
 If there is no transcript channel and no log channel, only the ticket owner receives the transcript. If a ticket channel is deleted by hand, the ticket is marked closed with the reason "Channel deleted" and no transcript is made.
 
+### Premium ticket tools
+
+Premium servers get three extra tools.
+
+- **Ratings.** When staff close a ticket, the member gets a 1 to 5 rating by direct message. `!ticket ratings` shows the average, the spread and the best rated staff members for claimed tickets over the last 90 days. Manage Server needed.
+- **Canned replies.** Save answers you give often. `!ticket canned add <name> <text>` saves one (up to 25, 1800 characters each), `!ticket canned list` lists them, `!ticket canned remove <name>` deletes one, and `!ticket canned send <name>` posts it in the current ticket and mentions the member. Staff of the ticket can send replies. Alias: `!ticket reply`.
+- **Transcript archive.** Transcripts of tickets closed while Premium is active are stored. `!ticket archive` lists them and `!ticket archive <number>` sends one back as an HTML file. The newest 200 are kept. Manage Server needed.
+
 The log channel also receives "Ticket Opened" and "Ticket Claimed" notices. Ticket actions are also sent to your [logging](/docs/logging) setup in the Server Changes category.
 
 ## Server settings
@@ -170,6 +178,10 @@ Open your server, then **Tickets**.
 - **Close** with an optional reason. The default reason is "Closed from the dashboard". The transcript is sent the same way as a normal close.
 
 Still needs commands, in the ticket: claim, unclaim, add or remove members, rename, and transcript. `!ticket stats` and `!ticket settings` are also commands only. See [using the dashboard](/docs/dashboard) for how to sign in.
+
+## Checking panels
+
+`!ticket check` inspects every panel: deleted categories, full categories, deleted or unwritable transcript channels, deleted staff roles, panels with no staff, panels that were never posted, and panels that share one transcript channel. `!ticket check fix` repairs what it can (removes deleted categories, staff roles and transcript channels, and moves a category saved in the old field to the active one).
 
 ## Troubleshooting
 

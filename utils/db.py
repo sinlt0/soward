@@ -77,6 +77,21 @@ async def init(bot_loop: asyncio.AbstractEventLoop) -> None:
     except Exception:
         pass
 
+    for table in ("security_whitelist", "security_whitelist_rules"):
+        for column in ("expires_at REAL", "last_used REAL"):
+            try:
+                await _sqlite_conn.execute(f"ALTER TABLE {table} ADD COLUMN {column}")
+                await _sqlite_conn.commit()
+            except Exception:
+                pass
+
+    for column in ("vote_roles TEXT", "weights TEXT", "hidden INTEGER NOT NULL DEFAULT 0"):
+        try:
+            await _sqlite_conn.execute(f"ALTER TABLE polls ADD COLUMN {column}")
+            await _sqlite_conn.commit()
+        except Exception:
+            pass
+
     try:
         await _sqlite_conn.execute("ALTER TABLE lofi_state ADD COLUMN radio_key TEXT NOT NULL DEFAULT 'lofi_girl'")
         await _sqlite_conn.commit()
@@ -301,6 +316,21 @@ async def _bootstrap_sqlite() -> None:
             server_np_enabled INTEGER NOT NULL DEFAULT 1,
             incident_state INTEGER NOT NULL DEFAULT 0
         )""",
+        """CREATE TABLE IF NOT EXISTS np_targets (
+            guild_id INTEGER NOT NULL,
+            target_id INTEGER NOT NULL,
+            target_type TEXT NOT NULL,
+            added_by INTEGER NOT NULL,
+            added_at REAL NOT NULL,
+            PRIMARY KEY (guild_id, target_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS premium_trials (
+            guild_id INTEGER PRIMARY KEY,
+            claimed_by INTEGER NOT NULL,
+            claimed_at REAL NOT NULL,
+            ends_at REAL NOT NULL,
+            reminded INTEGER NOT NULL DEFAULT 0
+        )""",
         """CREATE TABLE IF NOT EXISTS premium_keys (
             key_id TEXT PRIMARY KEY,
             duration_days INTEGER NOT NULL,
@@ -513,7 +543,347 @@ async def _bootstrap_sqlite() -> None:
             scope TEXT NOT NULL,
             added_by INTEGER,
             added_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
+            expires_at REAL,
+            last_used REAL,
             PRIMARY KEY (guild_id, target_id, scope)
+        )""",
+        """CREATE TABLE IF NOT EXISTS security_whitelist_rules (
+            guild_id INTEGER NOT NULL,
+            target_id INTEGER NOT NULL,
+            target_type TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            value TEXT NOT NULL DEFAULT '',
+            added_by INTEGER,
+            added_at REAL NOT NULL DEFAULT ((julianday('now') - 2440587.5) * 86400.0),
+            expires_at REAL,
+            last_used REAL,
+            PRIMARY KEY (guild_id, target_id, scope, value)
+        )""",
+        """CREATE TABLE IF NOT EXISTS ban_appeals (
+            appeal_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            user_name TEXT,
+            answers TEXT NOT NULL DEFAULT '[]',
+            ban_reason TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            reviewer_id INTEGER,
+            decision_note TEXT,
+            message_id INTEGER,
+            channel_id INTEGER,
+            created_at REAL NOT NULL,
+            decided_at REAL
+        )""",
+        """CREATE TABLE IF NOT EXISTS appeal_votes (
+            appeal_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            vote INTEGER NOT NULL,
+            PRIMARY KEY (appeal_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS message_reports (
+            report_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            reporter_id INTEGER NOT NULL,
+            target_id INTEGER NOT NULL,
+            channel_id INTEGER,
+            message_id INTEGER,
+            content TEXT,
+            attachments TEXT NOT NULL DEFAULT '[]',
+            context TEXT NOT NULL DEFAULT '[]',
+            reason TEXT,
+            source TEXT NOT NULL DEFAULT 'message',
+            status TEXT NOT NULL DEFAULT 'open',
+            handler_id INTEGER,
+            outcome TEXT,
+            review_channel_id INTEGER,
+            review_message_id INTEGER,
+            thread_id INTEGER,
+            created_at REAL NOT NULL,
+            handled_at REAL
+        )""",
+        """CREATE TABLE IF NOT EXISTS trust_adjustments (
+            adj_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            delta INTEGER NOT NULL,
+            reason TEXT,
+            moderator_id INTEGER,
+            created_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS member_profiles (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            bio TEXT,
+            interests TEXT NOT NULL DEFAULT '[]',
+            looking_for TEXT,
+            relationship TEXT,
+            pronouns TEXT,
+            timezone TEXT,
+            hidden INTEGER NOT NULL DEFAULT 0,
+            updated_at REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS match_queue (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            joined_at REAL NOT NULL,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS match_sessions (
+            session_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            user_a INTEGER NOT NULL,
+            user_b INTEGER NOT NULL,
+            voice_id INTEGER,
+            channel_id INTEGER,
+            message_id INTEGER,
+            started_at REAL NOT NULL,
+            ends_at REAL NOT NULL,
+            status TEXT NOT NULL DEFAULT 'live',
+            choice_a INTEGER,
+            choice_b INTEGER,
+            extended INTEGER NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS match_blocks (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            blocked_id INTEGER NOT NULL,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (guild_id, user_id, blocked_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS server_events (
+            event_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            starts_at REAL NOT NULL,
+            duration_minutes INTEGER NOT NULL DEFAULT 60,
+            channel_id INTEGER,
+            message_id INTEGER,
+            voice_channel_id INTEGER,
+            role_id INTEGER,
+            creator_id INTEGER,
+            repeat TEXT NOT NULL DEFAULT 'none',
+            capacity INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'scheduled',
+            reminded INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS event_rsvps (
+            event_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (event_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS timed_roles (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            role_id INTEGER NOT NULL,
+            expires_at REAL NOT NULL,
+            granted_by INTEGER,
+            reason TEXT,
+            season_id TEXT,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (guild_id, user_id, role_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS seasonal_roles (
+            season_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            role_id INTEGER NOT NULL,
+            starts_at REAL NOT NULL,
+            ends_at REAL NOT NULL,
+            yearly INTEGER NOT NULL DEFAULT 0,
+            channel_id INTEGER,
+            message_id INTEGER,
+            created_by INTEGER,
+            created_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS commemorative_badges (
+            badge_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            role_id INTEGER NOT NULL,
+            period_start REAL NOT NULL,
+            period_end REAL NOT NULL,
+            claim_until REAL NOT NULL,
+            closed INTEGER NOT NULL DEFAULT 0,
+            channel_id INTEGER,
+            message_id INTEGER,
+            created_by INTEGER,
+            created_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS badge_claims (
+            badge_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            claimed_at REAL NOT NULL,
+            PRIMARY KEY (badge_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS ban_fingerprints (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            name TEXT,
+            name_key TEXT,
+            global_key TEXT,
+            avatar TEXT,
+            account_created REAL,
+            invite TEXT,
+            reason TEXT,
+            banned_at REAL NOT NULL,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS evasion_links (
+            link_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            banned_id INTEGER NOT NULL,
+            score INTEGER NOT NULL,
+            reasons TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'open',
+            handler_id INTEGER,
+            message_id INTEGER,
+            channel_id INTEGER,
+            created_at REAL NOT NULL,
+            handled_at REAL
+        )""",
+        """CREATE TABLE IF NOT EXISTS staff_feedback (
+            feedback_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            author_hash TEXT NOT NULL,
+            topic TEXT,
+            about TEXT,
+            body TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'new',
+            handler_id INTEGER,
+            channel_id INTEGER,
+            message_id INTEGER,
+            created_at REAL NOT NULL,
+            handled_at REAL
+        )""",
+        """CREATE TABLE IF NOT EXISTS staff_shifts (
+            shift_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            started_at REAL NOT NULL,
+            ended_at REAL,
+            notes TEXT NOT NULL DEFAULT '',
+            auto_ended INTEGER NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS member_seen (
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            last_seen REAL NOT NULL,
+            PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS supporters (
+            user_id INTEGER PRIMARY KEY,
+            total_usd REAL NOT NULL DEFAULT 0,
+            tips INTEGER NOT NULL DEFAULT 0,
+            public INTEGER NOT NULL DEFAULT 0,
+            display_name TEXT NOT NULL DEFAULT '',
+            first_at REAL NOT NULL,
+            last_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS votes (
+            user_id INTEGER PRIMARY KEY,
+            total INTEGER NOT NULL DEFAULT 0,
+            streak INTEGER NOT NULL DEFAULT 0,
+            last_vote_at REAL NOT NULL DEFAULT 0,
+            np_until REAL NOT NULL DEFAULT 0,
+            last_source TEXT NOT NULL DEFAULT ''
+        )""",
+        """CREATE TABLE IF NOT EXISTS activity_likes (
+            user_id INTEGER NOT NULL,
+            track_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL DEFAULT '',
+            duration INTEGER NOT NULL DEFAULT 0,
+            thumb TEXT NOT NULL DEFAULT '',
+            liked_at REAL NOT NULL,
+            PRIMARY KEY (user_id, track_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS activity_history (
+            entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            track_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL DEFAULT '',
+            duration INTEGER NOT NULL DEFAULT 0,
+            thumb TEXT NOT NULL DEFAULT '',
+            played_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS activity_playlists (
+            playlist_id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            tracks TEXT NOT NULL DEFAULT '[]',
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS vault_entries (
+            entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            user_id INTEGER,
+            actor_id INTEGER,
+            channel_id INTEGER,
+            detail TEXT NOT NULL DEFAULT '',
+            created_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS scheduled_actions (
+            action_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            kind TEXT NOT NULL,
+            run_at REAL NOT NULL,
+            repeat_seconds INTEGER NOT NULL DEFAULT 0,
+            payload TEXT NOT NULL DEFAULT '{}',
+            created_by INTEGER NOT NULL,
+            created_at REAL NOT NULL,
+            last_run REAL,
+            runs INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT
+        )""",
+        """CREATE TABLE IF NOT EXISTS ticket_canned (
+            guild_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_by INTEGER NOT NULL,
+            PRIMARY KEY (guild_id, name)
+        )""",
+        """CREATE TABLE IF NOT EXISTS ticket_ratings (
+            ticket_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            staff_id INTEGER,
+            rating INTEGER NOT NULL,
+            created_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS ticket_transcripts (
+            ticket_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            number INTEGER NOT NULL,
+            owner_id INTEGER NOT NULL,
+            closed_at REAL NOT NULL,
+            data TEXT NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS deep_backups (
+            backup_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            label TEXT,
+            created_by INTEGER,
+            created_at REAL NOT NULL,
+            auto INTEGER NOT NULL DEFAULT 0,
+            counts TEXT NOT NULL DEFAULT '{}',
+            data TEXT NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS security_incidents (
+            incident_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'incident',
+            started_at REAL NOT NULL,
+            ended_at REAL NOT NULL,
+            summary TEXT NOT NULL DEFAULT '{}'
         )""",
         """CREATE TABLE IF NOT EXISTS security_backups (
             backup_id TEXT PRIMARY KEY,
@@ -614,6 +984,82 @@ async def _bootstrap_sqlite() -> None:
             max_streak INTEGER NOT NULL DEFAULT 0,
             last_won_day INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (guild_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS app_forms (
+            guild_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            data TEXT NOT NULL,
+            created_at REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (guild_id, name)
+        )""",
+        """CREATE TABLE IF NOT EXISTS crypto_invoices (
+            invoice_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'server',
+            plan TEXT NOT NULL,
+            coin TEXT NOT NULL,
+            usd REAL NOT NULL,
+            rate REAL NOT NULL,
+            amount_units INTEGER NOT NULL,
+            address TEXT NOT NULL,
+            derivation_index INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            received_units INTEGER NOT NULL DEFAULT 0,
+            confirmed_units INTEGER NOT NULL DEFAULT 0,
+            channel_id INTEGER,
+            message_id INTEGER,
+            result TEXT,
+            created_at REAL NOT NULL,
+            expires_at REAL NOT NULL,
+            paid_at REAL,
+            UNIQUE (coin, derivation_index)
+        )""",
+        """CREATE TABLE IF NOT EXISTS crypto_payments (
+            txid TEXT NOT NULL,
+            address TEXT NOT NULL,
+            invoice_id TEXT NOT NULL,
+            units INTEGER NOT NULL,
+            confirmations INTEGER NOT NULL DEFAULT 0,
+            first_seen REAL NOT NULL,
+            PRIMARY KEY (txid, address)
+        )""",
+        """CREATE INDEX IF NOT EXISTS idx_activity_history_user ON activity_history (user_id, played_at)""",
+        """CREATE INDEX IF NOT EXISTS idx_activity_playlists_user ON activity_playlists (user_id)""",
+        """CREATE INDEX IF NOT EXISTS idx_vault_guild_time ON vault_entries (guild_id, created_at)""",
+        """CREATE INDEX IF NOT EXISTS idx_vault_guild_user ON vault_entries (guild_id, user_id)""",
+        """CREATE INDEX IF NOT EXISTS idx_scheduled_run ON scheduled_actions (run_at)""",
+        """CREATE INDEX IF NOT EXISTS idx_crypto_invoices_status ON crypto_invoices (status, expires_at)""",
+        """CREATE TABLE IF NOT EXISTS app_panels (
+            message_id INTEGER PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            channel_id INTEGER NOT NULL,
+            forms TEXT NOT NULL,
+            state TEXT NOT NULL DEFAULT ''
+        )""",
+        """CREATE TABLE IF NOT EXISTS app_submissions (
+            guild_id INTEGER NOT NULL,
+            app_id INTEGER NOT NULL,
+            form TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            answers TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            reviewer_id INTEGER,
+            reason TEXT,
+            message_id INTEGER,
+            channel_id INTEGER,
+            thread_id INTEGER,
+            interview_channel_id INTEGER,
+            created_at REAL NOT NULL,
+            decided_at REAL,
+            PRIMARY KEY (guild_id, app_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS app_votes (
+            guild_id INTEGER NOT NULL,
+            app_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            vote INTEGER NOT NULL,
+            PRIMARY KEY (guild_id, app_id, user_id)
         )""",
         """CREATE TABLE IF NOT EXISTS birthdays (
             guild_id INTEGER NOT NULL,
@@ -1082,7 +1528,10 @@ async def _bootstrap_sqlite() -> None:
             options TEXT NOT NULL,
             votes TEXT NOT NULL DEFAULT '{}',
             ends_at REAL,
-            ended INTEGER NOT NULL DEFAULT 0
+            ended INTEGER NOT NULL DEFAULT 0,
+            vote_roles TEXT,
+            weights TEXT,
+            hidden INTEGER NOT NULL DEFAULT 0
         )""",
     ]
     for stmt in ddl_statements:

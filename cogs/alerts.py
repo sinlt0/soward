@@ -10,7 +10,7 @@ import discord
 from discord.ext import commands, tasks
 
 import config
-from utils import db, emoji_manager, guild_settings, websub
+from utils import db, emoji_manager, guild_settings, premium_limits, websub
 from utils.alert_clients import TwitchClient, YouTubeClient
 from utils.checks import has_guild_permission, is_owner
 from utils.colors import ERROR, NEUTRAL, SUCCESS
@@ -199,12 +199,13 @@ class PlatformSetupSelect(discord.ui.Select):
             "SELECT COUNT(*) as c FROM alert_subscriptions WHERE guild_id=? AND platform=?",
             (interaction.guild.id, platform),
         )
-        if count and count["c"] >= config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM:
+        cap = await premium_limits.get(interaction.guild.id, "alert_subscriptions")
+        if count and count["c"] >= cap:
             e = emoji_manager.get
             return await interaction.response.send_message(
                 view=error_layout(
                     "Limit Reached",
-                    f"This server already has {config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM}/{config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM} {platform.title()} subscriptions.",
+                    f"This server already has {cap}/{cap} {platform.title()} subscriptions." + await premium_limits.hint(interaction.guild.id, "alert_subscriptions"),
                 ),
                 ephemeral=True,
             )
@@ -313,7 +314,7 @@ class AlertsMenuView(discord.ui.LayoutView):
         container.add_item(discord.ui.TextDisplay(
             f"## {e('info')} Stream & Upload Alerts\n"
             "Get notified when a YouTube channel uploads/goes live, or a Twitch streamer starts streaming.\n\n"
-            f"-# Up to {config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM} YouTube + {config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM} Twitch subscriptions per server."
+            f"-# Up to {premium_limits.tiers('alert_subscriptions')[0]} YouTube + {premium_limits.tiers('alert_subscriptions')[0]} Twitch subscriptions per server ({premium_limits.tiers('alert_subscriptions')[1]} each with Premium)."
         ))
         container.add_item(discord.ui.Separator())
 
@@ -707,8 +708,9 @@ class Alerts(commands.Cog):
         count = await db.raw_fetchone(
             "SELECT COUNT(*) as c FROM alert_subscriptions WHERE guild_id=? AND platform='youtube'", (ctx.guild.id,)
         )
-        if count and count["c"] >= config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM:
-            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM} YouTube subscriptions per server."))
+        cap = await premium_limits.get(ctx.guild.id, "alert_subscriptions")
+        if count and count["c"] >= cap:
+            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {cap} YouTube subscriptions per server." + await premium_limits.hint(ctx.guild.id, "alert_subscriptions")))
 
         resolved = await self._youtube.resolve_channel_id(channel_ref)
         if not resolved:
@@ -764,8 +766,9 @@ class Alerts(commands.Cog):
         count = await db.raw_fetchone(
             "SELECT COUNT(*) as c FROM alert_subscriptions WHERE guild_id=? AND platform='twitch'", (ctx.guild.id,)
         )
-        if count and count["c"] >= config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM:
-            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {config.ALERT_MAX_SUBSCRIPTIONS_PER_PLATFORM} Twitch subscriptions per server."))
+        cap = await premium_limits.get(ctx.guild.id, "alert_subscriptions")
+        if count and count["c"] >= cap:
+            return await ctx.send(view=error_layout("Limit Reached", f"Maximum {cap} Twitch subscriptions per server." + await premium_limits.hint(ctx.guild.id, "alert_subscriptions")))
 
         resolved = await self._twitch.resolve_user(username)
         if not resolved:

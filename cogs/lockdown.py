@@ -7,7 +7,7 @@ from typing import Optional
 import discord
 from discord.ext import commands, tasks
 
-from utils import db, emoji_manager, security
+from utils import db, emoji_manager, postmortem, security
 from utils import security_settings as settings
 from utils.components import error_layout, info_layout, success_layout
 from utils.events_bus import ANTINUKE_INCIDENT, LOG_EVENT, bus
@@ -165,6 +165,7 @@ class Lockdown(commands.Cog):
                 except (discord.Forbidden, discord.HTTPException):
                     pass
                 await asyncio.sleep(PAUSE)
+        postmortem.undone(guild.id, "lockdown channels reopened", restored)
         await bus.publish(LOG_EVENT, guild_id=guild.id, action="server_lockdown", active=False, actor_id=ended_by, detail=f"{reason} · {restored} channels restored")
         return restored
 
@@ -239,6 +240,14 @@ class Lockdown(commands.Cog):
         roles, _, _ = await self._restore_roles(guild, data, False)
         channels, _ = await self._restore_channels(guild, data)
         banned = await self._restore_bans(guild, data)
+        if await settings.get(guild_id, "antinuke", "restore_repair"):
+            fixed_roles = (await self._restore_roles(guild, data, True))[1]
+            fixed_channels = (await self._repair_channels(guild, data))[0]
+            postmortem.undone(guild_id, "changed roles repaired from backup", fixed_roles)
+            postmortem.undone(guild_id, "changed channels repaired from backup", fixed_channels)
+        postmortem.undone(guild_id, "roles recreated from backup", roles)
+        postmortem.undone(guild_id, "channels recreated from backup", channels)
+        postmortem.undone(guild_id, "bans reapplied from backup", banned)
         await bus.publish(
             LOG_EVENT, guild_id=guild_id, action="security_backup", actor_id=None,
             detail=f"Auto-restored `{row['backup_id']}` after an AntiNuke incident: {roles} roles, {channels} channels, {banned} bans.",
@@ -278,6 +287,119 @@ class Lockdown(commands.Cog):
         except (discord.HTTPException, ValueError, KeyError):
             return False
         return True
+
+    def _channel_changes(self, guild: discord.Guild, data: dict, entry: dict, channel: discord.abc.GuildChannel) -> list[str]:
+        changed = []
+        if channel.name != entry["name"]:
+            changed.append("name")
+        if channel.category_id != entry["parent"] and (entry["parent"] is None or guild.get_channel(entry["parent"]) is not None):
+            changed.append("category")
+        if isinstance(channel, discord.TextChannel):
+            if (channel.topic or None) != (entry.get("topic") or None):
+                changed.append("topic")
+            if channel.nsfw != entry.get("nsfw", channel.nsfw):
+                changed.append("nsfw")
+            if channel.slowmode_delay != entry.get("slowmode", channel.slowmode_delay):
+                changed.append("slowmode")
+        wanted = {(o["kind"], o["id"]): tuple(o["pair"]) for o in entry["overwrites"]}
+        current = {
+            ("role" if isinstance(t, discord.Role) else "member", t.id): tuple(_overwrite_dump(ow)) for t, ow in channel.overwrites.items()
+        }
+        if wanted != current:
+            changed.append("permissions")
+        return changed
+
+    def _diff(self, guild: discord.Guild, data: dict) -> dict:
+        by_id = {r.id: r for r in guild.roles}
+        by_name = {r.name: r for r in guild.roles}
+        roles_missing, roles_changed = [], []
+        for entry in data["roles"]:
+            role = by_id.get(entry["id"]) or by_name.get(entry["name"])
+            if role is None:
+                roles_missing.append(entry["name"])
+                continue
+            changed = []
+            if role.name != entry["name"]:
+                changed.append("name")
+            if role.permissions.value != entry["permissions"]:
+                changed.append("permissions")
+            if role.color.value != entry["color"]:
+                changed.append("colour")
+            if role.hoist != entry["hoist"]:
+                changed.append("hoist")
+            if role.mentionable != entry["mentionable"]:
+                changed.append("mentionable")
+            if changed:
+                roles_changed.append((entry["name"], changed))
+        existing = {c.id: c for c in guild.channels}
+        names = {(c.name, c.type.value) for c in guild.channels}
+        known_ids = {e["id"] for e in data["channels"]}
+        known_names = {(e["name"], e["type"]) for e in data["channels"]}
+        channels_missing, channels_changed = [], []
+        for entry in data["channels"]:
+            channel = existing.get(entry["id"])
+            if channel is None:
+                if (entry["name"], entry["type"]) not in names:
+                    channels_missing.append(entry["name"])
+                continue
+            changed = self._channel_changes(guild, data, entry, channel)
+            if changed:
+                channels_changed.append((entry["name"], changed))
+        channels_new = [c.name for c in guild.channels if c.id not in known_ids and (c.name, c.type.value) not in known_names]
+        return {
+            "roles_missing": roles_missing, "roles_changed": roles_changed,
+            "channels_missing": channels_missing, "channels_changed": channels_changed, "channels_new": channels_new,
+        }
+
+    async def _repair_channels(self, guild: discord.Guild, data: dict) -> tuple[int, int]:
+        repaired = failed = 0
+        existing = {c.id: c for c in guild.channels}
+        for entry in data["channels"]:
+            channel = existing.get(entry["id"])
+            if channel is None:
+                continue
+            changed = self._channel_changes(guild, data, entry, channel)
+            if not changed:
+                continue
+            fields: dict = {}
+            if "name" in changed:
+                fields["name"] = entry["name"]
+            if "category" in changed and not isinstance(channel, discord.CategoryChannel):
+                fields["category"] = guild.get_channel(entry["parent"]) if entry["parent"] else None
+            if "topic" in changed:
+                fields["topic"] = entry.get("topic")
+            if "nsfw" in changed:
+                fields["nsfw"] = entry.get("nsfw", False)
+            if "slowmode" in changed:
+                fields["slowmode_delay"] = entry.get("slowmode", 0)
+            if "permissions" in changed:
+                fields["overwrites"] = self._overwrites(guild, data, entry)
+            if not fields:
+                continue
+            try:
+                await channel.edit(reason="Soward backup restore: channel repaired", **fields)
+                repaired += 1
+            except (discord.Forbidden, discord.HTTPException):
+                failed += 1
+            await asyncio.sleep(PAUSE)
+        return repaired, failed
+
+    def _diff_lines(self, diff: dict) -> list[str]:
+        lines = []
+        if diff["roles_missing"]:
+            lines.append(f"**Roles deleted ({len(diff['roles_missing'])}):** " + ", ".join(f"`{n}`" for n in diff["roles_missing"][:15]))
+        for name, fields in diff["roles_changed"][:15]:
+            lines.append(f"Role `{name}` changed: {', '.join(fields)}")
+        if diff["channels_missing"]:
+            lines.append(f"**Channels deleted ({len(diff['channels_missing'])}):** " + ", ".join(f"`{n}`" for n in diff["channels_missing"][:20]))
+        for name, fields in diff["channels_changed"][:20]:
+            lines.append(f"Channel `{name}` changed: {', '.join(fields)}")
+        if diff["channels_new"]:
+            lines.append(f"**Channels created since ({len(diff['channels_new'])}):** " + ", ".join(f"`{n}`" for n in diff["channels_new"][:15]))
+        extra = len(diff["roles_changed"]) - 15 + len(diff["channels_changed"]) - 20
+        if extra > 0:
+            lines.append(f"-# and {extra} more changed items")
+        return lines
 
     async def _find_backup(self, guild_id: int, backup_id: str) -> Optional[dict]:
         return await db.raw_fetchone("SELECT * FROM security_backups WHERE guild_id=? AND backup_id=?", (guild_id, backup_id.lower()))
@@ -438,7 +560,7 @@ class Lockdown(commands.Cog):
         e = emoji_manager.get
         body = (
             "Snapshots keep roles, role permissions, categories, channels and their permission overwrites.\n\n"
-            "`backup create [label]` · `backup list` · `backup info <id>` · `backup restore <id> [roles|channels|all] [repair]` · `backup delete <id>` · `backup auto <on/off>`"
+            "`backup create [label]` · `backup list` · `backup info <id>` · `backup diff <id>` · `backup restore <id> [roles|channels|all] [repair] [preview]` · `backup delete <id>` · `backup auto <on/off>`"
         )
         await ctx.send(view=info_layout(f"{e('shield')} Server Backups", body))
 
@@ -471,25 +593,60 @@ class Lockdown(commands.Cog):
         lines = [f"**Label:** {row['label']} · **Taken:** {_ago(row['created_at'])}", f"**Roles:** {len(data['roles'])}", "**Channels:** " + (", ".join(f"{v} {k}" for k, v in kinds.items()) or "none")]
         await ctx.send(view=info_layout(f"Backup {row['backup_id']}", "\n".join(lines)))
 
-    @backup_group.command(name="restore", help="Recreate what is missing. Usage: restore <id> [roles|channels|bans|settings|all] [repair]")
-    @security_owner()
-    async def backup_restore(self, ctx: commands.Context, backup_id: str, what: str = "all", repair: Optional[str] = None):
+    @backup_group.command(name="diff", aliases=["compare", "changes"], help="Show what changed since a backup: deleted and edited roles and channels. Usage: backup diff <id>")
+    @security_staff()
+    async def backup_diff(self, ctx: commands.Context, backup_id: str):
         e = emoji_manager.get
-        what = what.lower()
-        if what not in ("roles", "channels", "bans", "settings", "all"):
-            return await ctx.send(view=error_layout("Unknown part", "Use `roles`, `channels`, `bans`, `settings` or `all`."))
+        row = await self._find_backup(ctx.guild.id, backup_id)
+        if row is None:
+            return await ctx.send(view=error_layout("Not found", "No backup with that id."))
+        lines = self._diff_lines(self._diff(ctx.guild, json.loads(row["data"])))
+        if not lines:
+            return await ctx.send(view=success_layout(f"{e('check')} No differences", f"The server matches backup `{row['backup_id']}` ({_ago(row['created_at'])})."))
+        await chunked(ctx, f"{e('shield')} Changes since `{row['backup_id']}` ({_ago(row['created_at'])})", lines)
+
+    @backup_group.command(name="restore", help="Recreate what is missing. Usage: restore <id> [roles|channels|bans|settings|all] [repair] [preview]")
+    @security_owner()
+    async def backup_restore(self, ctx: commands.Context, backup_id: str, *options: str):
+        e = emoji_manager.get
+        words = [o.lower() for o in options]
+        repair = "repair" in words
+        dry = any(w in ("preview", "dry", "dryrun", "plan") for w in words)
+        parts = [w for w in words if w not in ("repair", "preview", "dry", "dryrun", "plan")]
+        what = parts[0] if parts else "all"
+        if what not in ("roles", "channels", "bans", "settings", "all") or len(parts) > 1:
+            return await ctx.send(view=error_layout("Unknown part", "Use `roles`, `channels`, `bans`, `settings` or `all`, then optionally `repair` and `preview`."))
         row = await self._find_backup(ctx.guild.id, backup_id)
         if row is None:
             return await ctx.send(view=error_layout("Not found", "No backup with that id."))
         data = json.loads(row["data"])
-        note = await ctx.send(view=info_layout(f"{e('shield')} Restoring", "Recreating what is missing. Nothing existing is deleted."))
+        if dry:
+            diff = self._diff(ctx.guild, data)
+            lines = []
+            if what in ("roles", "all"):
+                lines.append(f"Roles that would be recreated: **{len(diff['roles_missing'])}**" + (f" · repaired: **{len(diff['roles_changed'])}**" if repair else ""))
+            if what in ("channels", "all"):
+                lines.append(f"Channels that would be recreated: **{len(diff['channels_missing'])}**" + (f" · repaired: **{len(diff['channels_changed'])}**" if repair else ""))
+            if what in ("bans", "all"):
+                lines.append(f"Bans in the backup: **{len(data.get('bans', []))}** (missing ones would be reapplied)")
+            if what in ("settings", "all"):
+                lines.append("Server name, verification level and filters would be set back to the backup values.")
+            lines.append("")
+            lines.extend(self._diff_lines(diff))
+            lines.append("\n-# Preview only. Nothing was changed.")
+            return await chunked(ctx, f"{e('shield')} Restore preview · `{row['backup_id']}`", lines)
+        note = await ctx.send(view=info_layout(f"{e('shield')} Restoring", "Recreating what is missing. Nothing existing is deleted." + (" Edited roles and channels are put back to the backup." if repair else "")))
         lines = []
         if what in ("roles", "all"):
-            made, fixed, bad = await self._restore_roles(ctx.guild, data, (repair or "").lower() == "repair")
+            made, fixed, bad = await self._restore_roles(ctx.guild, data, repair)
             lines.append(f"Roles: {made} created, {fixed} repaired, {bad} failed")
         if what in ("channels", "all"):
             made, bad = await self._restore_channels(ctx.guild, data)
-            lines.append(f"Channels: {made} created, {bad} failed")
+            if repair:
+                fixed, bad_fix = await self._repair_channels(ctx.guild, data)
+                lines.append(f"Channels: {made} created, {fixed} repaired, {bad + bad_fix} failed")
+            else:
+                lines.append(f"Channels: {made} created, {bad} failed")
         if what in ("bans", "all"):
             lines.append(f"Bans: {await self._restore_bans(ctx.guild, data)} restored")
         if what in ("settings", "all"):

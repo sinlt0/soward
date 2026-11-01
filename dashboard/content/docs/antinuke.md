@@ -24,7 +24,7 @@ Things to know first:
 
 AntiNuke never punishes:
 
-- The server owner, the bot's owners, Extra Owners and Trusted Admins.
+- The server owner, Extra Owners and Trusted Admins.
 - Members on the AntiNuke trusted list (`!antinuke trust add`).
 - Members and roles on the [whitelist](/docs/security-center) for AntiNuke.
 - Administrators, **only if** `admin_bypass` is on. It is **off by default**, so ordinary Administrators are watched. A trusted member who is currently quarantined is watched too.
@@ -66,6 +66,7 @@ Each action has a **short limit** (inside the window) and an optional **hourly l
 | `role_update` | Role edits that change permissions | 3 |
 | `ban` | Members banned | 5 |
 | `kick` | Members kicked | 5 |
+| `timeout` | Members timed out | 10 |
 | `prune` | Member prunes | 1 |
 | `webhook_create` | Webhooks created | 3 |
 | `webhook_delete` | Webhooks deleted | 3 |
@@ -204,3 +205,83 @@ Hourly limits, restore options, the incident state and the other settings are co
 **Someone lost their roles after adding a bot.** `bot_add` has a limit of 1. The bot is kicked if the person was not trusted, and the person is punished. With the default `kick_bot` override a human only has their roles stripped. Add trusted people to the trusted list, or raise the limit.
 
 **Deleted channels came back with new IDs.** That is how restore works. Webhooks, integrations and member roles are not restored.
+
+## Raid mode relief
+
+While raid mode is on, staff need to remove raiders quickly without AntiNuke stepping in. Two settings handle it. They do not apply when raid mode was started by an AntiNuke incident, so an attack on the server never loosens the limits. Both only affect `ban`, `kick` and `timeout`, and end with raid mode:
+
+- `raid_relief_factor` (default 4) multiplies those limits, including the hourly ones. Set it to 1 to turn it off.
+- `raid_relief_exempt` (default off) lets members who already hold the matching Discord permission (Ban Members, Kick Members or Moderate Members) act without limits.
+
+Everything else, such as channel and role deletes, stays watched during a raid. Dating v2 turns both on with a factor of 5.
+
+### Raid escalation
+
+If any AntiNuke event triggers while raid relief is active, Soward goes all out (`raid_escalate`, on by default):
+
+- The relief ends at once.
+- Every whitelist is suspended: granular action rules, module whitelist entries and the AntiNuke trusted list. Only the server owner, Extra Owners and Trusted Admins stay trusted.
+- Beast Mode is forced on, and every limit drops to 1, so a single action of any kind triggers AntiNuke.
+- It lasts `raid_escalate_duration` (default 30 minutes). `security beast off` ends it early and restores the relief if the raid is still on.
+
+This also means moderators can be punished for a single kick during escalation. That is intended while the server is under attack.
+
+## Settings reference
+
+Every AntiNuke setting, generated from the bot's settings list. Change one with `!antinuke set <key> <value>`, look at one with `!antinuke get <key>` and put one back with `!antinuke reset <key>`.
+
+### Per-action limits
+
+Each watched action has three settings: `enabled_<action>`, `threshold_<action>` (how many times one member may do it inside the window) and `hourly_<action>` (how many times per hour before they are stopped).
+
+| Action | On by default | Threshold | Per hour |
+| --- | --- | --- | --- |
+| `ban` | On | 5 | 0 |
+| `bot_add` | On | 1 | 0 |
+| `channel_create` | On | 5 | 0 |
+| `channel_delete` | On | 3 | 0 |
+| `channel_permission` | On | 1 | 0 |
+| `channel_update` | On | 5 | 0 |
+| `emoji_change` | On | 5 | 0 |
+| `guild_update` | On | 2 | 0 |
+| `integration_change` | On | 2 | 0 |
+| `invite_delete` | On | 5 | 0 |
+| `kick` | On | 5 | 0 |
+| `permission_escalation` | On | 2 | 0 |
+| `protected_role` | On | 1 | 0 |
+| `prune` | On | 1 | 0 |
+| `quarantine_touch` | On | 1 | 0 |
+| `role_create` | On | 5 | 0 |
+| `role_delete` | On | 3 | 0 |
+| `role_update` | On | 3 | 0 |
+| `sticker_change` | On | 5 | 0 |
+| `timeout` | On | 10 | 0 |
+| `vanity_change` | On | 1 | 0 |
+| `webhook_create` | On | 3 | 0 |
+| `webhook_delete` | On | 3 | 0 |
+
+### General
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `enabled` | Off | On or Off | Master switch for AntiNuke. |
+| `restore_from_backup` | Off | On or Off | After an AntiNuke incident, recreate missing roles, channels and bans from the latest backup. |
+| `restore_repair` | Off | On or Off | When restoring after an attack, put edited role permissions and channel permissions, names and topics back to the backup too. |
+| `strict_mode` | Off | On or Off | Any dangerous permission grant by an untrusted member is punished at once. |
+| `admin_bypass` | Off | On or Off | Let members with Administrator skip AntiNuke without being trusted. |
+| `watch_quarantined` | On | On or Off | Any action by a quarantined member is punished immediately. |
+| `quarantine_hold` | On | On or Off | Punish anyone who changes the roles of a quarantined member. |
+| `restore` | On | On or Off | Recreate deleted channels and roles and remove what a flagged member created. |
+| `bot_add_block` | On | On or Off | Kick bots added by untrusted members. |
+| `monitor_overwrites` | On | On or Off | Revert dangerous permission overwrites for @everyone. |
+| `protect_everyone` | On | On or Off | Revert and punish dangerous permissions given to @everyone at once. |
+| `alert_owner` | On | On or Off | DM the owner |
+| `alert_channel_id` | Not set | a channel | Alert channel |
+| `raid_relief_factor` | 4 | 1 to 20 | While raid mode is on, ban, kick and timeout limits are multiplied by this so staff can remove raiders. 1 turns it off. |
+| `raid_relief_exempt` | Off | On or Off | While raid mode is on, members who already hold the Discord permission can ban, kick and time out without AntiNuke limits. Ends when raid mode ends. |
+| `raid_escalate` | On | On or Off | If any AntiNuke event triggers while raid relief is active, end the relief, suspend all whitelists, force Beast Mode and drop every limit to 1. |
+| `raid_escalate_duration` | 30m 0s | 1m 0s to 1d 0h | How long escalation lasts. `security beast off` ends it early. |
+| `window` | 10s | 3s to 1h 0m | Actions are counted over this window against the per-action limit. |
+| `punishment` | `quarantine` | `quarantine`, `strip_roles`, `kick`, `ban`, `kick_bot` | Default punishment |
+| `punish_cooldown` | 30s | 5s to 10m 0s | Repeat punishment cooldown |
+| `rollback_window` | 2m 0s | 30s to 1h 0m | How far back a flagged member's changes are undone. |

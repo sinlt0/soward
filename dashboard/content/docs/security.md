@@ -39,7 +39,7 @@ You can also turn tools on and change their settings from the web dashboard. See
 ## How the tools work together
 
 - **Access tiers.** The server owner and Extra Owners control security. Trusted Admins can change settings. While the tier lock is on (the default), plain Administrators can only view. See [Security Center](/docs/security-center).
-- **Trusted members.** The server owner, Extra Owners, Trusted Admins, the bot's owners and members on the AntiNuke trusted list are skipped by AutoMod, AntiNuke and AntiRaid. Administrators are skipped by AutoMod and AntiRaid, and by AntiNuke only if you turn on `!antinuke adminbypass`. The [whitelist](/docs/security-center) exempts people, roles and channels from chosen systems only.
+- **Trusted members.** The server owner, Extra Owners, Trusted Admins and members on the AntiNuke trusted list are skipped by AutoMod, AntiNuke and AntiRaid. Administrators are skipped by AutoMod and AntiRaid, and by AntiNuke only if you turn on `!antinuke adminbypass`. The [whitelist](/docs/security-center) exempts people, roles and channels from chosen systems only.
 - **Quarantine.** AntiNuke, AutoMod, AntiRaid and Verification can quarantine a member, which removes their roles. A quarantined member loses access to moderation and security commands. Only the server owner and Extra Owners can release them with `!release @member`.
 - **Moderation.** Moderation commands refuse to act on the owner, Extra Owners and the bot, and warnings can escalate to a timeout, kick or ban with the AutoMod [warning ladder](/docs/automod). See [Moderation](/docs/moderation).
 - **Incident state.** The server has an incident state of `normal`, `elevated` or `lockdown`. AntiNuke raises it after each punishment, and at `lockdown` verification switches to manual approval.
@@ -105,3 +105,51 @@ Choose `button`, `captcha`, `manual` or `web` for the type. The `web` type is th
 ## Role order matters
 
 The bot can only manage roles below its own highest role. Move the bot's role above the roles it needs to manage, and give it the permissions its actions need: Kick Members, Ban Members, Moderate Members, Manage Roles, Manage Channels and View Audit Log.
+
+## Ban evasion detection
+
+When someone is banned, Soward remembers their avatar, name, invite and account age. When a new member joins and looks like a banned account (same custom avatar, same or very similar name, same invite, account made after the ban), Soward posts an alert with a score out of 100 and **Ban** and **Not the same person** buttons. It is a signal, not proof, so nothing happens automatically unless you choose to.
+
+```
+!evasion channel #security-logs
+!evasion scan
+```
+
+| Command | What it does |
+| --- | --- |
+| `!evasion scan` | Learn accounts that were banned before this feature. |
+| `!evasion check @member` | Show the closest banned accounts. |
+| `!evasion list` | Recent alerts. |
+| `!evasion threshold <30-100>` | Score that triggers an alert. Default 60. |
+| `!evasion action none\|timeout\|kick` | Extra action on a match. Default none. |
+| `!evasion on` / `off` | Turn it on or off. On by default. |
+
+When you ban someone who was flagged, the normal ban message with the appeal button is still sent.
+
+## Incident post-mortems
+
+When AntiRaid raid mode or AntiNuke's Beast Mode starts, Soward begins tracking an incident. When it ends, it posts a one-page summary to your security alert channel (or log channel): how long it lasted, what started it, which protections were raised, the peak threat score, every account it actioned, which AntiNuke limits fired, what was undone and a short timeline.
+
+| Command | What it does | Needs |
+| --- | --- | --- |
+| `!postmortem` (aliases `!incidents`, `!incident`) | Lists saved incidents with their ids | Trusted Admin |
+| `!postmortem <id>` | Shows one saved incident again | Trusted Admin |
+| `!postmortem end` | Closes the open incident now and posts the summary | Trusted Admin |
+
+The last 50 incidents are kept. Incidents close on their own when the threat has passed.
+
+## Pause all security
+
+`!security disable [duration] [reason]` pauses every security system at once and keeps all your settings, whitelist and permit tiers. `!security enable` switches everything back on exactly as it was. Only the server owner and Extra Owners can use them.
+
+It is meant for planned situations, for example when a boost service joins with many alt accounts: pause security, whitelist the accounts you expect, then enable it again.
+
+```
+!security disable 2h boost service
+!whitelist add ...
+!security enable
+```
+
+While paused, AntiNuke, AntiRaid (including bot-join checks), AutoMod, join verification, the verification timeout kick and ban evasion alerts do not act. Logging, the whitelist, permit tiers and members who are already quarantined are unchanged. Raid mode is ended when you pause.
+
+For safety there is always an end time: the default is 2 hours and the longest is 7 days. Security switches back on by itself when it passes and `!security` shows when. Pausing and resuming are written to the security log.

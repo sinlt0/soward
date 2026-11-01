@@ -331,6 +331,18 @@ class Moderation(commands.Cog):
         await bus.publish(LOG_EVENT, guild_id=guild.id, action=action, **kwargs)
         await bus.publish(MOD_ACTION, guild_id=guild.id, action=action, **kwargs)
 
+    async def _appeal_notice(self, guild: discord.Guild, target, reason: str, until: Optional[float] = None) -> None:
+        cog = self.bot.get_cog("Appeals")
+        if cog is None:
+            return
+        user = target
+        if isinstance(target, int):
+            try:
+                user = await self.bot.fetch_user(target)
+            except discord.HTTPException:
+                return
+        await cog.notify_ban(guild, user, reason, until, clean=True)
+
     async def _guard(self, ctx: commands.Context, target: discord.Member, verb: str) -> Optional[str]:
         guild = ctx.guild
         if target.id == ctx.author.id:
@@ -429,6 +441,7 @@ class Moderation(commands.Cog):
             problem = await self._guard(ctx, target, "ban")
             if problem:
                 return await ctx.send(view=error_layout("Permission Denied", problem))
+            await self._appeal_notice(ctx.guild, target, reason)
             if not await self._attempt(ctx, target.ban(reason=f"{ctx.author} | {reason}")):
                 return
             user_id = target.id
@@ -437,6 +450,7 @@ class Moderation(commands.Cog):
             problem = await self._guard_id(ctx, target, "ban")
             if problem:
                 return await ctx.send(view=error_layout("Permission Denied", problem))
+            await self._appeal_notice(ctx.guild, target, reason)
             if not await self._attempt(ctx, ctx.guild.ban(discord.Object(id=target), reason=f"{ctx.author} | {reason}")):
                 return
             user_id = target
@@ -457,6 +471,7 @@ class Moderation(commands.Cog):
             problem = await self._guard(ctx, target, "ban")
             if problem:
                 return await ctx.send(view=error_layout("Permission Denied", problem))
+            await self._appeal_notice(ctx.guild, target, reason, time.time() + duration)
             if not await self._attempt(ctx, target.ban(reason=f"{ctx.author} | {reason}")):
                 return
             user_id = target.id
@@ -465,6 +480,7 @@ class Moderation(commands.Cog):
             problem = await self._guard_id(ctx, target, "ban")
             if problem:
                 return await ctx.send(view=error_layout("Permission Denied", problem))
+            await self._appeal_notice(ctx.guild, target, reason, time.time() + duration)
             if not await self._attempt(ctx, ctx.guild.ban(discord.Object(id=target), reason=f"{ctx.author} | {reason}")):
                 return
             user_id = target
@@ -614,6 +630,7 @@ class Moderation(commands.Cog):
         banned, failed = 0, 0
         for user_id in allowed:
             try:
+                await self._appeal_notice(ctx.guild, ctx.guild.get_member(user_id) or user_id, reason)
                 await ctx.guild.ban(discord.Object(id=user_id), reason=f"{ctx.author} | Mass ban: {reason}", delete_message_days=0)
             except discord.HTTPException:
                 failed += 1

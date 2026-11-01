@@ -1,11 +1,12 @@
 import secrets
 import time
+import typing
 from typing import Optional
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
-from utils import db, embeds, emoji_manager, prefix as prefix_utils
+from utils import db, embeds, emoji_manager, premium_limits, premium_trials, prefix as prefix_utils
 from utils.checks import has_guild_permission, is_privileged
 import config
 
@@ -61,6 +62,47 @@ class Premium(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def cog_load(self):
+        self.trial_reminders.start()
+
+    async def cog_unload(self):
+        self.trial_reminders.cancel()
+
+    @tasks.loop(minutes=10)
+    async def trial_reminders(self):
+        e = emoji_manager.get
+        for trial in await premium_trials.due_reminders():
+            await premium_trials.mark_reminded(trial["guild_id"])
+            if not await premium_trials.still_trial_only(trial["guild_id"], trial["ends_at"]):
+                continue
+            guild = self.bot.get_guild(trial["guild_id"])
+            if guild is None:
+                continue
+            embed = embeds.neutral(
+                f"{e('warning')} Premium trial ending soon",
+                f"The premium trial for **{guild.name}** ends <t:{int(trial['ends_at'])}:R>.\n"
+                "Use `premium buy` to keep premium, or `premium claim <key>` if you have a key.",
+            )
+            sent = False
+            owner = guild.get_member(trial["claimed_by"])
+            if owner is not None:
+                try:
+                    await owner.send(embed=embed)
+                    sent = True
+                except discord.HTTPException:
+                    pass
+            if not sent:
+                channel = guild.system_channel
+                if channel is not None and channel.permissions_for(guild.me).send_messages:
+                    try:
+                        await channel.send(embed=embed)
+                    except discord.HTTPException:
+                        pass
+
+    @trial_reminders.before_loop
+    async def before_trial_reminders(self):
+        await self.bot.wait_until_ready()
+
     @commands.group(name="premium", invoke_without_command=True, help='View premium status or manage premium keys.')
     @commands.guild_only()
     async def premium_group(self, ctx: commands.Context):
@@ -80,16 +122,45 @@ class Premium(commands.Cog):
                 f"{e('premium_cat')} Soward Premium",
                 "This server does not have premium.\n\n"
                 "Premium unlocks **no-prefix mode**, letting the server use commands without typing a prefix.\n\n"
-                f"Use `premium claim <key>` to activate premium.\n\nAvailable durations: {preset_list}",
+                f"Use `premium buy` to pay with Bitcoin or Litecoin, or `premium claim <key>` to activate premium with a key.\n\nAvailable durations: {preset_list}",
             )
         else:
             expires_text = f"<t:{int(expires)}:R>" if expires else "Never"
+            if not await prefix_utils.np_master_enabled(ctx.guild.id):
+                np_text = "Off (use `premium np enable`)"
+            else:
+                np_text = "On for everyone" if np_enabled else "On for chosen roles and members (`premium np list`)"
             embed = embeds.success(
                 f"{e('premium_cat')} Premium Active",
                 f"**Expires:** {expires_text}\n"
-                f"**No-Prefix Mode:** {'Enabled' if np_enabled else 'Disabled (use `premium np enable`)'}",
+                f"**No-Prefix Mode:** {np_text}",
             )
         await ctx.send(embed=embed)
+
+    @premium_group.command(name="limits", aliases=["perks", "compare"], help='See what premium raises, system by system.')
+    @commands.guild_only()
+    async def premium_limits_cmd(self, ctx: commands.Context):
+        e = emoji_manager.get
+        active = await premium_limits.is_premium(ctx.guild.id)
+        tickets = config.TICKET_LIMITS
+        lines = [
+            f"Ticket panels: **{tickets['free']['panels']}** → **{tickets['premium']['panels']}**",
+            f"Open tickets per server: **{tickets['free']['active']}** → **{tickets['premium']['active']}**",
+        ]
+        for free, premium, label in config.PREMIUM_LIMITS.values():
+            lines.append(f"{label}: **{free}** → **{premium}**")
+        lines.append(f"Audit vault history (`vault`): **{config.VAULT_RETENTION_DAYS[0]} days** → **{config.VAULT_RETENTION_DAYS[1]} days** and CSV export")
+        lines.append("Premium only: no-prefix mode, `nbot`, `schedule`, `deepbackup`, ticket `canned` replies, `ratings` and `archive`")
+        state = "This server has **Premium**, so the higher numbers apply." if active else "This server is on the free plan. Use `premium buy` to get the higher numbers."
+        await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} What Premium raises", state + "\n\n" + "\n".join(lines)))
+
+    @premium_group.command(name="buy", aliases=["purchase", "pay"], help='Buy premium for this server with Bitcoin or Litecoin. Usage: premium buy [gift]')
+    @commands.guild_only()
+    async def premium_buy(self, ctx: commands.Context, mode: str = ""):
+        cog = self.bot.get_cog("CryptoPay")
+        if cog is None:
+            return await ctx.send(embed=embeds.error("Unavailable", "Crypto payments are not available right now."))
+        await cog.start_purchase(ctx, mode.lower() == "gift")
 
     @premium_group.command(name="generate", aliases=["gen"], help='Generate a redeemable premium key (owner/dev only).')
     @is_privileged()
@@ -172,10 +243,43 @@ class Premium(commands.Cog):
                 f"{e('premium_cat')} Premium Activated!",
                 f"**Soward Premium** is now active for **{ctx.guild.name}**!\n"
                 f"**Expires:** <t:{int(expires_at)}:R>\n\n"
-                "No-prefix mode is enabled by default — use `premium np disable` to turn it off.",
+                "No-prefix mode is enabled for everyone by default. Use `premium np server disable` and `premium np add <role or member>` to limit it, or `premium np disable` to turn it off.",
             ),
             view=None,
         )
+
+    @premium_group.group(name="trial", invoke_without_command=True, help='Check or claim the free 3-day premium trial for this server.')
+    @commands.guild_only()
+    async def premium_trial(self, ctx: commands.Context):
+        e = emoji_manager.get
+        trial = await premium_trials.get(ctx.guild.id)
+        if trial is None:
+            return await ctx.send(embed=embeds.neutral(
+                f"{e('gift')} Premium Trial",
+                f"Every server gets one free **{premium_trials.TRIAL_DAYS}-day** premium trial. Use `premium trial claim` to start it. You get a reminder 24 hours before it ends.",
+            ))
+        if trial["ends_at"] > time.time():
+            return await ctx.send(embed=embeds.success(f"{e('premium_cat')} Trial Active", f"This server's trial ends <t:{int(trial['ends_at'])}:R>."))
+        await ctx.send(embed=embeds.neutral(f"{e('gift')} Trial Used", "This server has already used its free trial. Use `premium buy` to get premium."))
+
+    @premium_trial.command(name="claim", help='Start the free 3-day premium trial for this server.')
+    @has_guild_permission("manage_guild")
+    @commands.guild_only()
+    async def premium_trial_claim(self, ctx: commands.Context):
+        e = emoji_manager.get
+        if await premium_trials.get(ctx.guild.id):
+            return await ctx.send(embed=embeds.error(f"{e('cross')} Trial Already Used", "This server has already claimed its free trial."))
+        row = await db.raw_fetchone("SELECT premium, premium_expires_at FROM guilds WHERE guild_id=?", (ctx.guild.id,))
+        if row and row["premium"] and (row["premium_expires_at"] is None or row["premium_expires_at"] > time.time()):
+            return await ctx.send(embed=embeds.error(f"{e('cross')} Already Premium", "This server already has premium, so there is no need for a trial."))
+        ends_at = await premium_trials.start(ctx.guild.id, ctx.author.id)
+        prefix_utils.invalidate_premium_cache(ctx.guild.id)
+        await ctx.send(embed=embeds.success(
+            f"{e('premium_cat')} Trial Started!",
+            f"**Soward Premium** is now active for **{ctx.guild.name}** for {premium_trials.TRIAL_DAYS} days.\n"
+            f"**Ends:** <t:{int(ends_at)}:R>\n\n"
+            "I will remind you 24 hours before it ends. No-prefix mode is on for everyone by default; use `premium np` to change it.",
+        ))
 
     @premium_group.command(name="revoke", help='Revoke premium from a server (owner/dev only).')
     @is_privileged()
@@ -211,44 +315,125 @@ class Premium(commands.Cog):
         except discord.HTTPException:
             await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} Premium Keys", desc))
 
-    @premium_group.group(name="np", invoke_without_command=True, help="View or manage server no-prefix mode settings.")
+    async def _np_premium(self, ctx: commands.Context) -> bool:
+        e = emoji_manager.get
+        if await premium_limits.is_premium(ctx.guild.id):
+            return True
+        await ctx.send(embed=embeds.error(f"{e('cross')} No Premium", "This server needs premium to use no-prefix mode."))
+        return False
+
+    @premium_group.group(name="np", invoke_without_command=True, help="View or manage no-prefix mode: everyone, or only chosen roles and members.")
     @has_guild_permission("administrator")
     @commands.guild_only()
     async def premium_np_group(self, ctx: commands.Context):
         e = emoji_manager.get
-        row = await db.raw_fetchone(
-            "SELECT premium, server_np_enabled FROM guilds WHERE guild_id=?", (ctx.guild.id,)
-        )
-        is_premium = bool(row["premium"]) if row else False
-        np_enabled = bool(row["server_np_enabled"]) if row else config.SERVER_NO_PREFIX_ENABLED_DEFAULT
+        if not await self._np_premium(ctx):
+            return
+        master = await prefix_utils.np_master_enabled(ctx.guild.id)
+        server_wide = await prefix_utils._is_server_np_enabled(ctx.guild.id)
+        targets = await prefix_utils.list_np_targets(ctx.guild.id)
+        roles = sum(1 for t in targets if t["target_type"] == "role")
+        users = len(targets) - roles
+        who = "Everyone in the server" if server_wide else (f"Only {roles} role(s) and {users} member(s) you added" if targets else "Nobody yet. Add roles or members with `premium np add`.")
+        await ctx.send(embed=embeds.neutral(
+            f"{e('premium_cat')} No-Prefix Mode",
+            f"**Status:** {'On' if master else 'Off'}\n**Server-wide:** {'On' if server_wide else 'Off'}\n**Who can skip the prefix:** {who if master else 'Nobody, no-prefix mode is off'}\n\n"
+            "`premium np enable` · `premium np disable` turn no-prefix mode on or off completely\n"
+            "`premium np server enable` · `premium np server disable` let everyone use it, or only chosen roles and members\n"
+            "`premium np add <role or member>` · `premium np remove <role or member>` · `premium np list`",
+        ))
 
-        if not is_premium:
-            return await ctx.send(embed=embeds.error(f"{e('cross')} No Premium", "This server needs premium to use no-prefix mode."))
-
-        embed = embeds.neutral(
-            f"{e('premium_cat')} Server No-Prefix Mode",
-            f"**Status:** {'Enabled' if np_enabled else 'Disabled'}\n\n"
-            "Use `premium np enable` or `premium np disable` to change this.",
-        )
-        await ctx.send(embed=embed)
-
-    @premium_np_group.command(name="enable", help='Enable AntiNuke protection.')
+    @premium_np_group.command(name="enable", help="Turn no-prefix mode back on for this server.")
     @has_guild_permission("administrator")
+    @commands.guild_only()
     async def premium_np_enable(self, ctx: commands.Context):
         e = emoji_manager.get
-        row = await db.raw_fetchone("SELECT premium FROM guilds WHERE guild_id=?", (ctx.guild.id,))
-        if not row or not row["premium"]:
-            return await ctx.send(embed=embeds.error(f"{e('cross')} No Premium", "This server needs premium to enable no-prefix mode."))
+        if not await self._np_premium(ctx):
+            return
+        await prefix_utils.set_np_master(ctx.guild.id, True)
+        await ctx.send(embed=embeds.success(f"{e('check')} No-Prefix Enabled", "No-prefix mode is on again. Who can use it follows your server-wide and role/member settings."))
 
-        await prefix_utils.set_server_np_enabled(ctx.guild.id, True)
-        await ctx.send(embed=embeds.success(f"{e('check')} No-Prefix Enabled", "Server-wide no-prefix mode is now enabled."))
-
-    @premium_np_group.command(name="disable", help='Disable AntiNuke protection.')
+    @premium_np_group.command(name="disable", help="Turn no-prefix mode off completely for this server.")
     @has_guild_permission("administrator")
+    @commands.guild_only()
     async def premium_np_disable(self, ctx: commands.Context):
         e = emoji_manager.get
+        await prefix_utils.set_np_master(ctx.guild.id, False)
+        await ctx.send(embed=embeds.success(f"{e('check')} No-Prefix Disabled", "No-prefix mode is off for everyone. Your roles and members stay saved. Use `premium np enable` to turn it back on."))
+
+    @premium_np_group.group(name="server", aliases=["all", "everyone"], invoke_without_command=True, help="Let everyone use no-prefix mode, or only chosen roles and members.")
+    @has_guild_permission("administrator")
+    @commands.guild_only()
+    async def premium_np_server(self, ctx: commands.Context):
+        e = emoji_manager.get
+        state = await prefix_utils._is_server_np_enabled(ctx.guild.id)
+        await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} Server-wide No-Prefix", f"Server-wide is **{'on' if state else 'off'}**.\nUse `premium np server enable` or `premium np server disable`."))
+
+    @premium_np_server.command(name="enable", help="Everyone in the server can skip the prefix (premium).")
+    @has_guild_permission("administrator")
+    @commands.guild_only()
+    async def premium_np_server_enable(self, ctx: commands.Context):
+        e = emoji_manager.get
+        if not await self._np_premium(ctx):
+            return
+        await prefix_utils.set_server_np_enabled(ctx.guild.id, True)
+        note = "" if await prefix_utils.np_master_enabled(ctx.guild.id) else "\nNo-prefix mode itself is off, so run `premium np enable` to use it."
+        await ctx.send(embed=embeds.success(f"{e('check')} Server-wide No-Prefix Enabled", "Everyone in this server can use commands without a prefix." + note))
+
+    @premium_np_server.command(name="disable", help="Only chosen roles and members can skip the prefix.")
+    @has_guild_permission("administrator")
+    @commands.guild_only()
+    async def premium_np_server_disable(self, ctx: commands.Context):
+        e = emoji_manager.get
         await prefix_utils.set_server_np_enabled(ctx.guild.id, False)
-        await ctx.send(embed=embeds.success(f"{e('check')} No-Prefix Disabled", "Server-wide no-prefix mode is now disabled."))
+        await ctx.send(embed=embeds.success(f"{e('check')} Server-wide No-Prefix Disabled", "Only the roles and members you add with `premium np add` can skip the prefix."))
+
+    @premium_np_group.command(name="add", aliases=["give", "grant"], help="Let a role or member skip the prefix. Usage: premium np add <role or member>")
+    @has_guild_permission("administrator")
+    @commands.guild_only()
+    async def premium_np_add(self, ctx: commands.Context, target: typing.Union[discord.Role, discord.Member, discord.User]):
+        e = emoji_manager.get
+        if not await self._np_premium(ctx):
+            return
+        if isinstance(target, discord.Role):
+            if target.is_default():
+                return await ctx.send(embed=embeds.error(f"{e('cross')} Use server-wide", "Use `premium np server enable` to give no-prefix mode to everyone."))
+            kind = "role"
+        else:
+            if target.bot:
+                return await ctx.send(embed=embeds.error(f"{e('cross')} Invalid", "Bots cannot be added."))
+            kind = "user"
+        if len(await prefix_utils.list_np_targets(ctx.guild.id)) >= config.NP_TARGETS_MAX:
+            return await ctx.send(embed=embeds.error(f"{e('cross')} Limit reached", f"You can add up to {config.NP_TARGETS_MAX} roles and members."))
+        if not await prefix_utils.add_np_target(ctx.guild.id, target.id, kind, ctx.author.id):
+            return await ctx.send(embed=embeds.error(f"{e('cross')} Already added", f"{target.mention} already has no-prefix mode."), allowed_mentions=discord.AllowedMentions.none())
+        notes = []
+        if await prefix_utils._is_server_np_enabled(ctx.guild.id):
+            notes.append("Server-wide is on, so everyone can already skip the prefix. Run `premium np server disable` to limit it to your list.")
+        if not await prefix_utils.np_master_enabled(ctx.guild.id):
+            notes.append("No-prefix mode is off. Run `premium np enable` to use it.")
+        await ctx.send(embed=embeds.success(f"{e('check')} No-Prefix Added", f"{target.mention} can now use commands without a prefix." + ("\n\n" + "\n".join(notes) if notes else "")), allowed_mentions=discord.AllowedMentions.none())
+
+    @premium_np_group.command(name="remove", aliases=["revoke", "delete"], help="Take no-prefix mode away from a role or member. Usage: premium np remove <role or member>")
+    @has_guild_permission("administrator")
+    @commands.guild_only()
+    async def premium_np_remove(self, ctx: commands.Context, target: typing.Union[discord.Role, discord.Member, discord.User]):
+        e = emoji_manager.get
+        if not await prefix_utils.remove_np_target(ctx.guild.id, target.id):
+            return await ctx.send(embed=embeds.error(f"{e('cross')} Not on the list", f"{target.mention} was not added."), allowed_mentions=discord.AllowedMentions.none())
+        await ctx.send(embed=embeds.success(f"{e('check')} No-Prefix Removed", f"{target.mention} must use the prefix again."), allowed_mentions=discord.AllowedMentions.none())
+
+    @premium_np_group.command(name="list", aliases=["targets"], help="Show the roles and members that can skip the prefix.")
+    @has_guild_permission("administrator")
+    @commands.guild_only()
+    async def premium_np_list(self, ctx: commands.Context):
+        e = emoji_manager.get
+        targets = await prefix_utils.list_np_targets(ctx.guild.id)
+        if not targets:
+            return await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} No-Prefix List", "No roles or members added. Use `premium np add <role or member>`."))
+        lines = [f"{'<@&' if t['target_type'] == 'role' else '<@'}{t['target_id']}> · added <t:{int(t['added_at'])}:R>" for t in targets]
+        await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} No-Prefix List", "\n".join(lines)), allowed_mentions=discord.AllowedMentions.none())
+
 
 class NoPrefix(commands.Cog, name="GlobalNoPrefix"):
     category = "Premium"
@@ -265,7 +450,7 @@ class NoPrefix(commands.Cog, name="GlobalNoPrefix"):
         embed = embeds.neutral(f"{e('premium_cat')} Global No-Prefix Users", desc)
         await ctx.send(embed=embed)
 
-    @np_group.command(name="add", help='Add a role to assign to all new members on join.')
+    @np_group.command(name="add", help='Give a user global no-prefix access.')
     @is_privileged()
     async def np_add(self, ctx: commands.Context, user: discord.User):
         e = emoji_manager.get
@@ -275,7 +460,7 @@ class NoPrefix(commands.Cog, name="GlobalNoPrefix"):
             f"{user.mention} can now use Soward commands without a prefix in any server the bot is in.",
         ))
 
-    @np_group.command(name="remove", help='Remove a track from the queue by position.')
+    @np_group.command(name="remove", help='Take global no-prefix access from a user.')
     @is_privileged()
     async def np_remove(self, ctx: commands.Context, user: discord.User):
         e = emoji_manager.get

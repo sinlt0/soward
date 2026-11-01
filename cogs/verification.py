@@ -9,9 +9,12 @@ import discord
 from discord.ext import commands, tasks
 
 from utils import db, embed_templates, emoji_manager, guild_settings, incident, message_vars, security
+from utils import security_master
 from utils import security_cmds, threat, web_verify
 from utils import security_settings as settings
 from utils.checks import has_guild_permission
+from utils.components import error_layout, info_layout, success_layout
+from utils.converters import DurationConverter
 from utils.security_access import security_owner, security_staff
 from utils.events_bus import (
     ANTINUKE_INCIDENT,
@@ -495,7 +498,7 @@ class Verification(commands.Cog):
         for row in rows:
             guild_id = row["guild_id"]
             guild = self.bot.get_guild(guild_id)
-            if not guild:
+            if not guild or await security_master.is_off(guild_id, "verification"):
                 continue
 
             enabled = await guild_settings.get(guild_id, "verification_pending_timeout_enabled", config.VERIFICATION_PENDING_TIMEOUT_ENABLED_DEFAULT)
@@ -555,6 +558,8 @@ class Verification(commands.Cog):
         if member.bot:
             return
         guild_id = member.guild.id
+        if await security_master.is_off(guild_id, "verification"):
+            return
         level = await guild_settings.get(guild_id, "verification_level", config.VERIFICATION_LEVELS["none"])
         if level == config.VERIFICATION_LEVELS["none"]:
             return
@@ -765,6 +770,30 @@ class Verification(commands.Cog):
             "Use this to restrict channel access until verified.",
         ))
 
+    @verification_group.command(name="disable", aliases=["pause"], help="Pause verification for a while and keep its settings. New members are not gated and nobody is kicked by the timeout. Usage: verification disable [duration]")
+    @security_owner()
+    async def verification_disable(self, ctx: commands.Context, duration: str = "2h"):
+        e = emoji_manager.get
+        try:
+            seconds = await DurationConverter().convert(ctx, duration)
+        except commands.BadArgument:
+            return await ctx.send(view=error_layout("Invalid duration", "Use something like `30m`, `2h` or `1d`."))
+        if not 300 <= seconds <= security_master.MAX_SECONDS:
+            return await ctx.send(view=error_layout("Invalid duration", "Use between 5 minutes and 7 days. Verification switches back on by itself."))
+        current = await security_master.disable(ctx.guild.id, ctx.author.id, "verification paused", seconds, "verification")
+        await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="security_change", actor_id=ctx.author.id, detail=f"Verification paused until <t:{int(current['until'])}:f>.")
+        await ctx.send(view=success_layout(f"{e('check')} Verification paused", f"New members are not gated and the pending timeout does not kick anyone. Back on <t:{int(current['until'])}:R>, or sooner with `verification enable`. Members who are still unverified then get a fresh timeout."))
+
+    @verification_group.command(name="enable", aliases=["resume"], help="Switch verification back on after pausing it.")
+    @security_owner()
+    async def verification_enable(self, ctx: commands.Context):
+        e = emoji_manager.get
+        if not await security_master.is_off(ctx.guild.id, "verification"):
+            return await ctx.send(view=info_layout("Verification is on", "It was not paused."))
+        await security_master.enable(ctx.guild.id, "verification")
+        await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="security_change", actor_id=ctx.author.id, detail="Verification switched back on.")
+        await ctx.send(view=success_layout(f"{e('check')} Verification is on again", "Settings are as you left them. Members still pending got a fresh timeout."))
+
     @verification_group.command(name="pendingtimeout", help="Configure auto-action for members who never complete verification. Usage: verification pendingtimeout <on|off> [minutes] [kick|ban]")
     @security_staff()
     async def verification_pendingtimeout(self, ctx: commands.Context, toggle: str, minutes: Optional[int] = None, action: Optional[str] = None):
@@ -818,6 +847,54 @@ class Verification(commands.Cog):
         await guild_settings.set(ctx.guild.id, "verification_min_account_age_hours", hours)
         text = f"Accounts younger than **{hours}h** cannot verify yet." if hours else "Account age is no longer checked."
         await ctx.send(view=success_layout(f"{e('check')} Minimum account age set", text))
+
+    @verification_group.command(name="verify", aliases=["approve", "manual"], help="Manually verify one or more members. Usage: verification verify @member [@member ...]")
+    @security_staff()
+    @commands.guild_only()
+    async def verification_verify(self, ctx: commands.Context, members: commands.Greedy[discord.Member]):
+        e = emoji_manager.get
+        if not members:
+            return await ctx.send(view=error_layout("Who?", "Mention one or more members, for example `verification verify @member @other`."))
+        done, skipped = [], []
+        for member in members[:25]:
+            if member.bot:
+                skipped.append(f"{member.mention} is a bot")
+            elif not await _complete_verification(ctx.guild, member):
+                skipped.append(f"{member.mention} is quarantined")
+            else:
+                await db.raw_execute("DELETE FROM pending_verification WHERE guild_id=? AND user_id=?", (ctx.guild.id, member.id))
+                await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="verification_action", user_id=member.id, detail=f"manually verified by {ctx.author.id}")
+                done.append(member.mention)
+        lines = []
+        if done:
+            lines.append(f"Verified: {', '.join(done)}")
+        if skipped:
+            lines.append("Skipped: " + "; ".join(skipped))
+        view = success_layout(f"{e('check')} Manual verification", "\n".join(lines)) if done else error_layout("Nobody verified", "\n".join(lines))
+        await ctx.send(view=view, allowed_mentions=discord.AllowedMentions.none())
+
+    @verification_group.command(name="verifyall", help="Verify every member who is currently waiting. Usage: verification verifyall")
+    @security_owner()
+    @commands.guild_only()
+    async def verification_verifyall(self, ctx: commands.Context):
+        from utils.components import ConfirmLayout
+        e = emoji_manager.get
+        rows = await db.raw_fetch("SELECT user_id FROM pending_verification WHERE guild_id=?", (ctx.guild.id,))
+        targets = [m for m in (ctx.guild.get_member(r["user_id"]) for r in rows) if m is not None and not m.bot]
+        if not targets:
+            return await ctx.send(view=info_layout("Nobody waiting", "No member is waiting for verification."))
+        confirm = ConfirmLayout(f"{e('warn')} Verify everyone waiting?", f"**{len(targets)}** member(s) will be verified without passing the check.", author_id=ctx.author.id)
+        msg = await ctx.send(view=confirm)
+        await confirm.wait()
+        if not confirm.value:
+            return await msg.edit(view=error_layout("Cancelled", "Nobody was verified."))
+        count = 0
+        for member in targets:
+            if await _complete_verification(ctx.guild, member):
+                await db.raw_execute("DELETE FROM pending_verification WHERE guild_id=? AND user_id=?", (ctx.guild.id, member.id))
+                await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="verification_action", user_id=member.id, detail=f"manually verified by {ctx.author.id}")
+                count += 1
+        await msg.edit(view=success_layout(f"{e('check')} Done", f"Verified **{count}** member(s)."))
 
     @verification_group.command(name="deny", help="Reject a member awaiting manual verification by kicking them.")
     @security_staff()

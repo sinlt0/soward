@@ -22,21 +22,20 @@ Notes:
 - Scheduled livestreams and premieres are announced when they actually go live, not when they are scheduled.
 - Videos that were published more than 12 hours before the notification arrived (for example an old video whose title was edited) are not announced.
 - The same video or stream is never announced twice for one subscription.
-- Alerts need API keys that the bot's host sets up. If they are missing, adding a subscription shows "The bot owner has not set up a YouTube API key" or "...Twitch API credentials".
+- YouTube and Twitch alerts only work if that service is set up on this bot. If it is not, adding a subscription tells you so.
 
-Every alert command needs **Manage Server** (or the matching fake permission, see [moderation](/docs/moderation)), except `alerts variables`, which anyone can use. Bot owners are always allowed. To add a subscription from a command the bot also needs the **Embed Links** permission in your server.
+Every alert command needs **Manage Server** (or the matching fake permission, see [moderation](/docs/moderation)), except `alerts variables`, which anyone can use. To add a subscription from a command the bot also needs the **Embed Links** permission in your server.
 
 ## Instant YouTube notifications
 
-When the bot's host has a public dashboard address set, the bot subscribes to each watched YouTube channel through YouTube's push system (WebSub). YouTube then tells the bot about a new upload within seconds, which also means no YouTube API quota is spent waiting for it.
+When the dashboard is available, the bot subscribes to each watched YouTube channel through YouTube's push system (WebSub). YouTube then tells the bot about a new upload within seconds, which also means no YouTube API quota is spent waiting for it.
 
 - `!alerts list` marks each YouTube subscription as **instant** or **polling**.
 - A channel is on **polling** until YouTube confirms the push subscription, which normally takes a few seconds after you add it.
 - Push subscriptions are renewed automatically before they expire.
-- If a push is missed or the host was offline, the **fallback check** still catches the newest video: every 15 minutes for channels on instant mode, every 2 minutes for channels still on polling.
+- If a push is missed or the bot was offline, the **fallback check** still catches the newest video: every 15 minutes for channels on instant mode, every 2 minutes for channels still on polling.
 - The same video is never announced twice, even if both paths see it.
 
-Bot owners can run `!alerts websub` to see every watched channel with its lease expiry and last push time, and `!alerts websub resync` to ask YouTube to confirm every subscription again.
 
 ## Quick start
 
@@ -70,7 +69,6 @@ You can also run `!alerts` on its own to open an interactive menu with buttons f
 | `!alerts youtube remove <ID>` | Removes a subscription by ID. | Manage Server |
 | `!alerts twitch add <username> <#channel>` | Subscribes to a Twitch streamer. | Manage Server |
 | `!alerts twitch remove <ID>` | Removes a subscription by ID. | Manage Server |
-| `!alerts websub [resync]` | Shows instant-notification status for every watched channel. | Bot owner |
 | `!alerts list` | Lists all subscriptions with their IDs, platforms and channels. | Manage Server |
 | `!alerts role <ID> [role]` | Sets the role to mention for this subscription. Run it without a role to stop pinging. | Manage Server |
 | `!alerts message <ID> <text>` | Sets a custom message for this subscription and shows a preview. | Manage Server |
@@ -130,16 +128,19 @@ Every subscription has two switches, both on by default.
 
 ## Limits
 
+| Limit | Free | Premium |
+| --- | --- | --- |
+| YouTube subscriptions per server | 5 | 15 |
+| Twitch subscriptions per server | 5 | 15 |
+
 | Limit | Value |
 | --- | --- |
-| YouTube subscriptions per server | 5 |
-| Twitch subscriptions per server | 5 |
 | Same channel twice in one server | Not allowed |
 | Check interval | Every 2 minutes |
 | Custom message (dashboard) | 1000 characters |
 | Default message (menu) | 1500 characters |
 
-Alerts have no Premium limits.
+Premium raises the subscription limit only.
 
 ## From the dashboard
 
@@ -154,6 +155,6 @@ Still needs the menu or commands: editing the default message for a platform, `!
 ## Troubleshooting
 
 - **"Could not find a YouTube channel."** Check the handle or ID. The `@` is needed for handles, and channel IDs start with `UC`.
-- **"Limit Reached."** The server already has 5 subscriptions for that platform. Remove one with `!alerts youtube remove <ID>` or `!alerts twitch remove <ID>`.
+- **"Limit Reached."** The server is at its subscription limit for that platform (5, or 15 with Premium). Remove one with `!alerts youtube remove <ID>` or `!alerts twitch remove <ID>`.
 - **Nothing is posted.** Make sure the bot can see and send messages in the announcement channel, that the right switch (`live` or `upload`) is on, and remember checks run every 2 minutes. The announcement channel must still exist.
 - **Old video was not announced.** Only videos posted after you subscribed are announced.

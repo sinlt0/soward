@@ -313,18 +313,8 @@ class DevStatsUpdater:
         self.bot = bot
         self._channel_id: Optional[int] = None
 
-    def _resolve_channel_id(self) -> Optional[int]:
-        if self._channel_id:
-            return self._channel_id
-        if not config.DEV_STATS_WEBHOOK_URL:
-            return None
-        try:
-            webhook = discord.Webhook.from_url(config.DEV_STATS_WEBHOOK_URL, client=self.bot)
-            self._channel_id = webhook.channel_id
-            return self._channel_id
-        except ValueError:
-            log.error("SOWARD_DEV_STATS_WEBHOOK is not a valid webhook URL.")
-            return None
+    def _webhook(self) -> Optional[discord.Webhook]:
+        return _get_webhook(config.DEV_STATS_WEBHOOK_URL, self.bot)
 
     async def _build_view(self, stats: dict) -> discord.ui.LayoutView:
         status_emoji = "✅" if stats["mongo_status"] == "Connected" else "⚠️"
@@ -346,46 +336,36 @@ class DevStatsUpdater:
         view.add_item(container)
         return view
 
-    async def update(self) -> None:
-        channel_id = self._resolve_channel_id()
-        if not channel_id:
-            return
-
-        channel = self.bot.get_channel(channel_id)
-        if not channel:
-            log.warning("DevStatsUpdater: channel %s not found or not cached.", channel_id)
-            return
-
-        stats = await _gather_stats(self.bot)
-        image_buf = _render_stats_image(stats, config.BOT_NAME)
-        file = discord.File(image_buf, filename="db-stats.png")
-        view = await self._build_view(stats)
-
-        row = await db.raw_fetchone("SELECT * FROM dev_stats_state WHERE id=1")
-        message_id = row["message_id"] if row else None
-
-        if message_id:
-            try:
-                message = await channel.fetch_message(message_id)
-                await message.edit(content=None, embed=None, embeds=[], attachments=[file], view=view)
-                await db.raw_execute(
-                    "INSERT INTO dev_stats_state (id, message_id, last_updated_at) VALUES (1, ?, ?)"
-                    " ON CONFLICT(id) DO UPDATE SET last_updated_at=excluded.last_updated_at",
-                    (message_id, time.time()),
-                )
-                return
-            except discord.NotFound:
-                message_id = None
-            except discord.HTTPException:
-                log.warning("DevStatsUpdater: edit failed, will try resending.", exc_info=True)
-                message_id = None
+    async def update(self) -> tuple[bool, str]:
+        webhook = self._webhook()
+        if webhook is None:
+            return False, "SOWARD_DEV_STATS_WEBHOOK is missing or not a valid webhook URL."
 
         try:
-            message = await channel.send(file=file, view=view)
-            await db.raw_execute(
-                "INSERT INTO dev_stats_state (id, message_id, last_updated_at) VALUES (1, ?, ?)"
-                " ON CONFLICT(id) DO UPDATE SET message_id=excluded.message_id, last_updated_at=excluded.last_updated_at",
-                (message.id, time.time()),
-            )
-        except discord.HTTPException:
-            log.error("DevStatsUpdater: failed to send stats message.", exc_info=True)
+            stats = await _gather_stats(self.bot)
+            image_buf = _render_stats_image(stats, config.BOT_NAME)
+        except Exception as exc:
+            log.error("DevStatsUpdater: failed to build the stats image.", exc_info=True)
+            return False, f"Could not build the stats image: {exc}"
+
+        row = await db.raw_fetchone("SELECT * FROM dev_stats_state WHERE id=1")
+        old_id = row["message_id"] if row else None
+        view = await self._build_view(stats)
+
+        try:
+            message = await webhook.send(file=discord.File(image_buf, filename="db-stats.png"), view=view, wait=True)
+        except Exception as exc:
+            log.error("DevStatsUpdater: failed to send the stats message.", exc_info=True)
+            return False, f"Discord rejected the stats message: {exc}"
+
+        await db.raw_execute(
+            "INSERT INTO dev_stats_state (id, message_id, last_updated_at) VALUES (1, ?, ?)"
+            " ON CONFLICT(id) DO UPDATE SET message_id=excluded.message_id, last_updated_at=excluded.last_updated_at",
+            (message.id, time.time()),
+        )
+        if old_id and old_id != message.id:
+            try:
+                await webhook.delete_message(old_id)
+            except discord.HTTPException:
+                pass
+        return True, "Stats message updated."

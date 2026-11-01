@@ -27,7 +27,6 @@ How the menu works:
 - Long lists are split into pages of 8 commands with arrow buttons. **Back** goes up one level.
 - Only the person who opened the menu can use it. It stops responding after 2 minutes. Run `!help` again to get a new one.
 - If a name matches nothing, you get a "Not found" message.
-- Premium, owner and developer tools are not shown to regular members.
 
 ## Support access
 
@@ -72,7 +71,7 @@ What to know:
 The status can be:
 
 - **On for this server** or **Off for this server**, which you control with `on` and `off`.
-- **Off for every server**, which the bot owner controls.
+- **Off for every server.** Ask in the support server if this is unexpected.
 - **Disabled**, which means the web server is not running for this bot.
 
 Turning the dashboard on or off from Discord is recorded in the dashboard's audit log. Members still need Manage Server to sign in and change settings. See [Using the dashboard](/docs/dashboard).
@@ -80,6 +79,6 @@ Turning the dashboard on or off from Discord is recorded in the dashboard's audi
 ## Troubleshooting
 
 - **The dashboard says it is off.** Run `!dashboard` to see why. If it is off for your server, run `!dashboard on`.
-- **No dashboard link is shown.** The bot's owner has not set the dashboard address.
+- **No dashboard link is shown.** The dashboard is not available on this bot.
 - **`!supportaccess` fails to create the role.** Check the bot's Manage Roles permission and that your server has room for another role.
 - **A command is missing from `!help`.** Some commands are hidden from regular members, or you are looking in the wrong category. Try `!help <command name>`.

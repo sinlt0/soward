@@ -92,6 +92,7 @@ Manage Roles, Manage Channels, Ban/Kick Members and Moderate Members.
 | `SOWARD_TURNSTILE_SITE_KEY` / `SOWARD_TURNSTILE_SECRET` | No | Adds a Cloudflare Turnstile widget to the verification page |
 | `SOWARD_SUPPORT_URL` | No | Support server link shown on the site |
 | `SOWARD_DEV_LOG_*_WEBHOOK`, `SOWARD_DEV_STATS_WEBHOOK` | No | Developer-only logging webhooks |
+| `SOWARD_BLOCKCYPHER_TOKEN` | No | Optional free BlockCypher token that raises the Litecoin explorer rate limit |
 
 See [`.env.example`](./.env.example) for the full template.
 
@@ -117,6 +118,104 @@ running [Lavalink v4](https://lavalink.dev/getting-started/) server. If no node
 is reachable, music commands just don't work and the rest of the bot is
 unaffected.
 
+## Music Activity
+
+Soward Music is a Discord Activity: a music app that runs inside Discord for
+servers, voice channels and DMs. It is served by the dashboard (a section of
+the Flask site under `/activity/`) and needs the dashboard to be running and
+reachable over HTTPS. It does not need Lavalink. Audio is searched and streamed
+by the dashboard process through `yt-dlp`, so the host needs outbound access to
+YouTube and enough bandwidth for the listeners.
+
+Developer Portal setup, on the same application as the bot:
+
+1. **Installation**: turn on both User Install and Guild Install.
+2. **OAuth2 > Redirects**: add the placeholder `https://127.0.0.1`.
+3. **Activities > Settings**: turn on **Enable Activities** and tick the supported platforms (desktop, mobile and web). This creates the default Launch entry point command.
+4. **Activities > URL Mappings**: add one mapping, prefix `/` and target `your-dashboard-host/activity` (no protocol, no trailing slash). Requests from the Activity then reach the dashboard's `/activity/` routes.
+5. Make sure `SOWARD_CLIENT_ID`, `SOWARD_CLIENT_SECRET` and `SOWARD_DASHBOARD_URL` are set. The Activity reuses them. Set `SOWARD_ACTIVITY=0` to turn the feature off.
+
+If songs will not play, open the Activity as the owner, go to Settings and press
+**Run music diagnostics**. It reports the `yt-dlp` version, whether search works and
+the exact error when preparing a song fails. YouTube often blocks cloud server
+addresses and asks to "sign in to confirm you're not a bot". The Activity first
+retries with other YouTube player clients. If that is not enough, give it cookies
+from a throwaway YouTube account: export them as a Netscape `cookies.txt`, then set
+`SOWARD_YTDLP_COOKIES_B64` to the base64 of that file (or `SOWARD_YTDLP_COOKIES` to
+a file path, such as a Render secret file). Also set `SOWARD_YTDLP_JS_RUNTIME` to
+`node` or `deno`. The export must include `__Secure-1PSIDTS` and `__Secure-3PSIDTS`. Export from a
+private window right after signing in, then close it without logging out, because
+YouTube rotates cookies that stay open in a tab. Use a spare account, because YouTube
+can flag accounts used this way. Keep `yt-dlp` up to date.
+
+When YouTube blocks the server, the Activity first asks your Lavalink node for the
+audio (this needs the node to run the YouTube source plugin with its stream endpoint
+enabled; the diagnostics list the node's plugins and whether the endpoint answers).
+If that fails too, it plays a matching SoundCloud
+version of the song instead (matched by title, artist and length). Search results also
+have a SoundCloud tab. SoundCloud needs no cookies.
+
+The same Activity has a **Games** tab with chess: players create or join a room,
+others can watch, and the server checks every move against the full rules. Rooms live in
+the dashboard process's memory and there is no clock yet. `!gamesapp` posts a launch
+button.
+
+Choose which apps are available in `addons.py`. Opening the Activity shows an apps
+page with a card for each app that is on. If only one is on, it opens straight away.
+
+```python
+activities = {
+    "enabled": True,
+    "music": True,
+    "game_lobby": {
+        "enabled": True,
+        "chess": True,
+    },
+}
+```
+
+Turning an app off also blocks its server routes and its `!musicapp` or `!gamesapp`
+command. `SOWARD_ACTIVITY=0` still turns every app off.
+
+### Vote rewards
+
+`!vote` links to the bot's discordbotlist.com page. When someone votes, the site posts to
+`<dashboard url>/vote/discordbotlist` and the voter gets global no-prefix for
+`SOWARD_VOTE_NP_HOURS` hours (default 12), a thank-you DM and a vote streak. On the bot's
+discordbotlist.com edit page, set **Upvote Webhook** to that URL and **Webhook Secret** to a
+long random string, then put the same string in `SOWARD_VOTE_DBL_SECRET`. The **Test webhook**
+button on the site sends from your browser and cannot reach a private dashboard, so check
+with a real vote.
+
+Set `SOWARD_DBL_TOKEN` to the token from the page's **Generate token** link and the bot posts its
+server and user counts to discordbotlist.com every 30 minutes.
+
+### Covering hosting
+
+`!support` creates a pay-what-you-want Bitcoin or Litecoin invoice with the same wallet
+as premium purchases. Set `SOWARD_SUPPORT_GUILD` and `SOWARD_SUPPORTER_ROLE` to also give
+tippers a role in your support server. The dashboard has a `/supporters` page that lists
+people who opted in with `!support public on`.
+
+The website can show an A-ADS banner to visitors who are not signed in. Create an ad
+unit at a-ads.com with your own Bitcoin address, then set it in `addons.py`:
+
+```python
+ads = {
+    "enabled": True,
+    "aads_unit": "1234567",
+}
+```
+
+Banners only appear on public pages (home, docs, commands, changelog, team and
+supporters). They never appear for signed-in users, on the dashboard, on legal pages, in
+verification or appeal pages, or in Activities. The privacy policy already mentions them.
+
+Until the app is distributed, only the application owner and team members can
+launch the Activity. Playing music from YouTube may break YouTube's terms of
+service, the same as the bot's other music commands, so decide whether to run
+it on a public bot. `!musicapp` posts a button that launches it.
+
 ## Premium and no-prefix
 
 - `premium generate <duration>` (owner/dev): presets like `3d`, `1w`, `1m`,
@@ -124,6 +223,28 @@ unaffected.
 - `premium claim <key>`: any member redeems a key for their server.
 - `premium np enable|disable`: per-server toggle of the no-prefix perk.
 - `globalnp add|remove|list` (owner/dev): no-prefix access in every server.
+
+### Crypto premium payments
+
+Members buy premium with `!premium buy`. The bot never holds a private key: it stores only a **public** key from your wallet, derives a new payment address for every invoice, and the money goes straight to your wallet. No KYC and no payment processor are involved.
+
+1. In **Electrum** (Bitcoin) or **Electrum-LTC** (Litecoin) create a **Standard wallet** with a **Segwit** seed. Open **Wallet, Information** and copy the **Master Public Key** (`zpub`, `xpub`, `ypub`, `Ltub` or `Mtub`). Never share your seed words or anything starting with `xprv` or `zprv`.
+2. Run `!crypto setup btc <key>` (or `ltc`). The bot deletes your message and shows address number 1. Check that it equals the first receiving address in your wallet.
+3. Run `!crypto status` to test the blockchain explorers and price feeds. At least two explorers per coin must answer, because two have to agree before premium is granted.
+4. Optional: `!crypto log #channel` posts every payment and every invoice that needs review.
+
+| Command (bot owner and developers) | What it does |
+| --- | --- |
+| `!crypto setup <btc\|ltc> <key>` | Adds a wallet and starts selling in that coin |
+| `!crypto off <coin>` | Stops selling in that coin. Open invoices keep being checked |
+| `!crypto status` | Wallets, explorers, prices and open invoices |
+| `!crypto invoices [status]` | Recent invoices: `pending`, `seen`, `paid`, `expired`, `cancelled`, `review` |
+| `!crypto verify <id>` | Checks the chain for an invoice now, even if it expired |
+| `!crypto approve <id>` | Grants premium for an invoice that received a payment but not enough |
+| `!crypto cancel <id>` | Cancels an unpaid invoice |
+| `!crypto log [#channel]` | Where payment logs go |
+
+Plans, prices, coins, the invoice time, the grace period, confirmations, the number of explorers that must agree and the explorers themselves are in `config.py` (`CRYPTO_*`). Electrum only looks ahead 20 unused addresses by default, so after many unpaid invoices raise the gap limit in Electrum to see a payment on a later address. Keys, premium revoke and global no-prefix remain owner commands: `!premium generate`, `!premium revoke`, `!premium keys`, `!globalnp`.
 
 ## Custom emoji
 

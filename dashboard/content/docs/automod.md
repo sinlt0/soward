@@ -15,7 +15,7 @@ AutoMod reads every message in your server (ignoring bots) and gives each member
 
 AutoMod is **off by default**. Turn it on with `!automod enable`, or apply a preset such as `!security preset balanced`. Heat scores are kept in memory, so they reset when the bot restarts.
 
-Never scored: members with Administrator, the bot's owners, the server owner, Extra Owners, Trusted Admins, AntiNuke trusted members, members and channels on the [whitelist](/docs/security-center) for AutoMod (a whitelist can also skip only some checks), and the channels and roles you exempt with `!automod exempt`.
+Never scored: members with Administrator, the server owner, Extra Owners, Trusted Admins, AntiNuke trusted members, members and channels on the [whitelist](/docs/security-center) for AutoMod (a whitelist can also skip only some checks), and the channels and roles you exempt with `!automod exempt`.
 
 ## What adds heat
 
@@ -77,7 +77,20 @@ Turn on `warn_ladder_enabled` to escalate members who collect [warnings](/docs/m
 | `warn_ban_at` | 7 | Ban at this many |
 | `warn_on_punish` | Off | Each AutoMod punishment also adds a warning, so the ladder applies to AutoMod too |
 
-Set a step to `0` to skip it. The ladder never acts on the server owner or on members whose top role is at or above the bot's.
+Set a step to `0` to skip it. The ladder never acts on the server owner or on members whose top role is at or above the bot's. A step happens when the member's active warning count **equals** the number, so a member who is already past a step is not punished again for it.
+
+You can manage the ladder with commands instead of settings:
+
+| Command | What it does | Needs |
+| --- | --- | --- |
+| `!ladder` | Shows the steps and whether the ladder is on | Manage Messages |
+| `!ladder on` / `off` | Turns the ladder on or off | Trusted Admin |
+| `!ladder timeout <warns> [duration]` | Timeout step and its length, such as `!ladder timeout 3 1h` | Trusted Admin |
+| `!ladder kick <warns>` / `ban <warns>` | Kick and ban steps (`0` turns a step off) | Trusted Admin |
+| `!ladder window <duration>` | How long a warning counts, such as `30d` | Trusted Admin |
+| `!ladder check @member` | Active warnings, the next step, how many warnings away it is and when the oldest warning stops counting | Manage Messages |
+
+Aliases: `!warnladder`, `!warnsteps`.
 
 ## Webhook and mass-mention protection
 
@@ -141,3 +154,110 @@ Open **AutoMod** under Security. You can switch it on or off, set invite blockin
 **The bot cannot punish a member.** Its role must be above theirs and it needs the permission for the action (Moderate Members, Kick Members, Ban Members or Manage Roles).
 
 **`native sync` fails.** The bot needs Manage Server, and Discord caps how many AutoMod rules a server can have.
+
+## Settings reference
+
+Every automod setting, taken from the bot's settings list. Change one with `!automod set <key> <value>`, look at one with `!automod get <key>` and put one back with `!automod reset <key>`.
+
+### General
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `enabled` | Off | On or Off | Master switch for AutoMod. |
+
+### Filters
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `block_invites` | Off | On or Off | Block invite links |
+| `mention_limit` | 5 | 2 to 50 | Mention limit |
+| `attachment_limit` | 6 | 2 to 20 | Attachment limit |
+| `emoji_limit` | 10 | 3 to 100 | Emoji limit |
+| `caps_min_length` | 15 | 5 to 200 | Caps minimum length |
+| `caps_ratio` | 0.7 | 0.3 to 1 | Caps ratio |
+| `wall_length` | 600 | 200 to 4000 | Text wall length |
+| `duplicate_window` | 30s | 5s to 10m 0s | Duplicate window |
+| `duplicate_similarity` | 0.9 | 0.5 to 1 | Duplicate similarity |
+| `filter_scamlinks` | On | On or Off | Filter: scamlinks |
+| `filter_caps` | On | On or Off | Filter: caps |
+| `filter_zalgo` | On | On or Off | Filter: zalgo |
+| `filter_duplicates` | On | On or Off | Filter: duplicates |
+| `filter_emoji` | On | On or Off | Filter: emoji |
+| `filter_attachments` | On | On or Off | Filter: attachments |
+| `filter_wholeword` | Off | On or Off | Filter: wholeword |
+
+### Lists
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `banned_words` | Empty | list, up to 200 (500 with Premium) | Banned words |
+| `link_blocklist` | Empty | list, up to 200 (500 with Premium) | Blocked domains |
+| `link_allowlist` | Empty | list, up to 200 (500 with Premium) | Once set, only these domains are permitted. |
+| `exempt_channels` | Empty | list, up to 50 (150 with Premium) | Exempt channels |
+| `exempt_roles` | Empty | list, up to 50 (150 with Premium) | Exempt roles |
+
+### Heat
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `mute_threshold` | 10.0 | 3 to 200 | Heat that triggers a punishment |
+| `panic_threshold` | 30.0 | 5 to 500 | Heat that triggers the severe action |
+| `decay` | 1.0 | 0.1 to 20 | Heat lost per second |
+| `mute_action` | `timeout` | `timeout`, `kick`, `ban`, `quarantine`, `none` | First strike action |
+| `panic_action` | `quarantine` | `timeout`, `kick`, `ban`, `quarantine`, `none` | Severe action |
+| `base_mute` | 5m 0s | 10s to 28d 0h | Base timeout length |
+| `max_multiplier` | 10 | 1 to 50 | Maximum timeout multiplier |
+| `multiplier_reset` | 1h 0m | 1m 0s to 7d 0h | Multiplier reset time |
+| `reset_heat_on_punish` | On | On or Off | Reset heat after a punishment |
+| `raid_heat_factor` | 1.5 | 1 to 5 | Heat factor during raid mode |
+| `unverified_heat_factor` | 1.5 | 1 to 5 | Heat factor for unverified members |
+
+### Warnings
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `warn_ladder_enabled` | Off | On or Off | Escalate members who collect warnings: timeout, then kick, then ban. |
+| `warn_window` | 30d 0h | 1h 0m to 365d 0h | Older warnings stop counting toward the ladder. |
+| `warn_timeout_at` | 3 | 0 to 50 | 0 turns this step off. |
+| `warn_timeout_duration` | 1h 0m | 1m 0s to 28d 0h | Ladder timeout length |
+| `warn_kick_at` | 5 | 0 to 50 | 0 turns this step off. |
+| `warn_ban_at` | 7 | 0 to 50 | 0 turns this step off. |
+| `warn_on_punish` | Off | On or Off | AutoMod punishments add a warning |
+
+### Webhooks
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `webhook_protection` | Off | On or Off | Delete webhook posts that ping everyone, carry invites or mass-mention. |
+| `webhook_delete` | Off | On or Off | Also delete the webhook itself. Needs Manage Webhooks. |
+| `burst_lockdown` | Off | On or Off | Lock the server when many mass-mention messages land at once. |
+| `burst_count` | 5 | 2 to 50 | Mass-mention messages |
+| `burst_window` | 30s | 5s to 10m 0s | Burst window |
+
+### Responses
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `delete_flagged` | On | On or Off | Delete flagged messages |
+| `notify` | On | On or Off | Tell the member why |
+| `notify_delete_after` | 6s | 2s to 2m 0s | Notice lifetime |
+| `purge_on_punish` | On | On or Off | Remove the member's recent messages |
+
+### Heat weights
+
+| Setting | Default | Allowed | What it does |
+| --- | --- | --- | --- |
+| `weight_message` | 2.0 | 0 to 100 | Heat: message |
+| `weight_mention` | 1.5 | 0 to 100 | Heat: mention |
+| `weight_link` | 2.0 | 0 to 100 | Heat: link |
+| `weight_invite` | 4.0 | 0 to 100 | Heat: invite |
+| `weight_banned_word` | 5.0 | 0 to 100 | Heat: banned word |
+| `weight_duplicate_message` | 3.0 | 0 to 100 | Heat: duplicate message |
+| `weight_everyone` | 4.0 | 0 to 100 | Heat: everyone |
+| `weight_phishing` | 12.0 | 0 to 100 | Heat: phishing |
+| `weight_iplogger` | 12.0 | 0 to 100 | Heat: iplogger |
+| `weight_caps` | 1.5 | 0 to 100 | Heat: caps |
+| `weight_zalgo` | 3.0 | 0 to 100 | Heat: zalgo |
+| `weight_attachments` | 2.0 | 0 to 100 | Heat: attachments |
+| `weight_emoji` | 1.5 | 0 to 100 | Heat: emoji |
+| `weight_wall` | 1.0 | 0 to 100 | Heat: wall |

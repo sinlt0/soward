@@ -139,18 +139,25 @@ class PollVoteRow(discord.ui.ActionRow):
         if not row or row["ended"]:
             return await interaction.response.send_message(view=error_layout("Ended", "This poll has ended."), ephemeral=True)
 
+        allowed = json.loads(row["vote_roles"] or "[]")
+        member_roles = {r.id for r in getattr(interaction.user, "roles", [])}
+        if allowed and not member_roles & set(allowed):
+            return await interaction.response.send_message(view=error_layout("Not allowed", "Only certain roles can vote in this poll."), ephemeral=True)
+        weights = json.loads(row["weights"] or "{}")
+        weight = max([1] + [int(w) for rid, w in weights.items() if int(rid) in member_roles])
         votes = json.loads(row["votes"])
-        votes[str(interaction.user.id)] = choice
+        votes[str(interaction.user.id)] = {"c": choice, "w": weight}
         await db.raw_execute("UPDATE polls SET votes=? WHERE poll_id=?", (json.dumps(votes), self.poll_id))
-        await interaction.response.send_message(view=success_layout(f"{e('check')} Vote Recorded", f"You voted for **{choice}**."), ephemeral=True)
+        extra = f" Your vote counts as **{weight}**." if weight > 1 else ""
+        await interaction.response.send_message(view=success_layout(f"{e('check')} Vote Recorded", f"You voted for **{choice}**.{extra}"), ephemeral=True)
 
 
-def build_poll_panel(poll_id: str, question: str, options: list[str], ends_at: Optional[float] = None) -> discord.ui.LayoutView:
+def build_poll_panel(poll_id: str, question: str, options: list[str], ends_at: Optional[float] = None, notes: str = "") -> discord.ui.LayoutView:
     e = emoji_manager.get
     view = discord.ui.LayoutView(timeout=None)
     container = discord.ui.Container(accent_color=NEUTRAL)
     closing = f"\nCloses <t:{int(ends_at)}:R>." if ends_at else ""
-    container.add_item(discord.ui.TextDisplay(f"## {e('poll')} {question}\nSelect an option below to vote.{closing}"))
+    container.add_item(discord.ui.TextDisplay(f"## {e('poll')} {question}\nSelect an option below to vote.{closing}{notes}"))
     container.add_item(discord.ui.Separator())
     container.add_item(PollVoteRow(poll_id, options))
     container.add_item(discord.ui.Separator())
@@ -327,10 +334,11 @@ class Giveaways(commands.Cog):
     def _format_poll_results(self, options: list, votes: dict) -> str:
         counts = {opt: 0 for opt in options}
         by_value = {opt[:100]: opt for opt in options}
-        for voted_option in votes.values():
+        for entry in votes.values():
+            voted_option, weight = (entry["c"], int(entry.get("w", 1))) if isinstance(entry, dict) else (entry, 1)
             key = by_value.get(voted_option)
             if key in counts:
-                counts[key] += 1
+                counts[key] += weight
         total = sum(counts.values())
         lines = []
         for opt in options:
@@ -580,20 +588,32 @@ class Giveaways(commands.Cog):
         extra = f"\n\n...and {len(entries) - 30} more" if len(entries) > 30 else ""
         await ctx.send(view=info_layout(f"{e('members')} Entries for {row['prize']} ({len(entries)})", ", ".join(lines) + extra))
 
-    @commands.command(name="poll", help="Create a poll with up to 10 options separated by |. Add --duration 1h to close it automatically.")
+    @commands.command(name="poll", help="Create a poll with up to 10 options separated by |. Flags: --duration 1h, --roles @role @role (who can vote), --weight @role=3 (extra weight), --hidden (hide results until it ends).")
     @has_guild_permission("manage_guild")
     @commands.guild_only()
     async def poll(self, ctx: commands.Context, question: str, *, options: str):
         e = emoji_manager.get
         ends_at = None
-        match = re.search(r"\s--duration\s+(\S+)\s*$", options)
-        if match:
-            try:
-                seconds = await DurationConverter().convert(ctx, match.group(1))
-            except commands.BadArgument:
-                return await ctx.send(view=error_layout("Invalid Duration", "Use a duration like `30m`, `2h` or `1d`."))
-            options = options[:match.start()]
-            ends_at = time.time() + seconds
+        vote_roles: list[int] = []
+        weights: dict[str, int] = {}
+        hidden = False
+        cut = options.find(" --")
+        if cut != -1:
+            flags, options = options[cut:], options[:cut]
+            match = re.search(r"--duration\s+(\S+)", flags)
+            if match:
+                try:
+                    seconds = await DurationConverter().convert(ctx, match.group(1))
+                except commands.BadArgument:
+                    return await ctx.send(view=error_layout("Invalid Duration", "Use a duration like `30m`, `2h` or `1d`."))
+                ends_at = time.time() + seconds
+            roles_part = re.search(r"--roles\s+((?:<@&\d+>\s*)+)", flags)
+            if roles_part:
+                vote_roles = [int(x) for x in re.findall(r"<@&(\d+)>", roles_part.group(1))][:10]
+            for rid, amount in re.findall(r"--weight\s+<@&(\d+)>\s*=\s*(\d+)", flags):
+                if 2 <= int(amount) <= 10:
+                    weights[rid] = int(amount)
+            hidden = "--hidden" in flags
         option_list = list(dict.fromkeys(o.strip()[:100] for o in options.split("|") if o.strip()))
         if len(option_list) < 2 or len(option_list) > 10:
             return await ctx.send(view=error_layout("Invalid Options", "Provide 2-10 different options separated by `|`."))
@@ -601,13 +621,21 @@ class Giveaways(commands.Cog):
             return await ctx.send(view=error_layout("Question Too Long", "Keep the question under 200 characters."))
 
         poll_id = str(uuid.uuid4())[:8].upper()
-        panel = build_poll_panel(poll_id, question, option_list, ends_at)
-        msg = await ctx.send(view=panel)
+        notes = ""
+        if vote_roles:
+            notes += "\nVoting is limited to " + " ".join(f"<@&{r}>" for r in vote_roles) + "."
+        if weights:
+            notes += "\nExtra weight: " + ", ".join(f"<@&{r}> counts as {w}" for r, w in weights.items()) + "."
+        if hidden:
+            notes += "\nResults stay hidden until the poll ends."
+        panel = build_poll_panel(poll_id, question, option_list, ends_at, notes)
+        msg = await ctx.send(view=panel, allowed_mentions=discord.AllowedMentions.none())
 
         await db.raw_execute(
-            "INSERT INTO polls (poll_id, guild_id, channel_id, message_id, question, options, votes, ends_at, ended)"
-            " VALUES (?, ?, ?, ?, ?, ?, '{}', ?, 0)",
-            (poll_id, ctx.guild.id, ctx.channel.id, msg.id, question, json.dumps(option_list), ends_at),
+            "INSERT INTO polls (poll_id, guild_id, channel_id, message_id, question, options, votes, ends_at, ended, vote_roles, weights, hidden)"
+            " VALUES (?, ?, ?, ?, ?, ?, '{}', ?, 0, ?, ?, ?)",
+            (poll_id, ctx.guild.id, ctx.channel.id, msg.id, question, json.dumps(option_list), ends_at,
+             json.dumps(vote_roles), json.dumps(weights), 1 if hidden else 0),
         )
 
     @commands.command(name="pollend", aliases=["endpoll"], help="End a poll now and show the final results. Usage: pollend <message_id|poll_id>")
@@ -640,6 +668,8 @@ class Giveaways(commands.Cog):
 
         options = json.loads(row["options"])
         votes = json.loads(row["votes"])
+        if row["hidden"] and not row["ended"]:
+            return await ctx.send(view=info_layout(f"{e('poll')} {row['question']}", f"Results are hidden until the poll ends. **{len(votes)}** member(s) have voted."))
         results = self._format_poll_results(options, votes)
         await ctx.send(view=info_layout(f"{e('poll')} {row['question']}", results))
 

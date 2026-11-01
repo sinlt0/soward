@@ -40,10 +40,12 @@ class BotClient:
             return _UnixConnection(self.path, timeout)
         return http.client.HTTPConnection("127.0.0.1", self.port, timeout=timeout)
 
-    def request(self, method: str, path: str, user_id: Optional[str] = None, body: Any = None, timeout: float = 8.0) -> Any:
+    def request(self, method: str, path: str, user_id: Optional[str] = None, body: Any = None, timeout: float = 8.0, name: Optional[str] = None) -> Any:
         headers = {"X-Soward-Secret": self.secret, "Content-Type": "application/json"}
         if user_id:
             headers["X-Soward-User"] = str(user_id)
+        if name:
+            headers["X-Soward-Name"] = name.encode("ascii", "ignore").decode()[:80]
         payload = json.dumps(body) if body is not None else None
         conn = self._connection(timeout)
         try:

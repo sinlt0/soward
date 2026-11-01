@@ -8,15 +8,14 @@ import discord
 from discord.ext import commands
 
 import config
-from utils import db, emoji_manager, security_cmds, template_presets, tickets
+from utils import db, emoji_manager, premium_limits, security_cmds, template_presets, tickets
 from utils import server_templates as engine
 from utils.colors import ERROR, NEUTRAL
 from utils.components import ConfirmLayout, error_layout, info_layout, success_layout
 from utils.security_access import security_owner
 
-MAX_PER_USER = 5
 VISIBILITY = ("private", "unlisted", "public")
-PART_ALIASES = {"roles": "roles", "channels": "channels", "settings": "settings", "content": "content", "messages": "content", "all": "all", "clean": "clean", "wipe": "clean", "reset": "clean", "fullclean": "full", "full": "full", "nuke": "full"}
+PART_ALIASES = {"roles": "roles", "channels": "channels", "settings": "settings", "content": "content", "messages": "content", "all": "all", "clean": "clean", "wipe": "clean", "reset": "clean", "fullclean": "full", "full": "full", "nuke": "full", "keep": "keep", "norefresh": "keep"}
 
 
 class ServerTemplates(commands.Cog):
@@ -128,23 +127,28 @@ class ServerTemplates(commands.Cog):
         lines = [f"**{r['name']}** `{r['code']}` {r['visibility']}, {r['uses']} uses" for r in rows]
         await ctx.send(view=info_layout("Your templates", "\n".join(lines)))
 
-    @template_group.command(name="apply", aliases=["use", "load"], help="Set up this server from a template. Usage: template apply <preset or code> [roles channels settings content] [clean]")
+    @template_group.command(name="apply", aliases=["use", "load"], help="Set up this server from a template. Usage: template apply <preset or code> [roles channels settings content] [keep] [clean] [preview]")
     @security_owner()
     async def apply(self, ctx: commands.Context, ref: str, *parts: str):
         e = emoji_manager.get
         data, row, state = await self._resolve(ctx, ref)
         if data is None:
             return await self._not_found(ctx, state)
-        if state == "builtin" and (data.get("meta") or {}).get("premium") and not await tickets.is_premium(ctx.guild.id) and ctx.author.id not in config.ALL_PRIVILEGED_IDS:
+        dry = any(part.lower() in ("preview", "dry", "dryrun", "plan", "diff") for part in parts)
+        if not dry and state == "builtin" and (data.get("meta") or {}).get("premium") and not await tickets.is_premium(ctx.guild.id) and ctx.author.id not in config.ALL_PRIVILEGED_IDS:
             return await ctx.send(view=error_layout("Premium preset", f"**{row['name']}** uses more than the free limits (a staff ladder, 16 panels and 79 roles), so it needs Soward Premium on this server. You can still preview it with `template preview {ref.lower()}`."))
         chosen = set()
         wipe = False
         full = False
+        keep = False
+        parts = tuple(part for part in parts if part.lower() not in ("preview", "dry", "dryrun", "plan", "diff"))
         for part in parts:
             key = PART_ALIASES.get(part.lower())
             if key is None:
-                return await ctx.send(view=error_layout("Unknown part", "Use `roles`, `channels`, `settings`, `content`, `all`, `clean` or `fullclean`."))
-            if key == "full":
+                return await ctx.send(view=error_layout("Unknown part", "Use `roles`, `channels`, `settings`, `content`, `all`, `keep`, `clean` or `fullclean`."))
+            if key == "keep":
+                keep = True
+            elif key == "full":
                 wipe = full = True
             elif key == "clean":
                 wipe = True
@@ -156,6 +160,13 @@ class ServerTemplates(commands.Cog):
                 return await ctx.send(view=error_layout("Owner only", "Only the server owner can run a full clean."))
             chosen = set(engine.PARTS)
         guild = ctx.guild
+        if dry:
+            foreign_preview = state == "saved" and row["owner_id"] != ctx.author.id
+            async with ctx.typing():
+                result = await engine.plan(guild, data, foreign=foreign_preview, refresh=not (foreign_preview or keep), parts=chosen)
+            lines = engine.plan_lines(result)
+            lines.append("\n-# Preview only. Nothing was changed. Run the same command without `preview` to apply." + (" Clean mode would also delete channels and roles that are not in the template." if wipe else ""))
+            return await security_cmds.chunked(ctx, f"{e('shield')} What `{row['name']}` would change here", lines)
         if guild.id in self.running:
             return await ctx.send(view=error_layout("Already running", "A template is already being applied here."))
         me = guild.me.guild_permissions
@@ -169,7 +180,9 @@ class ServerTemplates(commands.Cog):
             f"{c['embeds']} embeds, {c['panels']} panels and {c['messages']} messages"
             f"{', plus ' + str(c['commands']) + ' custom commands' if c['commands'] else ''}.\n"
             f"Parts: {', '.join(sorted(chosen))}.\n\n"
-            "Roles and channels with the same name are reused. Settings in the template replace your current values."
+            "Roles and channels with the same name are reused"
+            + ("." if foreign or keep else ", and their permissions are updated to match the template (permissions of roles and channels it does not manage are left alone). Add `keep` to leave existing ones untouched.")
+            + " Settings in the template replace your current values."
         )
         if full:
             bots, old_channels, old_roles = engine.predict_full(guild)
@@ -218,7 +231,7 @@ class ServerTemplates(commands.Cog):
         async def work():
             if full:
                 await engine.full_clean(guild, pre, ctx.channel.id)
-            await engine.apply(self.bot, guild, data, actor_id=ctx.author.id, parts=chosen, foreign=foreign, report=report)
+            await engine.apply(self.bot, guild, data, actor_id=ctx.author.id, parts=chosen, foreign=foreign, report=report, refresh=not (foreign or keep))
             if wipe and not full:
                 await engine.clean(guild, report, chosen, ctx.channel.id)
 
@@ -243,8 +256,8 @@ class ServerTemplates(commands.Cog):
         if state == "saved":
             await db.raw_execute("UPDATE server_templates SET uses=uses+1 WHERE code=?", (row["code"],))
         lines = [
-            f"Roles created: **{k['roles']}** ({k['roles_reused']} reused)",
-            f"Channels created: **{k['channels']}** ({k['channels_reused']} reused)",
+            f"Roles created: **{k['roles']}** ({k['roles_reused']} reused, {k['roles_updated']} permissions updated)",
+            f"Channels created: **{k['channels']}** ({k['channels_reused']} reused, {k['channels_updated']} permissions updated)",
             f"Settings saved: **{k['settings']}**",
             f"Embeds: **{k['embeds']}**, panels: **{k['panels']}**, messages: **{k['messages']}**",
             f"Custom commands: **{k['commands']}**",
@@ -294,8 +307,9 @@ class ServerTemplates(commands.Cog):
     async def publish(self, ctx: commands.Context, *, name: str):
         name = name.strip()[:60]
         count = await db.raw_fetchone("SELECT COUNT(*) AS n FROM server_templates WHERE owner_id=?", (ctx.author.id,))
-        if count["n"] >= MAX_PER_USER:
-            return await ctx.send(view=error_layout("Limit reached", f"You can keep {MAX_PER_USER} templates. Delete one first."))
+        cap = await premium_limits.get(ctx.guild.id, "server_templates")
+        if count["n"] >= cap:
+            return await ctx.send(view=error_layout("Limit reached", f"You can keep {cap} templates. Delete one first." + await premium_limits.hint(ctx.guild.id, "server_templates")))
         async with ctx.typing():
             try:
                 data = await engine.snapshot(ctx.guild)

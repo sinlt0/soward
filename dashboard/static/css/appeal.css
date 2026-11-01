@@ -1,0 +1,13 @@
+.appeal { max-width: 560px; }
+.appeal__head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.appeal__head h1 { margin: 0; }
+.appeal__icon { border-radius: 12px; }
+.appeal__guild { margin: 2px 0 0; color: var(--dim); }
+.appeal__who { color: var(--dim); margin: 0 0 18px; font-size: 14px; }
+.appeal__who a { color: var(--text); text-decoration: underline; }
+.appeal__reason { margin-bottom: 14px; }
+.appeal__field { display: block; margin-bottom: 16px; }
+.appeal__field span { display: block; font-weight: 500; margin-bottom: 6px; }
+.appeal__field textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 96px; background: var(--ink-2); color: var(--text); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 10px 12px; font: inherit; }
+.appeal__field textarea:focus { outline: 2px solid var(--accent, #7c8cff); outline-offset: 1px; }
+.appeal__count { display: block; text-align: right; color: var(--faint); font-size: 12px; margin-top: 4px; }

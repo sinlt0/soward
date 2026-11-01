@@ -56,6 +56,26 @@ Commands: `!voice lock`, `unlock`, `hide`, `unhide`, `rename <name>`, `limit <n>
 
 Soward remembers each member's name, limit and lock choice and applies them to their next channel. If the owner leaves while others stay, ownership moves to someone still inside. Members with Manage Channels can use the controls in any temporary channel.
 
+## Voice interface
+
+Soward can keep one shared **voice-interface** text channel with a Components V2 panel. It has four dropdown menus, with plain text options and no emojis:
+
+- **Channel settings:** Lock, Unlock, Hide, Unhide, Rename, Reset to defaults, Claim and Delete.
+- **Member management:** Permit, Block, Unblock, Kick, Mute, Unmute and Transfer ownership. Mute stops a member speaking in your channel only.
+- **Limits and quality:** Set user limit, Increase limit, Decrease limit, Remove user limit, bitrate (64, 96, 128 kbps or the server maximum) and video quality (auto or 720p).
+- **Voice region:** Automatic or a specific region.
+
+The menus act on the temporary channel you are currently in, and only its owner (or someone with Manage Channels) can use them. Rename and Set user limit open a small form, and member actions open a member picker.
+
+When someone creates a temporary channel and no interface exists, Soward creates the channel in the hub's category and posts the panel. If one already exists it is reused, and the small panel inside each voice channel is skipped. When no temporary channel is active any more, the interface channel is deleted, and it is created again when the next one is made.
+
+| Command | What it does | Needs |
+| --- | --- | --- |
+| `!jtc interface` | Shows the interface status. | Manage Channels |
+| `!jtc interface create [#channel]` | Creates the interface, or posts the panel in a channel you choose. | Manage Channels |
+| `!jtc interface remove` | Deletes the interface channel. | Manage Channels |
+| `!jtc interface auto <on\|off>` | Turns automatic creation and cleanup on or off. | Manage Channels |
+
 ## Good to know
 
 - Empty channels are deleted right away, and a cleanup runs every few minutes in case an event was missed.
