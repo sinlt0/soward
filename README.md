@@ -44,7 +44,7 @@ commands are case-insensitive. Run `!help` for the full command list.
 
 **Requirements:** Python 3.11+, a bot token from the
 [Discord Developer Portal](https://discord.com/developers/applications).
-MongoDB and Lavalink are optional.
+MongoDB and Lavalink are optional. Auto partner reads screenshots with Tesseract, so install the `tesseract-ocr` program on the host (for example `apt install tesseract-ocr`); without it staff approve partner tickets by hand.
 
 ```bash
 git clone https://github.com/sinlt0/soward.git
@@ -197,6 +197,10 @@ with a real vote.
 
 Set `SOWARD_DBL_TOKEN` to the token from the page's **Generate token** link and the bot posts its
 server and user counts to discordbotlist.com every 30 minutes.
+
+### Auto partner
+
+`!autopartner` runs ticket-style partnerships. A partner opens a ticket, posts your server's ad in their own server, sends their ad with an invite and a screenshot of your ad, and the bot reads the screenshot with `pytesseract` (needs the `tesseract` program). If your ad text and invite are visible, the partner's ad is posted in your partner channel. Staff can approve tickets by hand, the same screenshot cannot be reused, and a server cannot be posted again for `config.AUTOPARTNER_REPEAT_DAYS` days. The tables are `autopartner_config`, `autopartner_tickets`, `autopartner_posts` and `autopartner_hashes`.
 
 ### Translation
 

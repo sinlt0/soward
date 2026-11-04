@@ -902,6 +902,44 @@ async def _bootstrap_sqlite() -> None:
             acquired_at REAL NOT NULL,
             PRIMARY KEY (user_id, item_id)
         )""",
+        """CREATE TABLE IF NOT EXISTS autopartner_config (
+            guild_id INTEGER PRIMARY KEY,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            ad TEXT NOT NULL DEFAULT '',
+            partner_channel_id INTEGER,
+            category_id INTEGER,
+            staff_role_id INTEGER,
+            ping_role_id INTEGER,
+            log_channel_id INTEGER,
+            min_members INTEGER NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS autopartner_tickets (
+            channel_id INTEGER PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            number INTEGER NOT NULL,
+            ad TEXT NOT NULL DEFAULT '',
+            invite_code TEXT NOT NULL DEFAULT '',
+            invite_guild TEXT NOT NULL DEFAULT '',
+            attempts INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS autopartner_posts (
+            post_id TEXT PRIMARY KEY,
+            guild_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            invite_code TEXT NOT NULL DEFAULT '',
+            invite_guild TEXT NOT NULL DEFAULT '',
+            channel_id INTEGER NOT NULL,
+            message_id INTEGER NOT NULL,
+            created_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS autopartner_hashes (
+            guild_id INTEGER NOT NULL,
+            digest TEXT NOT NULL,
+            PRIMARY KEY (guild_id, digest)
+        )""",
         """CREATE TABLE IF NOT EXISTS vote_diamonds (
             user_id INTEGER NOT NULL,
             site TEXT NOT NULL,

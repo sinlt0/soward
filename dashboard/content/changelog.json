@@ -17,7 +17,8 @@
       "!coins give now works with coins as well as diamonds",
       "Earning commands can drop diamonds, and each vote gives 1 to 10 diamonds once a day per bot list",
       "Crypto premium now sells a 1 year plan instead of lifetime",
-      "All economy commands are now available as slash commands under /eco"
+      "All economy commands are now available as slash commands under /eco",
+      "Added auto partner: partners open a ticket, post your ad, send a screenshot, and get posted automatically once the screenshot is verified (!autopartner)"
     ]
   },
   {

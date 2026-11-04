@@ -604,6 +604,7 @@ SLASH_LAYOUT: dict = {
     "utility": {"description": "Info, reminders, to-do and other tools", "entries": ["Utility", "Lookups", "AFK", "Reminders", "Todo", "Votes"]},
     "levels": {"description": "Your rank and the leaderboard", "entries": ["Leveling"]},
     "eco": {"description": "Coins, diamonds, jobs and ways to earn", "entries": ["Earn", "Economy"]},
+    "autopartner": {"description": "Automatic server partnerships", "flatten": "autopartner"},
     "family": {"description": "Marriage, adoption and family", "entries": ["Family"]},
     "clan": {"description": "Global clans", "flatten": "clan"},
     "profile": {"description": "Your global profile card", "flatten": "profile"},
@@ -612,7 +613,7 @@ SLASH_LAYOUT: dict = {
 }
 SLASH_EXCLUDE: set[str] = {"leveling", "suggestions", "tod", "familysize"}
 SLASH_RENAMES: dict[str, str] = {"tictactoe": "tic-tac-toe", "connect4": "connect-4", "truthordare": "truth-or-dare"}
-SLASH_BARE_NAMES: dict[str, str] = {"remind": "set", "todo": "list", "coins": "balance", "birthday": "view", "clan": "info", "games": "list"}
+SLASH_BARE_NAMES: dict[str, str] = {"remind": "set", "todo": "list", "coins": "balance", "birthday": "view", "clan": "info", "games": "list", "autopartner": "status"}
 SLASH_GROUP_LIMIT: int = 25
 SLASH_OVERFLOW_GROUPS: dict[str, str] = {"eco": "eco-extra"}
 
@@ -673,3 +674,13 @@ CULTIVATION_ACTIVITIES: dict = {
               "fails": ("A guardian formation drove you out with nothing.", "The chamber was already looted long ago.")},
 }
 GAMBLE_TIERS: tuple = ((0.50, 0.0), (0.30, 1.5), (0.15, 2.0), (0.04, 3.0), (0.01, 6.0))
+
+AUTOPARTNER_AD_MAX_CHARS: int = 1800
+AUTOPARTNER_MAX_ATTEMPTS: int = 3
+AUTOPARTNER_OCR_THRESHOLD: float = 0.6
+AUTOPARTNER_CODE_MATCH: float = 0.85
+AUTOPARTNER_MAX_IMAGE_BYTES: int = 8 * 1024 * 1024
+AUTOPARTNER_OCR_TIMEOUT: int = 25
+AUTOPARTNER_REPEAT_DAYS: int = 7
+AUTOPARTNER_CLOSE_DELAY: int = 20
+AUTOPARTNER_IDLE_HOURS: int = 24

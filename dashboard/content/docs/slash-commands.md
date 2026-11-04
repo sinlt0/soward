@@ -20,3 +20,5 @@ The everyday commands also work as slash commands. They are grouped, and each on
 Required options come first and optional ones are marked by Discord. A slash command runs the normal command, so permissions, cooldowns, premium limits and blacklists behave exactly the same. Moderation, security and other staff tools stay prefix-only.
 
 `/eco` holds every economy command: rewards, work, sect jobs, the gather, hunt, mine and ruins trips, gambling and the wallet under `/eco coins`. If it ever grows past 25 entries, the extra commands move to `/eco-extra`.
+
+`/autopartner` holds the auto partner setup and management commands.
