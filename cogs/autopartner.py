@@ -184,7 +184,7 @@ class AutoPartner(commands.Cog):
             f"{member.mention}, here is how to partner with **{guild.name}**:\n\n"
             "**1.** Post this ad in your server:\n"
             f"```\n{cfg['ad']}\n```\n"
-            "**2.** Send **your own ad** here in this channel. It must contain your server invite.\n"
+            "**2.** Send **your own ad** here in this channel exactly as you want it posted. It must contain your server invite. Image and gif links, masked links, `[Your Partnership ping]` and spoilers all work.\n"
             "**3.** Send a **screenshot** here that shows our ad posted in your server.\n\n"
             "I read the screenshot and check that our ad and invite are in it. When it passes, your ad is posted automatically.\n"
             f"-# You have {config.AUTOPARTNER_MAX_ATTEMPTS} tries. Staff can step in if the screenshot cannot be read."
@@ -206,14 +206,12 @@ class AutoPartner(commands.Cog):
                 return
             cfg = await store.get_config(message.guild.id)
             if message.content and store.extract_invite(message.content):
-                saved = await self.save_ad(message, ticket, cfg)
-                if not saved:
-                    return
-                ticket = await store.get_ticket(message.channel.id)
+                await self.save_ad(message, ticket, cfg)
+                return
             images = [a for a in message.attachments if (a.content_type or "").split(";")[0] in IMAGE_TYPES]
             if images:
                 await self.check_screenshot(message, ticket, cfg, images[0])
-            elif message.content and not store.extract_invite(message.content) and not ticket["ad"]:
+            elif message.content and not ticket["ad"]:
                 await message.reply(view=error_layout("I need your ad", "Send your ad with your server invite in it, for example `discord.gg/yourcode`."), mention_author=False)
 
     async def save_ad(self, message: discord.Message, ticket: dict, cfg: dict) -> bool:
@@ -246,8 +244,8 @@ class AutoPartner(commands.Cog):
             await message.add_reaction("✅")
         except discord.HTTPException:
             pass
-        if not [a for a in message.attachments if (a.content_type or "").split(";")[0] in IMAGE_TYPES]:
-            await message.reply(view=info_layout("Ad saved", f"Your ad for **{name}** is saved. Now send the **screenshot** of our ad in your server."), mention_author=False)
+        note = "\n-# Files uploaded with the ad are not copied. Put image or gif links in the text instead." if message.attachments else ""
+        await message.reply(view=info_layout("Ad saved", f"Your ad for **{name}** is saved exactly as you sent it. Now send the **screenshot** of our ad in your server.{note}"), mention_author=False)
         return True
 
     async def check_screenshot(self, message: discord.Message, ticket: dict, cfg: dict, attachment: discord.Attachment) -> None:
@@ -271,7 +269,8 @@ class AutoPartner(commands.Cog):
                 await message.reply(view=error_layout("Could not read it", "I could not read that image. A staff member can approve it instead."), mention_author=False)
                 return await self.ping_staff(message.channel, cfg)
         our_code = store.extract_invite(cfg["ad"]) or ""
-        result = store.verify(text, cfg["ad"], our_code)
+        names = tuple([message.guild.name] + store.link_texts(cfg["ad"]))
+        result = store.verify(text, cfg["ad"], our_code, names)
         if result["ok"]:
             await store.save_hash(message.guild.id, value)
             return await self.publish(message.channel, ticket, cfg)
@@ -282,7 +281,7 @@ class AutoPartner(commands.Cog):
         if result["score"] < config.AUTOPARTNER_OCR_THRESHOLD:
             missing.append(f"our ad text was only **{int(result['score'] * 100)}%** visible")
         if not result["code"]:
-            missing.append(f"our invite `{our_code}` was not found")
+            missing.append(f"our invite `{our_code}` or server name was not found")
         body = "I could not verify the screenshot: " + " and ".join(missing) + ".\nMake sure the whole ad and its invite are visible, then send it again."
         if left > 0:
             return await message.reply(view=error_layout(f"{e('cross')} Not verified", f"{body}\n-# {left} {'try' if left == 1 else 'tries'} left."), mention_author=False)
@@ -305,14 +304,9 @@ class AutoPartner(commands.Cog):
             return False
         ping = guild.get_role(cfg["ping_role_id"]) if cfg.get("ping_role_id") else None
         user_id = ticket["user_id"]
-        text = f"{ping.mention}\n" if ping else ""
-        text += f"{e('epartner')} **{ticket['invite_guild'] or 'New partner'}**\n{ticket['ad']}\n-# Partnered with <@{user_id}>"
-        view = discord.ui.LayoutView(timeout=None)
-        container = discord.ui.Container(accent_color=SUCCESS)
-        container.add_item(discord.ui.TextDisplay(text))
-        view.add_item(container)
+        content = store.render_ad(ticket["ad"], ping.mention if ping else "")
         try:
-            posted = await target.send(view=view, allowed_mentions=discord.AllowedMentions(roles=[ping] if ping else [], users=[], everyone=False))
+            posted = await target.send(content, allowed_mentions=discord.AllowedMentions(roles=[ping] if ping else [], users=[], everyone=False))
         except discord.HTTPException:
             await channel.send(view=error_layout("Could not post", f"I cannot send messages in {target.mention}. Tell an admin."))
             return False

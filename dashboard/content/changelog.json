@@ -18,7 +18,8 @@
       "Earning commands can drop diamonds, and each vote gives 1 to 10 diamonds once a day per bot list",
       "Crypto premium now sells a 1 year plan instead of lifetime",
       "All economy commands are now available as slash commands under /eco",
-      "Added auto partner: partners open a ticket, post your ad, send a screenshot, and get posted automatically once the screenshot is verified (!autopartner)"
+      "Added auto partner: partners open a ticket, post your ad, send a screenshot, and get posted automatically once the screenshot is verified (!autopartner)",
+      "Auto partner ads are posted as sent, so gif links, masked invites, spoilers and a [Your Partnership ping] placeholder work"
     ]
   },
   {

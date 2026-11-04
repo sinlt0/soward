@@ -22,10 +22,37 @@ def extract_invite(text: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+PING_RE = re.compile(r"\[\s*(?:your\s+)?(?:partner(?:ship)?\s+)?ping\s*\]", re.I)
+MASKED_RE = re.compile(r"\[([^\]\n]{1,80})\]\((?:https?://)?[^)\s]+\)")
+SPOILER_RE = re.compile(r"\|\|.*?\|\|", re.S)
+SPECIAL_RE = re.compile(r"<a?:\w+:\d+>|<[@#][!&]?\d+>|<t:\d+(?::\w)?>|\|\||^-#\s*|^#{1,3}\s*|[*_~`>]", re.M)
+
+
 def clean_ad(text: str) -> str:
     text = (text or "").strip().replace("```", "'''")
-    text = text.replace("@everyone", "@​everyone").replace("@here", "@​here")
     return text[:config.AUTOPARTNER_AD_MAX_CHARS]
+
+
+def render_ad(ad: str, ping: str = "") -> str:
+    if PING_RE.search(ad):
+        text = PING_RE.sub(lambda _: ping, ad)
+    elif ping and len(ad) + len(ping) + 1 <= config.AUTOPARTNER_AD_MAX_CHARS:
+        text = f"{ad}\n{ping}"
+    else:
+        text = ad
+    return text[:config.AUTOPARTNER_AD_MAX_CHARS]
+
+
+def link_texts(ad: str) -> list[str]:
+    return [m.group(1).strip() for m in MASKED_RE.finditer(ad or "") if INVITE_RE.search(m.group(0))]
+
+
+def plain_text(ad: str) -> str:
+    text = SPOILER_RE.sub(" ", ad or "")
+    text = PING_RE.sub(" ", text)
+    text = MASKED_RE.sub(lambda m: m.group(1), text)
+    text = URL_RE.sub(" ", text)
+    return SPECIAL_RE.sub(" ", text)
 
 
 def normalise(text: str) -> str:
@@ -88,7 +115,7 @@ def code_found(ocr_flat: str, code: str) -> bool:
 
 
 def coverage(ocr_text: str, ad: str) -> float:
-    wanted = sorted(set(words_of(URL_RE.sub(" ", ad))))
+    wanted = sorted(set(words_of(plain_text(ad))))
     if not wanted:
         return 1.0
     pool = sorted(set(words_of(ocr_text)))[:800]
@@ -100,10 +127,12 @@ def coverage(ocr_text: str, ad: str) -> float:
     return hits / len(wanted)
 
 
-def verify(ocr_text: str, our_ad: str, our_code: str) -> dict:
+def verify(ocr_text: str, our_ad: str, our_code: str, names: tuple = ()) -> dict:
     flat = normalise(ocr_text)
     score = coverage(ocr_text, our_ad)
     found = code_found(flat, our_code) if our_code else True
+    if not found:
+        found = any(len(normalise(name)) >= 4 and code_found(flat, name) for name in names)
     return {"score": score, "code": found, "ok": score >= config.AUTOPARTNER_OCR_THRESHOLD and found}
 
 

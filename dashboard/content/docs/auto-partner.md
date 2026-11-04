@@ -32,6 +32,16 @@ You need Manage Server.
 | `!autopartner enable` / `disable` | Opens or closes new tickets |
 | `!autopartner status` | Shows the setup and whether screenshot reading is ready |
 
+## Ad format
+
+Ads are posted exactly as the partner wrote them, as a normal message, so image and gif links, invite previews, masked links like `[name](https://discord.gg/code)`, subtext, spoilers and blank-line tricks all keep working. An ad can be up to 2000 characters.
+
+If the ad contains `[Your Partnership ping]` (also `[partnership ping]` or `[ping]`), it is replaced with your ping role. If it does not and you set a ping role, the role is added at the end. Pings written inside the ad, such as `@everyone`, never ping anyone.
+
+Files uploaded with the ad are not copied, so use links. Links to Discord attachments can expire on Discord's side.
+
+For ads that are only links and pictures, the screenshot check relies on your invite code or your server name being visible.
+
 ## Managing partners
 
 `!autopartner list` shows recent partner posts with their IDs, and `!autopartner remove <id>` deletes a post.
