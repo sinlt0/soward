@@ -1,11 +1,12 @@
 import asyncio
+import io
 from typing import Optional
 
 import discord
 from discord.ext import commands
 
 import config
-from utils import coins, emoji_manager, family
+from utils import coins, emoji_manager, family, family_tree, names as names_util
 from utils.components import ConfirmLayout, error_layout, info_layout, success_layout
 
 NO_PINGS = discord.AllowedMentions.none()
@@ -133,7 +134,7 @@ class Family(commands.Cog):
         await family.release(ctx.author.id)
         await ctx.send(view=success_layout("You left", f"You are no longer {mention(parent)}'s child."), allowed_mentions=NO_PINGS)
 
-    @commands.group(name="family", aliases=["fam", "tree"], invoke_without_command=True, help="Show a family. Usage: family [user]")
+    @commands.group(name="family", aliases=["fam"], invoke_without_command=True, help="Show a family. Usage: family [user]")
     async def family_group(self, ctx: commands.Context, user: Optional[discord.User] = None):
         e = emoji_manager.get
         target = user or ctx.author
@@ -151,6 +152,87 @@ class Family(commands.Cog):
             lines.append("**Siblings:** " + ", ".join(mention(i) for i in siblings))
         await ctx.send(view=info_layout(f"{e('star')} {target.display_name}'s family", "\n".join(lines)), allowed_mentions=NO_PINGS)
 
+    async def send_tree(self, ctx: commands.Context, target: discord.abc.User):
+        e = emoji_manager.get
+        comp = await family.component(target.id, config.FAMILY_TREE_LIMIT)
+        if len(comp["nodes"]) < 2:
+            return await ctx.send(view=info_layout(f"{e('star')} {target.display_name}'s family tree", "No family yet. Use `marry` or `adopt` to start one."))
+        async with ctx.typing():
+            names, usernames = await names_util.resolve(self.bot, comp["nodes"])
+            image = await asyncio.to_thread(family_tree.render, comp, names, target.id, usernames)
+            buffer = io.BytesIO()
+            image.save(buffer, "PNG")
+            buffer.seek(0)
+            info = family_tree.stats(comp)
+        summary = f"{info['members']} members · {info['generations']} generations · {info['couples']} marriages · {info['adoptions']} adoptions"
+        if comp["truncated"]:
+            summary += f"\nShowing the closest {config.FAMILY_TREE_LIMIT} people."
+        view = discord.ui.LayoutView(timeout=None)
+        container = discord.ui.Container(accent_color=0x2B2D31)
+        container.add_item(discord.ui.TextDisplay(f"## {e('star')} {target.display_name}'s family tree\n{summary}"))
+        container.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://family_tree.png")))
+        view.add_item(container)
+        await ctx.send(view=view, file=discord.File(buffer, "family_tree.png"), allowed_mentions=NO_PINGS)
+
+    @commands.command(name="tree", aliases=["familytree"], help="Show a family tree picture. Usage: tree [user]")
+    @commands.cooldown(1, 10.0, commands.BucketType.user)
+    async def tree(self, ctx: commands.Context, user: Optional[discord.User] = None):
+        await self.send_tree(ctx, user or ctx.author)
+
+    @family_group.command(name="tree", help="Show a family tree picture. Usage: family tree [user]")
+    @commands.cooldown(1, 10.0, commands.BucketType.user)
+    async def family_tree_command(self, ctx: commands.Context, user: Optional[discord.User] = None):
+        await self.send_tree(ctx, user or ctx.author)
+
+    async def send_size(self, ctx: commands.Context, target: discord.abc.User):
+        e = emoji_manager.get
+        comp = await family.component(target.id, config.FAMILY_TREE_LIMIT)
+        if len(comp["nodes"]) < 2:
+            return await ctx.send(view=info_layout(f"{e('star')} {target.display_name}'s family", "No family yet. Use `marry` or `adopt` to start one."))
+        info = family_tree.stats(comp)
+        async with ctx.typing():
+            names, _ = await names_util.resolve(self.bot, comp["nodes"])
+
+        def label(user_id: int) -> str:
+            return discord.utils.escape_markdown(names.get(user_id, f"User {str(user_id)[-4:]}"))
+
+        header = (f"**{info['members']}** members · **{info['generations']}** generations · **{info['couples']}** marriages · **{info['adoptions']}** adoptions"
+                  + (f"\nShowing the closest {config.FAMILY_TREE_LIMIT} people." if comp["truncated"] else ""))
+        blocks = []
+        for number, generation in enumerate(family_tree.report(comp), 1):
+            lines = [f"**Generation {number}**"]
+            for person in generation:
+                bits = []
+                if person["parent"]:
+                    bits.append(f"child of {label(person['parent'])}")
+                if person["partners"]:
+                    bits.append("partner of " + ", ".join(label(i) for i in person["partners"]))
+                you = " (you)" if person["id"] == ctx.author.id else ""
+                lines.append(f"{label(person['id'])}{you}" + (f" · {', '.join(bits)}" if bits else ""))
+            blocks.append("\n".join(lines))
+        pages, current = [], header
+        for block in blocks:
+            if len(current) + len(block) + 2 > 3400:
+                pages.append(current)
+                current = ""
+            current = f"{current}\n\n{block}" if current else block
+        pages.append(current)
+        for index, page in enumerate(pages[:4]):
+            title = f"{e('star')} {target.display_name}'s family" + (f" ({index + 1}/{min(len(pages), 4)})" if len(pages) > 1 else "")
+            await ctx.send(view=info_layout(title, page), allowed_mentions=NO_PINGS)
+        if len(pages) > 4:
+            await ctx.send(view=info_layout("More members", "The list is too long to show in full. Use `tree` to see everyone."))
+
+    @commands.command(name="familysize", aliases=["familymembers", "fsize"], help="List everyone in a family, including relatives by marriage. Usage: familysize [user]")
+    @commands.cooldown(1, 5.0, commands.BucketType.user)
+    async def familysize(self, ctx: commands.Context, user: Optional[discord.User] = None):
+        await self.send_size(ctx, user or ctx.author)
+
+    @family_group.command(name="size", aliases=["stats", "members"], help="List everyone in a family, including relatives by marriage. Usage: family size [user]")
+    @commands.cooldown(1, 5.0, commands.BucketType.user)
+    async def family_size(self, ctx: commands.Context, user: Optional[discord.User] = None):
+        await self.send_size(ctx, user or ctx.author)
+
     @family_group.command(name="upgrade", aliases=["buy"], help="Buy another marriage or adoption slot with coins. Usage: family upgrade <marriage|adopt>")
     async def family_upgrade(self, ctx: commands.Context, kind: str = ""):
         e = emoji_manager.get
@@ -161,7 +243,7 @@ class Family(commands.Cog):
             kind, cost, maximum = "adopt", config.ADOPT_SLOT_COST, config.ADOPT_SLOTS_MAX
         else:
             limits = await family.slots(ctx.author.id)
-            return await ctx.send(view=info_layout(f"{e('coin')} Family slots", (
+            return await ctx.send(view=info_layout(f"{e('ecoin')} Family slots", (
                 f"**Marriage slots:** {limits['marriage']}/{config.MARRIAGE_SLOTS_MAX} · {coins.fmt(config.MARRIAGE_SLOT_COST)} coins each\n"
                 f"**Adoption slots:** {limits['adopt']}/{config.ADOPT_SLOTS_MAX} · {coins.fmt(config.ADOPT_SLOT_COST)} coins each\n\n"
                 "Use `family upgrade marriage` or `family upgrade adopt`.")))

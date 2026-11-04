@@ -90,7 +90,7 @@ class Matchmaking(commands.Cog):
         age = (time.time() - member.created_at.timestamp()) / 86400
         if age < cfg["age"]:
             return f"Your account must be at least {cfg['age']} days old."
-        data = await profiles.get(guild.id, member.id)
+        data = await profiles.get(member.id)
         if data is None or data["hidden"]:
             return "Make a visible profile first with `profile edit`."
         if not data["interests"]:
@@ -190,7 +190,7 @@ class Matchmaking(commands.Cog):
                 continue
             interests = {}
             for entry in entries:
-                data = await profiles.get(guild.id, entry["user_id"])
+                data = await profiles.get(entry["user_id"])
                 if data is None or data["hidden"]:
                     await store.leave(guild.id, entry["user_id"])
                     continue

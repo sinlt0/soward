@@ -1,11 +1,12 @@
 import asyncio
+import io
 from typing import Optional
 
 import discord
 from discord.ext import commands
 
 import config
-from utils import clans, coins, emoji_manager
+from utils import clans, coins, emoji_manager, family_tree, names as names_util
 from utils.components import ConfirmLayout, error_layout, info_layout, success_layout
 
 NO_PINGS = discord.AllowedMentions.none()
@@ -51,7 +52,7 @@ class Clans(commands.Cog):
             f"**Owner:** <@{clan['owner_id']}>",
             f"**Members:** {size}/{clans.capacity(clan['level'])}",
             f"**Level:** {clan['level']}/{config.CLAN_MAX_LEVEL}",
-            f"{e('bank')} **Bank:** {coins.fmt(clan['bank'])} coins",
+            f"{e('ebank')} **Bank:** {coins.fmt(clan['bank'])} coins",
             f"**Founded:** <t:{int(clan['created_at'])}:D>",
         ]
         await ctx.send(view=info_layout(f"{e('shield')} {clan['name']}", "\n".join(lines)), allowed_mentions=NO_PINGS)
@@ -88,6 +89,89 @@ class Clans(commands.Cog):
         rows = await clans.members(clan["clan_id"])
         lines = [f"{ROLE_LABELS[row['role']]} · <@{row['user_id']}>" for row in rows]
         await ctx.send(view=info_layout(f"{e('shield')} {clan['name']} members", "\n".join(lines)), allowed_mentions=NO_PINGS)
+
+    async def target_clan(self, ctx: commands.Context, name: Optional[str]) -> Optional[dict]:
+        if name:
+            clan = await clans.find(name)
+        else:
+            mine = await clans.membership(ctx.author.id)
+            clan = await clans.get(mine["clan_id"]) if mine else None
+        if clan is None:
+            await ctx.send(view=error_layout("Not found", "Use a clan name, or join a clan first."))
+        return clan
+
+    def family_labels(self, found: dict, names: dict[int, str]) -> list[tuple[dict, str]]:
+        out = []
+        for group in found["families"]:
+            if group["main"]:
+                label = "Main family"
+            else:
+                head = discord.utils.escape_markdown(names.get(group["head"], "someone"))
+                label = f"Branch of {head}"
+            out.append((group, label))
+        return out
+
+    @clan_group.command(name="families", aliases=["branches", "branch"], help="Show the families inside a clan. Usage: clan families [name]")
+    async def clan_families(self, ctx: commands.Context, *, name: Optional[str] = None):
+        e = emoji_manager.get
+        clan = await self.target_clan(ctx, name)
+        if clan is None:
+            return
+        async with ctx.typing():
+            found = await clans.families(clan, config.CLAN_TREE_LIMIT)
+            roles = {m["user_id"]: m["role"] for m in await clans.members(clan["clan_id"])}
+            ids = set(roles)
+            names, _ = await names_util.resolve(self.bot, ids | {g["head"] for g in found["families"]})
+
+        def who(user_id: int) -> str:
+            tag = " (owner)" if roles[user_id] == "owner" else " (officer)" if roles[user_id] == "officer" else ""
+            return discord.utils.escape_markdown(names.get(user_id, f"User {str(user_id)[-4:]}")) + tag
+
+        lines = []
+        for group, label in self.family_labels(found, names):
+            lines.append(f"**{label}** · {len(group['members'])} in the clan · {len(group['comp']['nodes'])} in the family")
+            lines.append(", ".join(who(m) for m in group["members"]))
+            lines.append("")
+        if found["unattached"]:
+            lines.append(f"**No family yet** · {len(found['unattached'])}")
+            lines.append(", ".join(who(m) for m in found["unattached"]))
+        if not found["families"]:
+            lines.insert(0, "Nobody in this clan has a family yet. Members who marry or adopt form families, and every connected family becomes a branch of the clan.")
+        body = "\n".join(lines).strip()
+        await ctx.send(view=info_layout(f"{e('shield')} {clan['name']} families", body[:3800] + ("\n..." if len(body) > 3800 else "") + "\n-# See them all with `clan tree`."), allowed_mentions=NO_PINGS)
+
+    @clan_group.command(name="tree", help="Draw every family in a clan. Usage: clan tree [name]")
+    @commands.cooldown(1, 15.0, commands.BucketType.user)
+    async def clan_tree(self, ctx: commands.Context, *, name: Optional[str] = None):
+        e = emoji_manager.get
+        clan = await self.target_clan(ctx, name)
+        if clan is None:
+            return
+        async with ctx.typing():
+            found = await clans.families(clan, config.CLAN_TREE_LIMIT)
+            if not found["families"]:
+                return await ctx.send(view=info_layout(f"{e('shield')} {clan['name']} family tree", "Nobody in this clan has a family yet."))
+            comp = clans.merged(found)
+            roles = await clans.members(clan["clan_id"])
+            clan_ids = {m["user_id"] for m in roles}
+            names, usernames = await names_util.resolve(self.bot, comp["nodes"])
+            groups = {}
+            for group, label in self.family_labels(found, names):
+                for member in group["comp"]["nodes"]:
+                    groups[member] = label
+            image = await asyncio.to_thread(family_tree.render, comp, names, clan_ids, usernames, groups)
+            buffer = io.BytesIO()
+            image.save(buffer, "PNG")
+            buffer.seek(0)
+        summary = f"{len(found['families'])} families · {len(comp['nodes'])} people shown · clan members are blue"
+        if found["truncated"]:
+            summary += f"\nShowing the closest {config.CLAN_TREE_LIMIT} people."
+        view = discord.ui.LayoutView(timeout=None)
+        container = discord.ui.Container(accent_color=0x2B2D31)
+        container.add_item(discord.ui.TextDisplay(f"## {e('shield')} {clan['name']} family tree\n{summary}"))
+        container.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://clan_tree.png")))
+        view.add_item(container)
+        await ctx.send(view=view, file=discord.File(buffer, "clan_tree.png"), allowed_mentions=NO_PINGS)
 
     @clan_group.command(name="top", aliases=["leaderboard", "lb", "list"], help="Show the top clans.")
     async def clan_top(self, ctx: commands.Context):
@@ -213,7 +297,7 @@ class Clans(commands.Cog):
             return await ctx.send(view=error_layout("Too small", f"The smallest deposit is **{config.COIN_TRANSFER_MIN}** coins."))
         if not await clans.deposit(clan["clan_id"], ctx.author.id, amount):
             return await ctx.send(view=error_layout("Not enough coins", f"You have **{coins.fmt(await coins.balance(ctx.author.id))}** coins."))
-        await ctx.send(view=success_layout(f"{e('bank')} Deposited", f"You added **{coins.fmt(amount)}** coins to the bank of **{clan['name']}**."))
+        await ctx.send(view=success_layout(f"{e('ebank')} Deposited", f"You added **{coins.fmt(amount)}** coins to the bank of **{clan['name']}**."))
 
     @clan_group.command(name="upgrade", help="Spend bank coins to raise the clan level and member limit.")
     async def clan_upgrade(self, ctx: commands.Context):

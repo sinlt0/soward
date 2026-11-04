@@ -211,7 +211,7 @@ class Ship(commands.Cog):
 
         if user1.id == user2.id:
             return await ctx.send(view=error_layout(
-                "Can't Ship That", f"{e('heart')} You can't ship someone with themselves — self-love counts differently!"
+                "Can't Ship That", f"{e('sheart')} You can't ship someone with themselves — self-love counts differently!"
             ))
 
         rate, seed = self.get_ship_rate(user1.id, user2.id)
@@ -232,7 +232,7 @@ class Ship(commands.Cog):
         view = discord.ui.LayoutView(timeout=None)
         container = discord.ui.Container(accent_color=accent)
         container.add_item(discord.ui.TextDisplay(
-            f"## {e('heart')} {user1.display_name} x {user2.display_name}"
+            f"## {e('sheart')} {user1.display_name} x {user2.display_name}"
         ))
         container.add_item(discord.ui.Separator())
         container.add_item(discord.ui.TextDisplay(

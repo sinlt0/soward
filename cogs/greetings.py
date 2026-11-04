@@ -188,7 +188,7 @@ class Greetings(commands.Cog):
             "\n\n-# Configure each with `greetings <join|leave|boost|ban> ...` subcommands. "
             "Use `greetings variables` to see all placeholders."
         )
-        await ctx.send(view=info_layout(f"{e('wave')} Greeting Messages", body))
+        await ctx.send(view=info_layout(f"{e('swave')} Greeting Messages", body))
 
     @greetings_group.command(name="channel", help="Set the channel for a trigger. Usage: greetings channel <join|leave|boost|ban> <#channel>")
     @has_guild_permission("manage_guild")

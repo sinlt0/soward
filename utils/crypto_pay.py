@@ -10,7 +10,7 @@ from typing import Optional
 import aiohttp
 
 import config
-from utils import db, hdwallet, prefix as prefix_utils, supporters
+from utils import coins as coin_store, db, hdwallet, prefix as prefix_utils, supporters
 
 UNITS = 100_000_000
 OPEN_STATES = ("pending", "seen")
@@ -48,7 +48,15 @@ def plan_for(key: str) -> Optional[dict]:
         if not config.SUPPORT_MIN_USD <= amount <= config.SUPPORT_MAX_USD:
             return None
         return {"label": f"${amount:g} tip", "days": None, "usd": amount, "key": key}
-    plan = config.CRYPTO_PLANS.get(key)
+    if key.startswith("coins:"):
+        try:
+            amount = round(float(key[6:]), 2)
+        except ValueError:
+            return None
+        if not config.COIN_TOPUP_MIN_USD <= amount <= config.COIN_TOPUP_MAX_USD:
+            return None
+        return {"label": f"{coin_store.fmt(coin_store.usd_to_diamonds(amount))} diamonds", "days": None, "usd": amount, "key": key}
+    plan = config.CRYPTO_PLANS.get(key) or config.CRYPTO_LEGACY_PLANS.get(key)
     return dict(plan, key=key) if plan else None
 
 
@@ -390,7 +398,14 @@ async def settle(invoice_id: str, received_units: int, confirmed_units: int, app
             ratio = min(max(confirmed_units, received_units) / invoice["amount_units"], 12.0) if approved_by else min(confirmed_units / invoice["amount_units"], 12.0)
             value = round(invoice["usd"] * ratio, 2)
             await supporters.record(invoice["user_id"], value)
-            result = {"type": "tip", "usd": value}
+            await coin_store.add(invoice["user_id"], config.SUPPORT_COINS)
+            result = {"type": "tip", "usd": value, "coins": config.SUPPORT_COINS}
+        elif invoice["kind"] == "coins":
+            ratio = min(max(confirmed_units, received_units) / invoice["amount_units"], 12.0) if approved_by else min(confirmed_units / invoice["amount_units"], 12.0)
+            value = round(invoice["usd"] * ratio, 2)
+            granted = coin_store.usd_to_diamonds(value)
+            await coin_store.add_diamonds(invoice["user_id"], granted)
+            result = {"type": "coins", "usd": value, "diamonds": granted}
         else:
             expires = await grant_server(invoice["guild_id"], days)
             result = {"type": "server", "expires": expires, "days": days}

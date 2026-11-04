@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils import cases, db, emoji_manager, warn_ladder
+from utils import cases, db, emoji_manager, slash_sync, warn_ladder
 from utils import reports as store
 from utils.checks import has_guild_permission
 from utils.components import error_layout, info_layout, success_layout
@@ -120,7 +120,7 @@ class Reports(commands.Cog):
         if await db.get("reports", "menu_version") == MENU_VERSION:
             return
         try:
-            await self.bot.tree.sync()
+            await slash_sync.sync(self.bot)
         except discord.HTTPException:
             self.synced = False
             return

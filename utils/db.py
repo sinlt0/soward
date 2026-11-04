@@ -77,6 +77,15 @@ async def init(bot_loop: asyncio.AbstractEventLoop) -> None:
     except Exception:
         pass
 
+    try:
+        await _sqlite_conn.execute(
+            "INSERT OR IGNORE INTO user_profiles (user_id, bio, interests, looking_for, relationship, pronouns, timezone, hidden, updated_at)"
+            " SELECT user_id, bio, interests, looking_for, relationship, pronouns, timezone, hidden, updated_at FROM member_profiles ORDER BY updated_at DESC"
+        )
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
     for table in ("security_whitelist", "security_whitelist_rules"):
         for column in ("expires_at REAL", "last_used REAL"):
             try:
@@ -91,6 +100,27 @@ async def init(bot_loop: asyncio.AbstractEventLoop) -> None:
             await _sqlite_conn.commit()
         except Exception:
             pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE wallets ADD COLUMN bought INTEGER NOT NULL DEFAULT 0")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    for column in ("diamonds INTEGER NOT NULL DEFAULT 0", "v2 INTEGER NOT NULL DEFAULT 0"):
+        try:
+            await _sqlite_conn.execute(f"ALTER TABLE wallets ADD COLUMN {column}")
+            await _sqlite_conn.commit()
+        except Exception:
+            pass
+
+    try:
+        await _sqlite_conn.execute(
+            "UPDATE wallets SET diamonds=diamonds+bought, coins=(coins-bought)*10, earned=earned*10, bought=0, v2=1 WHERE v2=0"
+        )
+        await _sqlite_conn.commit()
+    except Exception:
+        log.error("Wallet migration to diamonds failed", exc_info=True)
 
     try:
         await _sqlite_conn.execute("ALTER TABLE lofi_state ADD COLUMN radio_key TEXT NOT NULL DEFAULT 'lofi_girl'")
@@ -792,6 +822,148 @@ async def _bootstrap_sqlite() -> None:
             last_vote_at REAL NOT NULL DEFAULT 0,
             np_until REAL NOT NULL DEFAULT 0,
             last_source TEXT NOT NULL DEFAULT ''
+        )""",
+        """CREATE TABLE IF NOT EXISTS wallets (
+            user_id INTEGER PRIMARY KEY,
+            coins INTEGER NOT NULL DEFAULT 0,
+            bought INTEGER NOT NULL DEFAULT 0,
+            earned INTEGER NOT NULL DEFAULT 0,
+            diamonds INTEGER NOT NULL DEFAULT 0,
+            v2 INTEGER NOT NULL DEFAULT 1,
+            updated_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS wallet_state (
+            user_id INTEGER PRIMARY KEY,
+            reward_at REAL NOT NULL DEFAULT 0,
+            streak INTEGER NOT NULL DEFAULT 0,
+            work_at REAL NOT NULL DEFAULT 0,
+            work_day TEXT NOT NULL DEFAULT '',
+            work_count INTEGER NOT NULL DEFAULT 0,
+            gamble_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS marriages (
+            user_a INTEGER NOT NULL,
+            user_b INTEGER NOT NULL,
+            married_at REAL NOT NULL,
+            PRIMARY KEY (user_a, user_b)
+        )""",
+        """CREATE TABLE IF NOT EXISTS family_children (
+            child_id INTEGER PRIMARY KEY,
+            parent_id INTEGER NOT NULL,
+            adopted_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS family_slots (
+            user_id INTEGER PRIMARY KEY,
+            marriage_slots INTEGER NOT NULL DEFAULT 1,
+            adopt_slots INTEGER NOT NULL DEFAULT 5
+        )""",
+        """CREATE TABLE IF NOT EXISTS clans (
+            clan_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            name_key TEXT NOT NULL UNIQUE,
+            description TEXT NOT NULL DEFAULT '',
+            owner_id INTEGER NOT NULL,
+            bank INTEGER NOT NULL DEFAULT 0,
+            level INTEGER NOT NULL DEFAULT 1,
+            created_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS clan_members (
+            user_id INTEGER PRIMARY KEY,
+            clan_id TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'member',
+            joined_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS clan_invites (
+            clan_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            invited_by INTEGER NOT NULL,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (clan_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS user_profiles (
+            user_id INTEGER PRIMARY KEY,
+            bio TEXT,
+            interests TEXT NOT NULL DEFAULT '[]',
+            looking_for TEXT,
+            relationship TEXT,
+            pronouns TEXT,
+            timezone TEXT,
+            hidden INTEGER NOT NULL DEFAULT 0,
+            updated_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS user_cosmetics (
+            user_id INTEGER PRIMARY KEY,
+            theme TEXT NOT NULL DEFAULT 'graphite',
+            title TEXT NOT NULL DEFAULT ''
+        )""",
+        """CREATE TABLE IF NOT EXISTS user_items (
+            user_id INTEGER NOT NULL,
+            item_id TEXT NOT NULL,
+            acquired_at REAL NOT NULL,
+            PRIMARY KEY (user_id, item_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS vote_diamonds (
+            user_id INTEGER NOT NULL,
+            site TEXT NOT NULL,
+            last_at REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, site)
+        )""",
+        """CREATE TABLE IF NOT EXISTS premium_coin_buys (
+            user_id INTEGER PRIMARY KEY,
+            bought_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS user_jobs (
+            user_id INTEGER PRIMARY KEY,
+            job TEXT NOT NULL DEFAULT '',
+            shifts INTEGER NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS activity_state (
+            user_id INTEGER NOT NULL,
+            activity TEXT NOT NULL,
+            used_at REAL NOT NULL DEFAULT 0,
+            day TEXT NOT NULL DEFAULT '',
+            count INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, activity)
+        )""",
+        """CREATE TABLE IF NOT EXISTS game_stats (
+            user_id INTEGER NOT NULL,
+            game TEXT NOT NULL,
+            wins INTEGER NOT NULL DEFAULT 0,
+            losses INTEGER NOT NULL DEFAULT 0,
+            draws INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, game)
+        )""",
+        """CREATE TABLE IF NOT EXISTS pets (
+            pet_id TEXT PRIMARY KEY,
+            owner_id INTEGER NOT NULL,
+            species TEXT NOT NULL,
+            name TEXT NOT NULL,
+            xp INTEGER NOT NULL DEFAULT 0,
+            outfit TEXT NOT NULL DEFAULT '',
+            active INTEGER NOT NULL DEFAULT 0,
+            born_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS reminders (
+            reminder_id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            guild_id INTEGER NOT NULL DEFAULT 0,
+            channel_id INTEGER NOT NULL DEFAULT 0,
+            message TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            due_at REAL NOT NULL,
+            repeat_seconds INTEGER NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS todos (
+            todo_id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            text TEXT NOT NULL,
+            done INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL,
+            done_at REAL
+        )""",
+        """CREATE TABLE IF NOT EXISTS user_timezones (
+            user_id INTEGER PRIMARY KEY,
+            tz TEXT NOT NULL
         )""",
         """CREATE TABLE IF NOT EXISTS activity_likes (
             user_id INTEGER NOT NULL,

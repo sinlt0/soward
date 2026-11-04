@@ -26,7 +26,7 @@ the team's co-creator(s) alongside Sinlt, and from everyone listed in the
 - [jishaku](https://github.com/Gorialis/jishaku) — developer debugging
 - [psutil](https://github.com/giampaolo/psutil) · [python-dotenv](https://github.com/theskumar/python-dotenv) · [PyNaCl](https://github.com/pyca/pynacl)
 
-Bundled fonts in `assets/fonts/` (Cormorant Garamond, EB Garamond, Playfair
+Bundled fonts in `assets/fonts/` (Poppins, Cormorant Garamond, EB Garamond, Playfair
 Display, Libre Baskerville, Caveat, Bebas Neue, Special Elite) are distributed
 under the SIL Open Font License 1.1 by their respective authors.
 

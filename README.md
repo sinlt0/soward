@@ -27,6 +27,9 @@ Built by **Sinlt (辛特)** and the **Soward Team**.
 | **Music** | Queue, filters, autoplay and 24/7 lofi radio stations through Lavalink v4 |
 | **Tickets** | Multi-panel support tickets with button panels, intake forms, multiple staff roles and categories per panel, claim/priority/add/remove tools, per-member and per-panel limits, inactivity auto-close, ticket stats, and HTML transcripts. Free servers get 3 panels and 10 staff roles per panel; Premium gets 10 and 20 |
 | **NSFW channels** | Role-gated instead of Discord's one-click age prompt: `nsfw role`, `nsfw addchannel`, `nsfw removechannel`, `nsfw viewchannels`, `nsfw sync`. Original channel permissions are saved and restored on removal |
+| **Personal tools** | Global reminders with repeats and per-user timezones (`remind`), and a private to-do list (`todo`) |
+| **Games** | Tic-Tac-Toe, Connect 4, Rock Paper Scissors (against a friend or the bot), Hangman, Trivia and Typing Race, with per-game records and leaderboards |
+| **Lookups** | Weather, translate, dictionary, Urban Dictionary, calculator, crypto prices and local time, using free public APIs with no keys |
 | **Community** | Leveling and XP, giveaways, reaction roles, greetings with generated image cards, AFK, quotes, ship, truth or dare, anime lookup |
 | **Custom commands** | Per-server commands with triggers, conditionals, role and channel restrictions, and action tags |
 | **Alerts** | YouTube upload/live and Twitch stream notifications |
@@ -179,9 +182,7 @@ command. `SOWARD_ACTIVITY=0` still turns every app off.
 
 ### Coins, family and clans
 
-Coins are a global wallet. Votes (`config.VOTE_COINS`) and tips (`config.SUPPORT_COINS`) pay coins,
-and `!coins topup` sells them through the crypto invoices at `config.COIN_PER_USD` coins per dollar.
-Coins are tracked as bought (top-ups) and earned (votes, tips, owner grants); only bought coins can be given to other users, and spending uses earned coins first. `coins.spend_bought` and `coins.spend_mixed` (half bought, half earned) are there for later features such as redeeming Nitro. Premium can be bought with coins (`!premium coins`). Marriage and adoption slots, clan prices and
+Wallets hold two currencies. Coins are earned (`!reward`, `!work` at a sect job from `config.CULTIVATION_JOBS`, the `!gather`, `!hunt`, `!mine` and `!ruins` trips from `config.CULTIVATION_ACTIVITIES`, votes, tips) and gambled (`!coinflip`, `!gamble`); diamonds are bought through the crypto invoices at `config.DIAMOND_PER_USD` per dollar and, like coins, can be given to other users or converted one way into coins at `config.DIAMOND_TO_COINS`. Reward, work and trip commands can also drop diamonds (`config.DIAMOND_DROPS`), and votes give `config.VOTE_DIAMONDS_*` diamonds once a day per site. Votes (`config.VOTE_COINS`) and tips (`config.SUPPORT_COINS`) pay coins. Reward, work and gamble numbers are in `config.REWARD_*`, `config.WORK_*` and `config.GAMBLE_*`. On first start the wallet migration turns old bought coins into diamonds 1:1 and multiplies earned coins by 10, so back up the database before deploying. Premium can be bought with either currency (`!premium coins`, `!premium diamonds`); diamonds buy the plans in `config.PREMIUM_DIAMOND_PLANS` (no lifetime) and coins only buy `config.PREMIUM_COIN_PLAN` and only once every `config.PREMIUM_COIN_COOLDOWN_DAYS` days per user. Marriage and adoption slots, clan prices and
 the other limits are constants near the top of the economy section of `config.py`.
 
 ### Vote rewards
@@ -196,6 +197,13 @@ with a real vote.
 
 Set `SOWARD_DBL_TOKEN` to the token from the page's **Generate token** link and the bot posts its
 server and user counts to discordbotlist.com every 30 minutes.
+
+### Translation
+
+`!translate` works with no setup through the free MyMemory service (about 5,000 characters per day
+per IP). Two optional settings raise that: `SOWARD_TRANSLATE_EMAIL` (any email, free, lifts MyMemory
+to about 50,000 characters per day) and `SOWARD_DEEPL_KEY` (a DeepL API Free key, 500,000 characters
+per month). Languages DeepL does not support still fall back to MyMemory.
 
 ### Covering hosting
 

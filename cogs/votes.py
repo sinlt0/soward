@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands, tasks
 
 import config
-from utils import coins as coin_store, emoji_manager, prefix as prefix_utils, votes
+from utils import coins as coin_store, emoji_manager, prefix as prefix_utils, rewards, votes
 from utils.components import info_layout, success_layout
 
 log = logging.getLogger("soward.votes")
@@ -72,6 +72,7 @@ class Votes(commands.Cog):
         reward = int(config.VOTE_COINS.get(source, 0))
         if reward:
             await coin_store.add(user_id, reward)
+        diamonds = await rewards.claim_vote_diamonds(user_id, source)
         e = emoji_manager.get
         user = self.bot.get_user(user_id)
         if user is None:
@@ -81,7 +82,8 @@ class Votes(commands.Cog):
                 return
         body = (
             f"{e('star')} Thanks for voting for Soward.\n"
-            + (f"{e('coin')} **+{coin_store.fmt(reward)}** coins.\n" if reward else "")
+            + (f"{e('ecoin')} **+{coin_store.fmt(reward)}** coins.\n" if reward else "")
+            + (f"{e('ediamond')} **+{diamonds}** diamonds.\n" if diamonds else f"-# Diamonds from this site come once a day.\n")
             + f"You now have **global no-prefix** for **{config.VOTE_NP_HOURS} hours**.\n"
             f"Votes: **{row['total']}** · Streak: **{row['streak']}**"
         )
@@ -97,7 +99,7 @@ class Votes(commands.Cog):
         if not links:
             return await ctx.send(view=info_layout("Vote", "Voting is not set up yet."))
         row = await votes.get(ctx.author.id)
-        lines = [f"{e('gift')} Vote on {' or '.join(links)} to get **{coin_store.fmt(max(config.VOTE_COINS.values(), default=0))}** coins and **global no-prefix** for **{config.VOTE_NP_HOURS} hours**. You can vote again every 12 hours."]
+        lines = [f"{e('gift')} Vote on {' or '.join(links)} to get **{coin_store.fmt(max(config.VOTE_COINS.values(), default=0))}** coins, **{config.VOTE_DIAMONDS_MIN}-{config.VOTE_DIAMONDS_MAX}** diamonds (once a day per site) and **global no-prefix** for **{config.VOTE_NP_HOURS} hours**. You can vote again every 12 hours."]
         if row:
             now = time.time()
             lines.append(f"\nYour votes: **{row['total']}** · Streak: **{row['streak']}**")

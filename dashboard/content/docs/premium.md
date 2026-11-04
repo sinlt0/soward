@@ -41,7 +41,7 @@ group: Utility
 
 Run `!premium buy` in the server you want to upgrade. You do not need an account, an email or any ID.
 
-1. Pick a plan: **1 month ($3)**, **3 months ($8)** or **Lifetime ($25)**.
+1. Pick a plan: **1 month ($3)**, **3 months ($8)** or **1 year ($20)**.
 2. Pick **Bitcoin** or **Litecoin**.
 3. Soward shows an invoice with the exact amount, a payment address and a QR code. The address is created **only for your invoice**, so nobody else's payment can ever be mixed up with yours, even when many people buy at the same time.
 4. Send the exact amount from any wallet within 30 minutes. Soward watches the blockchain and turns premium on by itself once the payment has 1 confirmation, usually within a few minutes for Litecoin and within about ten for Bitcoin. You do not have to press anything, but **Check payment** looks right away.
@@ -52,7 +52,7 @@ Good to know:
 - Prices are fixed in US dollars and converted to the coin when the invoice is created, and stay locked for the 30 minutes.
 - If you send slightly less than the amount (up to 1% is fine), it still counts. If you send a lot less, the invoice stays open for the rest. If you send more, premium is extended in proportion, for example paying double the 1 month price gives 2 months.
 - A payment that arrives after the invoice expired still counts if it arrives within 24 hours.
-- Buying again before your premium ends adds the time on top of what you have. A server with Lifetime cannot buy more.
+- Buying again before your premium ends adds the time on top of what you have. A server that already has premium with no end date cannot buy more.
 - `!premium buy gift` makes a premium key instead of activating this server. The key is sent to your direct messages when paid (and the **Show my key** button on the invoice shows it only to you). Anyone can redeem it with `!premium claim`.
 - You can have 2 open invoices at a time. Press **Cancel** on an unpaid invoice to free the slot.
 - Payments are confirmed by two independent blockchain explorers before premium is given. If they are down, the invoice simply waits.
@@ -112,4 +112,4 @@ Good to know:
 
 ## Notes
 
-Premium is granted for a set time or permanently. You can pay with Bitcoin or Litecoin using `!premium buy`, or redeem a premium key. Soward never sees your wallet, and crypto payments cannot be reversed. When premium ends, existing panels and templates stay, but you cannot create more than the free limits.
+Premium is granted for a set time, or permanently with a key. You can pay with Bitcoin or Litecoin using `!premium buy`, with coins or diamonds using `!premium coins` and `!premium diamonds` (coins buy 1 month only, once every 90 days per person; diamonds buy 1 month, 3 months or 1 year with no limit, but never lifetime) (see [Coins and Diamonds](/docs/economy)), or redeem a premium key. Soward never sees your wallet, and crypto payments cannot be reversed. When premium ends, existing panels and templates stay, but you cannot create more than the free limits.

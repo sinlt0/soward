@@ -7,7 +7,35 @@ group: Fun
 
 ## Profiles
 
-`!profile edit` opens a form for a short bio, interests, what you are looking for, relationship status and pronouns. `!profile [@member]` shows the card with level, birthday and join date. `!profile hide` keeps it private, `!profile show` makes it visible again and `!profile clear` deletes it. Links are removed from profiles.
+Your profile is global. It is the same in every server the bot is in, and it works in direct messages too. `!profile edit` opens a form for a short bio, interests, what you are looking for, relationship status and pronouns. `!profile [user]` shows a card image with your avatar, title, level, coins, badges, family, clan, bio and pet. `!profile hide` keeps the card private, `!profile show` makes it visible again and `!profile clear` deletes the text. Links are removed from profiles.
+
+| Command | What it does |
+| --- | --- |
+| `!profile title <text>` | Sets the line under your name |
+| `!profile theme` | Lists themes, prices and the one you use |
+| `!profile theme preview <name>` | Shows your card in a theme |
+| `!profile theme buy <name>` | Buys a theme with coins |
+| `!profile theme set <name>` | Uses a theme you own |
+
+### Badges
+
+Badges appear on your card automatically: **Supporter** (you sent a tip), **Voter** (you voted in the last 48 hours), **Devoted Voter** (25 votes or more), **Married**, **Parent** and your **clan** name.
+
+## Pets
+
+Everyone can adopt a free pet. `!pet adopt kitten`, `!pet adopt puppy` or `!pet adopt chick` is free, and you can own up to 3 pets. Fox, panda, penguin and dragon cost coins. Your active pet grows every time you use the bot: Baby, Young, Teen, Adult and then Legendary. There is a cooldown and a daily limit, so spamming commands does not help.
+
+| Command | What it does |
+| --- | --- |
+| `!pet [user]` | Shows a pet card |
+| `!pet adopt <species> [name]` | Adopts a pet |
+| `!pet list` / `switch <name>` | See your pets and choose the one that grows |
+| `!pet rename <name>` / `release <name>` | Rename or say goodbye |
+| `!pet shop` | Species and outfits for sale |
+| `!pet outfit buy <name>` | Buys an outfit with coins |
+| `!pet outfit <name\|none>` | Puts an outfit on or takes it off |
+
+Your active pet shows on your profile card. See [Coins](/docs/economy) for how to get coins.
 
 ## Speed dating
 

@@ -70,7 +70,7 @@ def invoice_layout(invoice: dict, guild_name: str, with_qr: bool) -> discord.ui.
     elif status == "paid":
         result = store.result_of(invoice)
         if result.get("type") == "coins":
-            lines.append(f"\n**Paid.** **{coin_store.fmt(result['coins'])}** coins were added to your wallet.")
+            lines.append(f"\n**Paid.** **{coin_store.fmt(result.get('diamonds', result.get('coins', 0)))}** diamonds were added to your wallet.")
         elif result.get("type") == "tip":
             lines.append("\n**Paid.** Thank you for supporting " + config.BOT_NAME + f". **{coin_store.fmt(result.get('coins', 0))}** coins were added to your wallet. Use `support public on` if you would like your name on the supporters page.")
         elif result.get("type") == "key":
@@ -128,10 +128,10 @@ class BuyView(discord.ui.LayoutView):
         target = "a gift key anyone can redeem" if self.kind == "key" else f"**{self.ctx.guild.name}**" if self.ctx.guild else "this chat"
         if self.kind in ("tip", "coins"):
             coins_mode = self.kind == "coins"
-            title = "Buy coins" if coins_mode else f"Support {config.BOT_NAME}"
+            title = "Buy diamonds" if coins_mode else f"Support {config.BOT_NAME}"
             if self.plan is None:
                 if coins_mode:
-                    intro = f"Pay with Bitcoin or Litecoin, no account needed. **{money(1)} = {coin_store.fmt(config.COIN_PER_USD)} coins**, added to your wallet when the payment confirms.\n\n**Choose an amount**"
+                    intro = f"Pay with Bitcoin or Litecoin, no account needed. **{money(1)} = {coin_store.fmt(config.DIAMOND_PER_USD)} diamonds**, added to your wallet when the payment confirms.\n\n**Choose an amount**"
                     amounts = config.COIN_TOPUP_AMOUNTS
                     note = f"-# Want a different amount? Use `coins topup <amount>` with {money(config.COIN_TOPUP_MIN_USD)} to {money(config.COIN_TOPUP_MAX_USD)}."
                 else:
@@ -141,7 +141,7 @@ class BuyView(discord.ui.LayoutView):
                 container.add_item(discord.ui.TextDisplay(f"## {title}\n{intro}"))
                 row = discord.ui.ActionRow()
                 for amount in amounts:
-                    label = f"{money(amount)} · {coin_store.fmt(coin_store.usd_to_coins(amount))}" if coins_mode else money(amount)
+                    label = f"{money(amount)} · {coin_store.fmt(coin_store.usd_to_diamonds(amount))}" if coins_mode else money(amount)
                     button = discord.ui.Button(label=label, style=discord.ButtonStyle.primary)
                     button.callback = self._plan_callback(f"{self.kind}:{amount}")
                     row.add_item(button)
@@ -317,7 +317,7 @@ class CryptoPay(commands.Cog):
                 user = None
         plan = store.plan_for(invoice["plan"]) or {"label": invoice["plan"]}
         if result["type"] == "coins":
-            body = f"Thank you. **{coin_store.fmt(result['coins'])}** coins were added to your wallet for {money(result['usd'])}."
+            body = f"Thank you. **{coin_store.fmt(result.get('diamonds', result.get('coins', 0)))}** diamonds were added to your wallet for {money(result['usd'])}."
         elif result["type"] == "tip":
             body = f"Thank you for your {money(result['usd'])} tip. It goes straight to hosting, and **{coin_store.fmt(result.get('coins', 0))}** coins were added to your wallet.\nUse `support public on` if you would like your name on the supporters page."
             await self.grant_supporter_role(int(invoice["user_id"]))
@@ -333,7 +333,7 @@ class CryptoPay(commands.Cog):
                 await user.send(view=success_layout("Payment confirmed", body))
             except discord.HTTPException:
                 pass
-        what = "coins" if result["type"] == "coins" else "a tip" if result["type"] == "tip" else "gift key" if result["type"] == "key" else f"server `{invoice['guild_id']}`"
+        what = "diamonds" if result["type"] == "coins" else "a tip" if result["type"] == "tip" else "gift key" if result["type"] == "key" else f"server `{invoice['guild_id']}`"
         await self.log(f"Invoice `{invoice['invoice_id']}` paid by <@{invoice['user_id']}> for {what}: {plan['label']}, {store.fmt_amount(invoice['received_units'])} {invoice['coin'].upper()} ({money(invoice['usd'])}).")
 
     @commands.group(name="support", aliases=["tip", "donate"], invoke_without_command=True, help="Support hosting with a Bitcoin or Litecoin tip. Usage: support [amount in USD]")

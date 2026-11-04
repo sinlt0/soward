@@ -1,5 +1,26 @@
 [
   {
+    "version": "3.5",
+    "title": "Diamonds and Economy",
+    "date": "2026-11-04",
+    "items": [
+      "Added diamonds, a premium currency bought with crypto at $1 for 1,000 diamonds, next to everyday coins",
+      "Diamonds convert to coins at 1 to 10 with !coins convert, and premium can be bought with either currency",
+      "Added !reward with streaks, !work, !coinflip and !gamble to earn and risk coins",
+      "Coin prices for premium, cosmetics, family slots and clans were raised to match the new economy",
+      "Profile cards now show your diamonds",
+      "Work now follows a sect job ladder, from sweeping the sect grounds up to managing the auction house (!job)",
+      "Added gather, hunt, mine and ruins trips that pay coins with cooldowns and daily limits",
+      "Economy commands now follow a cultivation theme: sect stipend, storage ring, yin-yang toss and fate draw",
+      "Premium bought with coins is limited to 1 month, once every 90 days per person",
+      "Diamonds can now buy a 1 year premium plan (no lifetime) with no purchase limit",
+      "!coins give now works with coins as well as diamonds",
+      "Earning commands can drop diamonds, and each vote gives 1 to 10 diamonds once a day per bot list",
+      "Crypto premium now sells a 1 year plan instead of lifetime",
+      "All economy commands are now available as slash commands under /eco"
+    ]
+  },
+  {
     "version": "3.4",
     "title": "Shifts, Ladder and Milestones",
     "date": "2026-10-28",
@@ -18,6 +39,8 @@
       "Deep backups for Premium: automatic full backups of roles, channels and Soward settings with one-command restore (!deepbackup)",
       "No-prefix mode can now be limited to chosen roles and members, like staff only, with a master on/off switch (!premium np server, add, remove, list, enable, disable)",
       "Music App: a full music player that runs inside Discord as an Activity, with search, queue, playlists, liked songs, history and a Listening to status while you play (!musicapp)",
+      "Global profiles with a new card image: avatar, badges (supporter, voter, married, parent, clan), family, clan and your pet, in themes you can buy with coins (!profile, !profile theme)",
+      "Pets: adopt a free kitten, puppy or chick (or buy a fox, panda, penguin or dragon), watch it grow as you use the bot and dress it in outfits (!pet)",
       "Coins: earn them by voting or supporting, or buy them with Bitcoin or Litecoin (1 USD = 1,000 coins), and spend them on premium (!coins, !premium coins)",
       "Marriage and family: marry with consent, adopt up to 5 children, and buy more slots with coins (!marry, !adopt, !family)",
       "Global clans: create, invite, promote, a shared bank and levels that raise the member limit (!clan)",
@@ -25,7 +48,14 @@
       "Premium trial: every server can claim one free 3-day trial with !premium trial claim and gets a reminder 24 hours before it ends",
       "Vote for Soward on discordbotlist.com to get global no-prefix for a while, plus a thank-you message and a vote streak (!vote)",
       "Support Soward: tip with Bitcoin or Litecoin to help cover hosting, get a supporter role and an optional place on the supporters page (!support)",
-      "Games App: play chess with friends inside the same Activity, with a lobby, rooms, spectators, draw offers, rematches and a Playing Chess status (!gamesapp)"
+      "Games App: play chess with friends inside the same Activity, with a lobby, rooms, spectators, draw offers, rematches and a Playing Chess status (!gamesapp)",
+      "Reminders that follow you everywhere, with repeats and your own timezone (!remind), plus a personal to-do list (!todo)",
+      "Games: Tic-Tac-Toe, Connect 4, Rock Paper Scissors, Hangman, Trivia and Typing Race, with win records and leaderboards (!games)",
+      "Slash commands, organised: /interact kiss, /fun games tic-tac-toe, /fun ship, /utility remind, /profile, /coins and more, each asking for exactly the options its command needs",
+      "Lookups: weather and forecast, translate, dictionary, Urban Dictionary (age-restricted channels), calculator, crypto prices and local time for you or a friend (!weather, !translate, !define, !urban, !calc, !price, !time)",
+      "Translate by replying to a message or pasting a message link, longer texts, and a Translate message option in the message right-click menu",
+      "Family tree picture and family size: marriages and adoptions merge into one big tree (!tree, !family size)",
+      "Clan families: every clan shows its Main family and branches, with a clan tree picture (!clan families, !clan tree); !familysize now lists every member of a family by name and the tree fits up to 250 people"
     ]
   },
   {

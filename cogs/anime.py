@@ -17,7 +17,7 @@ def _media_view(media: dict, footer_note: Optional[str] = None) -> discord.ui.La
     title = anilist_client.display_title(media)
     description = anilist_client.clean_description(media)
     is_manga = media.get("type") == "MANGA"
-    icon = e("manga") if is_manga else e("anime")
+    icon = e("amanga") if is_manga else e("aanime")
 
     score = media.get("averageScore")
     score_text = f"{score}%" if score is not None else "N/A"
@@ -116,7 +116,7 @@ class Anime(commands.Cog):
 
         results = await anilist_client.search_media(self.session, title, "ANIME", 1, None if allow_adult else False)
         if not results:
-            return await ctx.send(view=error_layout(f"{e('anime')} Not Found", f"No anime found matching `{title}`."))
+            return await ctx.send(view=error_layout(f"{e('aanime')} Not Found", f"No anime found matching `{title}`."))
         await ctx.send(view=_media_view(results[0]))
 
     @commands.command(name="mangasearch", aliases=["ms"], help="Search for a manga or manhwa by name. Usage: mangasearch <title> [nsfw]")
@@ -130,7 +130,7 @@ class Anime(commands.Cog):
 
         results = await anilist_client.search_media(self.session, title, "MANGA", 1, None if allow_adult else False)
         if not results:
-            return await ctx.send(view=error_layout(f"{e('manga')} Not Found", f"No manga found matching `{title}`."))
+            return await ctx.send(view=error_layout(f"{e('amanga')} Not Found", f"No manga found matching `{title}`."))
         await ctx.send(view=_media_view(results[0]))
 
     @commands.command(name="animerecommend", aliases=["arec"], help="Get anime recommendations similar to a title. Usage: animerecommend <title> [nsfw]")
@@ -144,14 +144,14 @@ class Anime(commands.Cog):
 
         results = await anilist_client.search_media(self.session, title, "ANIME", 1, None if allow_adult else False)
         if not results:
-            return await ctx.send(view=error_layout(f"{e('anime')} Not Found", f"No anime found matching `{title}`."))
+            return await ctx.send(view=error_layout(f"{e('aanime')} Not Found", f"No anime found matching `{title}`."))
 
         base = results[0]
         recs = await anilist_client.get_recommendations_for(self.session, base["id"])
         if not allow_adult:
             recs = [r for r in recs if not r.get("isAdult")]
         if not recs:
-            return await ctx.send(view=error_layout(f"{e('anime')} No Recommendations", f"AniList doesn't have recommendations for **{anilist_client.display_title(base)}** yet."))
+            return await ctx.send(view=error_layout(f"{e('aanime')} No Recommendations", f"AniList doesn't have recommendations for **{anilist_client.display_title(base)}** yet."))
 
         pick = recs[0]
         note = f"Recommended because you liked {anilist_client.display_title(base)}"
@@ -174,7 +174,7 @@ class Anime(commands.Cog):
 
         media = await anilist_client.discover_random(self.session, "ANIME", genre.title() if genre else None, is_adult=(None if allow_adult else False))
         if not media:
-            return await ctx.send(view=error_layout(f"{e('anime')} No Results", "Couldn't find anything for that genre right now."))
+            return await ctx.send(view=error_layout(f"{e('aanime')} No Results", "Couldn't find anything for that genre right now."))
         await ctx.send(view=_media_view(media))
 
     @commands.command(name="mangarandom", aliases=["mrandom", "randommanga"], help="Get a random manga/manhwa, optionally filtered by genre. Usage: mangarandom [genre] [nsfw]")
@@ -194,7 +194,7 @@ class Anime(commands.Cog):
 
         media = await anilist_client.discover_random(self.session, "MANGA", genre.title() if genre else None, is_adult=(None if allow_adult else False))
         if not media:
-            return await ctx.send(view=error_layout(f"{e('manga')} No Results", "Couldn't find anything for that genre right now."))
+            return await ctx.send(view=error_layout(f"{e('amanga')} No Results", "Couldn't find anything for that genre right now."))
         await ctx.send(view=_media_view(media))
 
     @commands.command(name="trending", help="Show the 5 most trending anime right now.")
@@ -203,10 +203,10 @@ class Anime(commands.Cog):
         e = emoji_manager.get
         results = await anilist_client.get_trending(self.session, "ANIME", 5)
         if not results:
-            return await ctx.send(view=error_layout(f"{e('anime')} No Results", "Couldn't fetch trending anime right now."))
+            return await ctx.send(view=error_layout(f"{e('aanime')} No Results", "Couldn't fetch trending anime right now."))
 
         lines = [f"**{i}.** {anilist_client.display_title(m)} — {m.get('averageScore') or 'N/A'}%" for i, m in enumerate(results, 1)]
-        await ctx.send(view=info_layout(f"{e('anime')} Trending Anime", "\n".join(lines)))
+        await ctx.send(view=info_layout(f"{e('aanime')} Trending Anime", "\n".join(lines)))
 
     @commands.group(name="animedaily", invoke_without_command=True, help="Configure the daily anime/manga recommendation for this server.")
     @has_guild_permission("manage_guild")
@@ -219,7 +219,7 @@ class Anime(commands.Cog):
                 "Daily recommendations are **disabled**.\n\n"
                 "Set up with `animedaily channel #channel`, then `animedaily enable`."
             )
-            return await ctx.send(view=info_layout(f"{e('anime')} Daily Recommendations", body))
+            return await ctx.send(view=info_layout(f"{e('aanime')} Daily Recommendations", body))
 
         channel = ctx.guild.get_channel(row["channel_id"]) if row["channel_id"] else None
         ping_role_text = f"<@&{row['role_id']}>" if row["role_id"] else "None"
@@ -231,7 +231,7 @@ class Anime(commands.Cog):
             f"**Post time:** {row['post_hour_utc']:02d}:{(row['post_minute_utc'] or 0):02d} UTC\n"
             f"**Ping role:** {ping_role_text}"
         )
-        await ctx.send(view=info_layout(f"{e('anime')} Daily Recommendations", body))
+        await ctx.send(view=info_layout(f"{e('aanime')} Daily Recommendations", body))
 
     @animedaily_group.command(name="channel", help="Set the channel for daily recommendations.")
     @has_guild_permission("manage_guild")

@@ -184,41 +184,72 @@ class Premium(commands.Cog):
         cog = self.bot.get_cog("CryptoPay")
         if cog is None:
             return await ctx.send(embed=embeds.error("Unavailable", "Crypto payments are not available right now."))
-        if mode.lower() == "coins":
+        if mode.lower() in ("coins", "diamonds"):
             return await cog.start_coins(ctx, None)
         await cog.start_purchase(ctx, mode.lower() == "gift")
 
-    @premium_group.command(name="coins", aliases=["coinbuy"], help='Buy premium for this server with coins. Usage: premium coins [plan]')
-    @has_guild_permission("manage_guild")
-    @commands.guild_only()
-    async def premium_coins(self, ctx: commands.Context, plan: str = ""):
+    async def buy_with(self, ctx: commands.Context, plan: str, currency: str):
         e = emoji_manager.get
-        prices = {key: coin_store.usd_to_coins(item["usd"]) for key, item in config.CRYPTO_PLANS.items()}
-        wallet = await coin_store.balance(ctx.author.id)
+        diamonds = currency == "diamonds"
+        unit = "diamonds" if diamonds else "coins"
+        icon = e("ediamond") if diamonds else e("ecoin")
+        plans = config.PREMIUM_DIAMOND_PLANS if diamonds else {config.PREMIUM_COIN_PLAN: config.PREMIUM_DIAMOND_PLANS[config.PREMIUM_COIN_PLAN]}
+        prices = {key: item["diamonds"] * (1 if diamonds else config.DIAMOND_TO_COINS) for key, item in plans.items()}
+        wallet = await coin_store.diamonds(ctx.author.id) if diamonds else await coin_store.balance(ctx.author.id)
         key = plan.lower()
         if key not in prices:
-            lines = [f"{e('coin')} Your wallet: **{coin_store.fmt(wallet)}** coins", ""]
-            for name, item in config.CRYPTO_PLANS.items():
-                lines.append(f"`{name}` · {item['label']} · **{coin_store.fmt(prices[name])}** coins")
-            lines.append(f"\nUse `premium coins <plan>` to buy. Earn coins by voting or top up with `coins topup`.")
-            return await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} Premium with coins", "\n".join(lines)))
-        item = config.CRYPTO_PLANS[key]
+            lines = [f"{icon} Your wallet: **{coin_store.fmt(wallet)}** {unit}", ""]
+            for name, item in plans.items():
+                lines.append(f"`{name}` · {item['label']} · **{coin_store.fmt(prices[name])}** {unit}")
+            if not diamonds:
+                ready = await coin_store.premium_ready_at(ctx.author.id)
+                lines.append(f"\nWith coins you can only buy **{plans[config.PREMIUM_COIN_PLAN]['label']}**, once every **{config.PREMIUM_COIN_COOLDOWN_DAYS} days**. " + (f"You can buy again <t:{int(ready)}:R>." if ready > time.time() else "You can buy one now."))
+            if diamonds:
+                lines.append("\nLifetime premium is only sold with crypto or a key. Diamonds have no purchase limit.")
+            other = "coins" if diamonds else "diamonds"
+            lines.append(f"\nUse `premium {unit} <plan>` to buy. You can also pay with {other} using `premium {other} <plan>`." + ("" if diamonds else " Earn coins with `reward`, `work` and `vote`, or convert diamonds with `coins convert`."))
+            return await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} Premium with {unit}", "\n".join(lines)))
+        item = plans[key]
         price = prices[key]
         row = await db.raw_fetchone("SELECT premium, premium_expires_at FROM guilds WHERE guild_id=?", (ctx.guild.id,))
         if row and row["premium"] and row["premium_expires_at"] is None:
             return await ctx.send(embed=embeds.error(f"{e('cross')} Already Lifetime", "This server already has premium with no end date."))
+        if not diamonds:
+            ready = await coin_store.premium_ready_at(ctx.author.id)
+            if ready > time.time():
+                return await ctx.send(embed=embeds.error(f"{e('cross')} Too Soon", f"Premium bought with coins is limited to once every **{config.PREMIUM_COIN_COOLDOWN_DAYS} days**. You can buy again <t:{int(ready)}:R>."))
         if wallet < price:
-            return await ctx.send(embed=embeds.error(f"{e('cross')} Not Enough Coins", f"**{item['label']}** costs **{coin_store.fmt(price)}** coins and you have **{coin_store.fmt(wallet)}**."))
+            return await ctx.send(embed=embeds.error(f"{e('cross')} Not Enough {unit.title()}", f"**{item['label']}** costs **{coin_store.fmt(price)}** {unit} and you have **{coin_store.fmt(wallet)}**."))
         view = PremiumCoinsView(ctx.author.id)
-        msg = await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} Confirm Purchase", f"Spend **{coin_store.fmt(price)}** coins on **{item['label']}** of premium for **{ctx.guild.name}**?"), view=view)
+        msg = await ctx.send(embed=embeds.neutral(f"{e('premium_cat')} Confirm Purchase", f"Spend **{coin_store.fmt(price)}** {unit} on **{item['label']}** of premium for **{ctx.guild.name}**?"), view=view)
         await view.wait()
         if not view.confirmed:
             return
-        if not await coin_store.spend(ctx.author.id, price):
-            return await msg.edit(embed=embeds.error(f"{e('cross')} Not Enough Coins", "Your balance changed. Try again."), view=None)
+        previous = None
+        if not diamonds:
+            previous = await coin_store.claim_premium_slot(ctx.author.id)
+            if previous is None:
+                return await msg.edit(embed=embeds.error(f"{e('cross')} Too Soon", f"Premium bought with coins is limited to once every **{config.PREMIUM_COIN_COOLDOWN_DAYS} days**."), view=None)
+        paid = await coin_store.spend_diamonds(ctx.author.id, price) if diamonds else await coin_store.spend(ctx.author.id, price)
+        if not paid:
+            if previous is not None:
+                await coin_store.release_premium_slot(ctx.author.id, previous)
+            return await msg.edit(embed=embeds.error(f"{e('cross')} Not Enough {unit.title()}", "Your balance changed. Try again."), view=None)
         expires = await crypto_store.grant_server(ctx.guild.id, item["days"])
         when = f"until <t:{int(expires)}:F>" if expires else "with no end date"
         await msg.edit(embed=embeds.success(f"{e('premium_cat')} Premium Activated!", f"**{item['label']}** of premium is now active {when}."), view=None)
+
+    @premium_group.command(name="coins", aliases=["coinbuy"], help='Buy 1 month of premium for this server with coins, once every 90 days. Usage: premium coins [plan]')
+    @has_guild_permission("manage_guild")
+    @commands.guild_only()
+    async def premium_coins(self, ctx: commands.Context, plan: str = ""):
+        await self.buy_with(ctx, plan, "coins")
+
+    @premium_group.command(name="diamonds", aliases=["gems", "diamondbuy"], help='Buy premium for this server with diamonds (1m, 3m or 1y). Usage: premium diamonds [plan]')
+    @has_guild_permission("manage_guild")
+    @commands.guild_only()
+    async def premium_diamonds(self, ctx: commands.Context, plan: str = ""):
+        await self.buy_with(ctx, plan, "diamonds")
 
     @premium_group.command(name="generate", aliases=["gen"], help='Generate a redeemable premium key (owner/dev only).')
     @is_privileged()

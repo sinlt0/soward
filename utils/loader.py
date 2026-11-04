@@ -16,8 +16,8 @@ def discover_extensions(package_dir: Path, package_name: str) -> list[str]:
         extensions.append(f"{package_name}.{module_info.name}")
     return extensions
 
-async def load_cogs(bot: commands.Bot, cogs_dir: Path) -> tuple[list[str], list[tuple[str, str]]]:
-    extensions = discover_extensions(cogs_dir, "cogs")
+async def load_cogs(bot: commands.Bot, cogs_dir: Path, package: str = "cogs") -> tuple[list[str], list[tuple[str, str]]]:
+    extensions = discover_extensions(cogs_dir, package)
     loaded: list[str] = []
     failed: list[tuple[str, str]] = []
 

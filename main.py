@@ -76,6 +76,10 @@ class SowardBot(commands.Bot):
         log.info("Loading cogs...")
         cogs_loaded, cogs_failed = await loader.load_cogs(self, BASE_DIR / "cogs")
 
+        log.info("Loading slash modules...")
+        slash_loaded, slash_failed = await loader.load_cogs(self, BASE_DIR / "slash", "slash")
+        cogs_failed = cogs_failed + slash_failed
+
         log.info(
             "Setup complete. %d cog(s) active, %d command(s) registered. %d cog(s) and %d event module(s) failed to load.",
             len(self.cogs),

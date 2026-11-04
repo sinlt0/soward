@@ -82,7 +82,7 @@ class Milestones(commands.Cog):
         body = f"Welcome back, {member.mention}. You have been away for **{days} days**."
         if digest:
             body += "\n\n**While you were gone**\n" + "\n".join(f"- {line}" for line in digest)
-        view = info_layout(f"{emoji_manager.get('wave')} Welcome back", body)
+        view = info_layout(f"{emoji_manager.get('swave')} Welcome back", body)
         if cfg["welcomeback"] == "dm":
             try:
                 await member.send(view=view)

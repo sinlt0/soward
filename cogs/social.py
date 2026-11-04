@@ -101,7 +101,7 @@ class Social(commands.Cog):
     def _result_layout(self, action: str, body: str, image_url: str, anime: Optional[str], stat_line: Optional[str], emoji_key: Optional[str] = None) -> discord.ui.LayoutView:
         view = discord.ui.LayoutView(timeout=None)
         container = discord.ui.Container(accent_color=NEUTRAL)
-        text = f"## {emoji_manager.get(emoji_key or action)} {action.capitalize()}\n{body}"
+        text = f"## {emoji_manager.get('s' + (emoji_key or action))} {action.capitalize()}\n{body}"
         if stat_line:
             text += f"\n{stat_line}"
         container.add_item(discord.ui.TextDisplay(text))
@@ -142,7 +142,7 @@ class Social(commands.Cog):
 
     async def _do_interaction(self, ctx: commands.Context, target: Optional[discord.Member], action: str, verb: str, emoji_key: Optional[str] = None):
         if target is not None and target.id == ctx.author.id:
-            return await ctx.send(view=error_layout(f"{emoji_manager.get(emoji_key or action)} Hold on", f"You can't {action} yourself!"))
+            return await ctx.send(view=error_layout(f"{emoji_manager.get('s' + (emoji_key or action))} Hold on", f"You can't {action} yourself!"))
 
         url, anime = await self._fetch_interaction_gif(action)
         if not url:
@@ -322,7 +322,7 @@ class Social(commands.Cog):
     @commands.command(name="skick", help="Socially kick someone.")
     @commands.cooldown(1, 3.0, commands.BucketType.user)
     async def skick_social(self, ctx: commands.Context, target: discord.Member):
-        await self._do_interaction(ctx, target, "kick", "kicked", emoji_key="skick")
+        await self._do_interaction(ctx, target, "kick", "kicked", emoji_key="kick")
 
     @commands.command(name="bite", help="Bite someone.")
     @commands.cooldown(1, 3.0, commands.BucketType.user)

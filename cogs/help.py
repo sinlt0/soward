@@ -15,6 +15,7 @@ COUNT_TTL = 60
 _count_cache = {}
 
 CATEGORY_DESCRIPTIONS = {
+    "Profile": "Your global profile card, themes, badges and pets.",
     "Economy": "Coins: earn them by voting, buy them, and spend them.",
     "Family": "Marriage, adoption and global clans.",
     "Moderation": "Ban, kick, mute, warn, purge, and case logging.",
@@ -102,16 +103,34 @@ def prefix_label(prefix):
         return "Mention"
     return f"`{prefix}`"
 
+DEV_CHECK_NAMES = ("is_privileged", "is_owner")
+
+def is_dev_command(cmd):
+    node = cmd
+    while node is not None:
+        if node.qualified_name in config.HELP_HIDDEN_COMMANDS or node.qualified_name.split(" ")[0] in ("jsk", "jishaku"):
+            return True
+        cog = node.cog
+        category = getattr(cog, "category", None) or (cog.qualified_name if cog else None)
+        if category in config.HELP_HIDDEN_CATEGORIES:
+            return True
+        for check in node.checks:
+            if getattr(check, "__qualname__", "").split(".")[0] in DEV_CHECK_NAMES:
+                return True
+        node = node.parent
+    return False
+
 async def command_counts(bot, ctx, privileged):
-    key = (ctx.author.id, ctx.guild.id if ctx.guild else 0, privileged)
+    key = (ctx.author.id, ctx.guild.id if ctx.guild else 0)
     cached = _count_cache.get(key)
     if cached and time.time() - cached[0] < COUNT_TTL:
         return cached[1]
-    total = usable = 0
-    for cmd in set(bot.walk_commands()):
-        if command_hidden(cmd, privileged) or cmd.qualified_name.split(" ")[0] in ("jsk", "jishaku"):
+    commands_all = set(bot.walk_commands())
+    total = len(commands_all)
+    usable = 0
+    for cmd in commands_all:
+        if cmd.hidden or is_dev_command(cmd):
             continue
-        total += 1
         try:
             if await cmd.can_run(ctx):
                 usable += 1

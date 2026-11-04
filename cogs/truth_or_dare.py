@@ -65,7 +65,7 @@ class TruthOrDare(commands.Cog):
 
     def build_result_view(self, mode: str, rating: str, question: str, author: discord.abc.User) -> discord.ui.LayoutView:
         e = emoji_manager.get
-        icon = e("truth") if mode == "truth" else e("dare")
+        icon = e("struth") if mode == "truth" else e("sdare")
         accent = 0x5865F2 if mode == "truth" else 0xED4245
 
         view = discord.ui.LayoutView(timeout=120)
