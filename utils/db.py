@@ -107,6 +107,37 @@ async def init(bot_loop: asyncio.AbstractEventLoop) -> None:
     except Exception:
         pass
 
+    try:
+        await _sqlite_conn.execute("ALTER TABLE cult_characters ADD COLUMN race TEXT NOT NULL DEFAULT 'human'")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE cult_characters ADD COLUMN way TEXT NOT NULL DEFAULT ''")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    for column in ("weapon TEXT NOT NULL DEFAULT ''", "armor TEXT NOT NULL DEFAULT ''", "charm TEXT NOT NULL DEFAULT ''", "safe INTEGER NOT NULL DEFAULT 0", "bloodline TEXT NOT NULL DEFAULT ''", "bonds INTEGER NOT NULL DEFAULT 0", "weapon_r INTEGER NOT NULL DEFAULT 0", "armor_r INTEGER NOT NULL DEFAULT 0", "charm_r INTEGER NOT NULL DEFAULT 0", "weapon_e TEXT NOT NULL DEFAULT ''", "armor_e TEXT NOT NULL DEFAULT ''", "charm_e TEXT NOT NULL DEFAULT ''", "title TEXT NOT NULL DEFAULT ''"):
+        try:
+            await _sqlite_conn.execute(f"ALTER TABLE cult_characters ADD COLUMN {column}")
+            await _sqlite_conn.commit()
+        except Exception:
+            pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE clan_members ADD COLUMN branch TEXT NOT NULL DEFAULT ''")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
+    try:
+        await _sqlite_conn.execute("ALTER TABLE clans ADD COLUMN stipend_on INTEGER NOT NULL DEFAULT 1")
+        await _sqlite_conn.commit()
+    except Exception:
+        pass
+
     for column in ("diamonds INTEGER NOT NULL DEFAULT 0", "v2 INTEGER NOT NULL DEFAULT 0"):
         try:
             await _sqlite_conn.execute(f"ALTER TABLE wallets ADD COLUMN {column}")
@@ -865,13 +896,153 @@ async def _bootstrap_sqlite() -> None:
             owner_id INTEGER NOT NULL,
             bank INTEGER NOT NULL DEFAULT 0,
             level INTEGER NOT NULL DEFAULT 1,
+            stipend_on INTEGER NOT NULL DEFAULT 1,
             created_at REAL NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS cult_characters (
+            user_id INTEGER PRIMARY KEY,
+            race TEXT NOT NULL DEFAULT 'human',
+            way TEXT NOT NULL DEFAULT '',
+            weapon TEXT NOT NULL DEFAULT '',
+            armor TEXT NOT NULL DEFAULT '',
+            charm TEXT NOT NULL DEFAULT '',
+            safe INTEGER NOT NULL DEFAULT 0,
+            bloodline TEXT NOT NULL DEFAULT '',
+            weapon_r INTEGER NOT NULL DEFAULT 0,
+            armor_r INTEGER NOT NULL DEFAULT 0,
+            charm_r INTEGER NOT NULL DEFAULT 0,
+            weapon_e TEXT NOT NULL DEFAULT '',
+            armor_e TEXT NOT NULL DEFAULT '',
+            charm_e TEXT NOT NULL DEFAULT '',
+            title TEXT NOT NULL DEFAULT '',
+            bonds INTEGER NOT NULL DEFAULT 0,
+            root TEXT NOT NULL,
+            rarity TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            path TEXT NOT NULL DEFAULT '',
+            realm INTEGER NOT NULL DEFAULT 0,
+            stage INTEGER NOT NULL DEFAULT 0,
+            qi INTEGER NOT NULL DEFAULT 0,
+            last_tick REAL NOT NULL DEFAULT 0,
+            last_meditate REAL NOT NULL DEFAULT 0,
+            injured_until REAL NOT NULL DEFAULT 0,
+            chance_bonus INTEGER NOT NULL DEFAULT 0,
+            pill_day TEXT NOT NULL DEFAULT '',
+            pill_count INTEGER NOT NULL DEFAULT 0,
+            rerolls INTEGER NOT NULL DEFAULT 0,
+            breakthroughs INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS clan_buildings (
+            clan_id TEXT NOT NULL,
+            building TEXT NOT NULL,
+            level INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (clan_id, building)
+        )""",
+        """CREATE TABLE IF NOT EXISTS clan_boss (
+            clan_id TEXT PRIMARY KEY,
+            boss TEXT NOT NULL,
+            hp INTEGER NOT NULL,
+            max_hp INTEGER NOT NULL,
+            spawned_at REAL NOT NULL,
+            killed INTEGER NOT NULL DEFAULT 0,
+            killed_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS clan_boss_hits (
+            clan_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            damage INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (clan_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS clan_wars (
+            war_id TEXT PRIMARY KEY,
+            clan_a TEXT NOT NULL,
+            clan_b TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            score_a INTEGER NOT NULL DEFAULT 0,
+            score_b INTEGER NOT NULL DEFAULT 0,
+            declared_by INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL DEFAULT 0,
+            ends_at REAL NOT NULL DEFAULT 0,
+            result TEXT NOT NULL DEFAULT ''
+        )""",
+        """CREATE TABLE IF NOT EXISTS cult_npcs (
+            user_id INTEGER NOT NULL,
+            npc_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            name TEXT NOT NULL,
+            zh TEXT NOT NULL DEFAULT '',
+            race TEXT NOT NULL DEFAULT 'human',
+            tale TEXT NOT NULL DEFAULT '',
+            affinity INTEGER NOT NULL DEFAULT 0,
+            met_at REAL NOT NULL DEFAULT 0,
+            last_talk REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, npc_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS cult_rifts (
+            user_id INTEGER PRIMARY KEY,
+            world TEXT NOT NULL,
+            zh TEXT NOT NULL DEFAULT '',
+            about TEXT NOT NULL DEFAULT '',
+            found_at REAL NOT NULL DEFAULT 0,
+            expires_at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS cult_spawn_channels (
+            channel_id INTEGER PRIMARY KEY,
+            guild_id INTEGER NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS cult_raid_log (
+            attacker_id INTEGER NOT NULL,
+            target_id INTEGER NOT NULL,
+            result TEXT NOT NULL DEFAULT '',
+            coins INTEGER NOT NULL DEFAULT 0,
+            item TEXT NOT NULL DEFAULT '',
+            at REAL NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS cult_treasury (
+            owner_id INTEGER PRIMARY KEY,
+            coins INTEGER NOT NULL DEFAULT 0,
+            heir INTEGER NOT NULL DEFAULT 0
+        )""",
+        """CREATE TABLE IF NOT EXISTS cult_items (
+            user_id INTEGER NOT NULL,
+            item TEXT NOT NULL,
+            qty INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, item)
+        )""",
+        """CREATE TABLE IF NOT EXISTS clan_contributions (
+            clan_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            amount INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (clan_id, user_id)
         )""",
         """CREATE TABLE IF NOT EXISTS clan_members (
             user_id INTEGER PRIMARY KEY,
             clan_id TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'member',
-            joined_at REAL NOT NULL
+            joined_at REAL NOT NULL,
+            branch TEXT NOT NULL DEFAULT ''
+        )""",
+        """CREATE TABLE IF NOT EXISTS clan_branches (
+            clan_id TEXT NOT NULL,
+            branch_key TEXT NOT NULL,
+            name TEXT NOT NULL,
+            founder_id INTEGER NOT NULL,
+            created_at REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (clan_id, branch_key)
+        )""",
+        """CREATE TABLE IF NOT EXISTS cult_titles (
+            user_id INTEGER NOT NULL,
+            title_key TEXT NOT NULL,
+            earned_at REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, title_key)
+        )""",
+        """CREATE TABLE IF NOT EXISTS cult_story (
+            user_id INTEGER PRIMARY KEY,
+            chapter INTEGER NOT NULL DEFAULT 0,
+            progress TEXT NOT NULL DEFAULT '{}',
+            flags TEXT NOT NULL DEFAULT '{}',
+            updated_at REAL NOT NULL DEFAULT 0
         )""",
         """CREATE TABLE IF NOT EXISTS clan_invites (
             clan_id TEXT NOT NULL,

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import config
-from utils import coins, db
+from utils import clans, coins, db
 
 def reward_amount(streak: int) -> int:
     return config.REWARD_BASE + min(config.REWARD_STREAK_MAX_BONUS, config.REWARD_STREAK_STEP * max(0, streak - 1))
@@ -85,9 +85,10 @@ async def claim_reward(user_id: int, now: Optional[float] = None) -> dict:
     previous = data["streak"]
     data.update(reward_at=now, streak=streak)
     await save(data)
+    amount, bonus = await clans.boost(user_id, amount)
     await coins.add(user_id, amount)
     diamonds = await drop_diamonds(user_id, "reward")
-    return {"ok": True, "amount": amount, "diamonds": diamonds, "streak": streak, "reset": previous > 1 and not kept}
+    return {"ok": True, "amount": amount, "bonus": bonus, "diamonds": diamonds, "streak": streak, "reset": previous > 1 and not kept}
 
 
 async def gamble_gate(user_id: int, now: Optional[float] = None) -> float:

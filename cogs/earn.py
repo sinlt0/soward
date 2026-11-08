@@ -16,9 +16,12 @@ FATE = {1.5: "A faint omen of luck.", 2.0: "The spirit lanterns glow in your fav
 
 
 def drop(result: dict, e) -> str:
+    text = ""
+    if result.get("bonus"):
+        text += f"\n{e('shield')} Clan bonus: **+{coins.fmt(result['bonus'])}** coins"
     if result.get("diamonds"):
-        return f"\n{e('ediamond')} A heaven crystal fell out: **+{result['diamonds']}** diamond(s)!"
-    return ""
+        text += f"\n{e('ediamond')} A heaven crystal fell out: **+{result['diamonds']}** diamond(s)!"
+    return text
 
 
 class Earn(commands.Cog):

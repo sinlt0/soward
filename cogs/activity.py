@@ -32,7 +32,7 @@ def games_view(launchable: bool = True) -> discord.ui.LayoutView:
     container = discord.ui.Container(accent_color=NEUTRAL)
     container.add_item(discord.ui.TextDisplay(
         f"## {e('trophy')} {config.BOT_NAME} Games\n"
-        "Play chess with friends inside Discord. Open the app, pick **Games** in the side bar, create a room and anyone in the session can join or watch.\n\n"
+        "Play chess or Doom with friends inside Discord. Open the app, pick **Games** in the side bar, create a room and anyone in the session can join or watch.\n\n"
         "It works in servers, in voice channels and in DMs."
     ))
     row = discord.ui.ActionRow()

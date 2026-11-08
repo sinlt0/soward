@@ -19,7 +19,25 @@
       "Crypto premium now sells a 1 year plan instead of lifetime",
       "All economy commands are now available as slash commands under /eco",
       "Added auto partner: partners open a ticket, post your ad, send a screenshot, and get posted automatically once the screenshot is verified (!autopartner)",
-      "Auto partner ads are posted as sent, so gif links, masked invites, spoilers and a [Your Partnership ping] placeholder work"
+      "Auto partner ads are posted as sent, so gif links, masked invites, spoilers and a [Your Partnership ping] placeholder work",
+      "Clans now have six tiers with member and family limits, a coin bonus on earning commands and a daily stipend paid from the clan bank (!clan tiers, !clan stipend)",
+      "Added the cultivation RPG, phase 1: awaken a spiritual root, choose a path, gather qi, take pills and break through realms (!cultivate)",
+      "Cultivation now has a world story, NPCs to talk to for daily favors and wander events with choices (!cultivate lore, npcs, talk, event)",
+      "Added nine races to the cultivation RPG (human, demon, beastkin, spirit, witch, witch-human, ghost, immortal, demonic), each with strengths, flaws and path limits (!cultivate races)",
+      "Added cultivator ways to the cultivation RPG (immortal, demonic, ghost, Buddhist, Gu and rogue cultivators) chosen when you awaken (!cultivate ways)",
+      "Added turn-based monster combat to the cultivation RPG: path techniques, a bestiary, crafting materials and craftable gear (!cultivate fight, techniques, bestiary, gear)",
+      "Added raids and a coin safe to the cultivation RPG: rob other cultivators with a new-player shield, realm gap, cooldowns and daily loss caps (!cultivate raid, safe)",
+      "Added family features to the cultivation RPG: dual cultivation for married partners, inherited bloodline, a shared family treasury with an heir, and family dungeons (!lineage)",
+      "Added sects to the cultivation RPG: clan buildings, tier-unlocked sect techniques, boss raids and sect wars (!sect)",
+      "Reworked the cultivation RPG to be more interactive: a personal guide, randomly generated travelers with their own journeys, wilderness exploration, abyssal beasts and lords, rifts into lower worlds and opt-in channel spawns (!world). Clans now use Young Master, Elder and Member titles, and story chapters were removed",
+      "Coin earnings are about 2.5 times higher: daily reward, work pay and every cultivation trip. A month of premium now takes roughly two to three weeks of normal play.",
+      "Doom is now in the Games app. Play solo, or host a shared room where the whole session plays one game by taking turns or voting. Doom 1 is built in and you can load your own WAD files.",
+      "Cultivation: refine your gear up to +5, complete three daily bounties for coins, qi and a bonus chest, and check your raid history with world raids.",
+      "Cultivation alchemy: brew Vigor, Iron Skin, Windstep and Fortune pills from fight materials with world brew for daily combat and coin boosts.",
+      "Cultivation: enchant gear with runes from Rift Shards, earn and wear titles with world titles, and clans can now found named branches with clan branch.",
+      "Cultivation now has a main story: sixteen chapters in four acts with goals, boss fights, choices that echo later and named relics as rewards. Start with world chapter.",
+      "Cultivation combat has 51 techniques: six per path, three per way and one per race, with new effects like multi-hit, life steal, buffs, execute strikes and weakening.",
+      "Cultivation weapons now come in eight types, such as spears, bows, staffs and daggers, with critical chance and technique power."
     ]
   },
   {

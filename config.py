@@ -517,7 +517,10 @@ if not isinstance(_lobby, dict):
     _lobby = {"enabled": bool(_lobby)}
 _activities_on = _flag(_activities.get("enabled")) and os.getenv("SOWARD_ACTIVITY", "1") != "0"
 ACTIVITY_MUSIC: bool = _activities_on and _flag(_activities.get("music"))
-ACTIVITY_GAME_LIST: dict = {"chess": _activities_on and _flag(_lobby.get("enabled")) and _flag(_lobby.get("chess", _lobby.get("chess-enabled")))}
+ACTIVITY_GAME_LIST: dict = {
+    "chess": _activities_on and _flag(_lobby.get("enabled")) and _flag(_lobby.get("chess", _lobby.get("chess-enabled"))),
+    "doom": _activities_on and _flag(_lobby.get("enabled")) and _flag(_lobby.get("doom")),
+}
 ACTIVITY_GAMES: bool = any(ACTIVITY_GAME_LIST.values())
 ACTIVITY_ENABLED: bool = ACTIVITY_MUSIC or ACTIVITY_GAMES
 SUPPORT_AMOUNTS: tuple = (1, 3, 5, 10, 25)
@@ -558,11 +561,16 @@ ADOPT_SLOTS_MAX: int = 15
 ADOPT_SLOT_COST: int = 10000
 FAMILY_REQUEST_SECONDS: int = 120
 CLAN_CREATE_COST: int = 20000
-CLAN_BASE_MEMBERS: int = 10
-CLAN_LEVEL_MEMBERS: int = 5
-CLAN_MAX_LEVEL: int = 10
-CLAN_UPGRADE_COST: int = 30000
 CLAN_INVITE_HOURS: int = 24
+CLAN_STIPEND_COOLDOWN_HOURS: int = 20
+CLAN_TIERS: tuple = (
+    {"name": "Wandering Clan", "members": 10, "families": 1, "cost": 0, "need": 1, "bonus": 0, "stipend": 0},
+    {"name": "Rising Clan", "members": 20, "families": 2, "cost": 100000, "need": 8, "bonus": 3, "stipend": 20},
+    {"name": "Established Clan", "members": 35, "families": 3, "cost": 300000, "need": 15, "bonus": 6, "stipend": 40},
+    {"name": "Great Clan", "members": 50, "families": 4, "cost": 800000, "need": 25, "bonus": 10, "stipend": 70},
+    {"name": "Sovereign Clan", "members": 75, "families": 6, "cost": 2000000, "need": 40, "bonus": 15, "stipend": 100},
+    {"name": "Heavenly Clan", "members": 100, "families": 8, "cost": 5000000, "need": 60, "bonus": 20, "stipend": 150},
+)
 PET_XP_PER_COMMAND: int = 2
 PET_XP_COOLDOWN: int = 20
 PET_DAILY_XP_CAP: int = 150
@@ -605,6 +613,10 @@ SLASH_LAYOUT: dict = {
     "levels": {"description": "Your rank and the leaderboard", "entries": ["Leveling"]},
     "eco": {"description": "Coins, diamonds, jobs and ways to earn", "entries": ["Earn", "Economy"]},
     "autopartner": {"description": "Automatic server partnerships", "flatten": "autopartner"},
+    "cultivate": {"description": "Cultivation RPG", "flatten": "cultivate"},
+    "lineage": {"description": "Family cultivation: dual cultivation, treasury and dungeons", "flatten": "lineage"},
+    "sect": {"description": "Clan hall buildings, boss raids and wars", "flatten": "sect"},
+    "world": {"description": "Explore the wilds, meet travelers and enter rifts", "flatten": "world"},
     "family": {"description": "Marriage, adoption and family", "entries": ["Family"]},
     "clan": {"description": "Global clans", "flatten": "clan"},
     "profile": {"description": "Your global profile card", "flatten": "profile"},
@@ -613,7 +625,7 @@ SLASH_LAYOUT: dict = {
 }
 SLASH_EXCLUDE: set[str] = {"leveling", "suggestions", "tod", "familysize"}
 SLASH_RENAMES: dict[str, str] = {"tictactoe": "tic-tac-toe", "connect4": "connect-4", "truthordare": "truth-or-dare"}
-SLASH_BARE_NAMES: dict[str, str] = {"remind": "set", "todo": "list", "coins": "balance", "birthday": "view", "clan": "info", "games": "list", "autopartner": "status"}
+SLASH_BARE_NAMES: dict[str, str] = {"remind": "set", "todo": "list", "coins": "balance", "birthday": "view", "clan": "info", "games": "list", "autopartner": "status", "cultivate": "status", "lineage": "status", "sect": "status", "world": "guide"}
 SLASH_GROUP_LIMIT: int = 25
 SLASH_OVERFLOW_GROUPS: dict[str, str] = {"eco": "eco-extra"}
 
@@ -637,9 +649,9 @@ SLASH_OPTION_DESCRIPTIONS: dict[str, str] = {
 FAMILY_TREE_LIMIT: int = 250
 CLAN_TREE_LIMIT: int = 300
 
-REWARD_BASE: int = 150
-REWARD_STREAK_STEP: int = 15
-REWARD_STREAK_MAX_BONUS: int = 150
+REWARD_BASE: int = 350
+REWARD_STREAK_STEP: int = 30
+REWARD_STREAK_MAX_BONUS: int = 300
 REWARD_COOLDOWN_HOURS: int = 20
 REWARD_STREAK_WINDOW_HOURS: int = 48
 WORK_COOLDOWN_SECONDS: int = 3600
@@ -649,27 +661,27 @@ GAMBLE_MAX_BET: int = 5000
 GAMBLE_COOLDOWN_SECONDS: int = 6
 COINFLIP_PAYOUT: float = 1.9
 CULTIVATION_JOBS: tuple = (
-    {"key": "sweeper", "name": "Sect Ground Sweeper", "shifts": 0, "min": 30, "max": 50, "tasks": ("swept the training grounds of the sect", "cleared fallen leaves from the Hundred Steps", "scrubbed the disciple courtyard", "polished the stone lanterns of the main hall")},
-    {"key": "herbalist", "name": "Herb Garden Tender", "shifts": 15, "min": 40, "max": 65, "tasks": ("watered the spirit herb beds", "pulled weeds from the moonlotus pond", "harvested ripe frostleaf for the pill hall", "guarded the garden from sneaky spirit rats")},
-    {"key": "keeper", "name": "Spirit Beast Keeper", "shifts": 40, "min": 50, "max": 80, "tasks": ("fed the cloud cranes at dawn", "brushed the thunder boar herd", "cleaned the spirit beast stables", "calmed a restless flame fox")},
-    {"key": "scribe", "name": "Formation Scribe", "shifts": 80, "min": 60, "max": 95, "tasks": ("redrew a fading guardian formation", "copied array diagrams for the library", "refreshed the sect's gate seal", "inked talismans for the outer disciples")},
-    {"key": "alchemist", "name": "Alchemy Furnace Attendant", "shifts": 140, "min": 75, "max": 115, "tasks": ("kept the pill furnace at the perfect flame", "ground spirit herbs for a healing pill batch", "sorted finished pills by grade", "stirred a cauldron without ruining it")},
-    {"key": "clerk", "name": "Auction House Clerk", "shifts": 220, "min": 90, "max": 140, "tasks": ("appraised a pile of spirit artifacts", "wrote lot descriptions for the evening auction", "escorted a bidder to the private rooms", "tallied the day's winning bids")},
-    {"key": "auctioneer", "name": "Auction House Manager", "shifts": 350, "min": 110, "max": 170, "tasks": ("ran a packed auction for a heaven-grade sword", "drove up the bidding on a rare core", "settled a bidding dispute between two clans", "negotiated consignment with a wandering elder")},
-    {"key": "treasurer", "name": "Sect Treasurer Elder", "shifts": 520, "min": 140, "max": 210, "tasks": ("audited the sect's spirit stone vault", "approved the yearly resource budget", "traded surplus herbs with a merchant guild", "uncovered a thieving steward")},
+    {"key": "sweeper", "name": "Sect Ground Sweeper", "shifts": 0, "min": 75, "max": 125, "tasks": ("swept the training grounds of the sect", "cleared fallen leaves from the Hundred Steps", "scrubbed the disciple courtyard", "polished the stone lanterns of the main hall")},
+    {"key": "herbalist", "name": "Herb Garden Tender", "shifts": 15, "min": 100, "max": 160, "tasks": ("watered the spirit herb beds", "pulled weeds from the moonlotus pond", "harvested ripe frostleaf for the pill hall", "guarded the garden from sneaky spirit rats")},
+    {"key": "keeper", "name": "Spirit Beast Keeper", "shifts": 40, "min": 125, "max": 200, "tasks": ("fed the cloud cranes at dawn", "brushed the thunder boar herd", "cleaned the spirit beast stables", "calmed a restless flame fox")},
+    {"key": "scribe", "name": "Formation Scribe", "shifts": 80, "min": 150, "max": 240, "tasks": ("redrew a fading guardian formation", "copied array diagrams for the library", "refreshed the sect's gate seal", "inked talismans for the outer disciples")},
+    {"key": "alchemist", "name": "Alchemy Furnace Attendant", "shifts": 140, "min": 190, "max": 290, "tasks": ("kept the pill furnace at the perfect flame", "ground spirit herbs for a healing pill batch", "sorted finished pills by grade", "stirred a cauldron without ruining it")},
+    {"key": "clerk", "name": "Auction House Clerk", "shifts": 220, "min": 225, "max": 350, "tasks": ("appraised a pile of spirit artifacts", "wrote lot descriptions for the evening auction", "escorted a bidder to the private rooms", "tallied the day's winning bids")},
+    {"key": "auctioneer", "name": "Auction House Manager", "shifts": 350, "min": 275, "max": 425, "tasks": ("ran a packed auction for a heaven-grade sword", "drove up the bidding on a rare core", "settled a bidding dispute between two clans", "negotiated consignment with a wandering elder")},
+    {"key": "treasurer", "name": "Sect Treasurer Elder", "shifts": 520, "min": 350, "max": 525, "tasks": ("audited the sect's spirit stone vault", "approved the yearly resource budget", "traded surplus herbs with a merchant guild", "uncovered a thieving steward")},
 )
 CULTIVATION_DEFAULT_JOB: str = "sweeper"
 CULTIVATION_ACTIVITIES: dict = {
-    "gather": {"cooldown": 7200, "daily": 2, "min": 8, "max": 20, "fail": 0.10, "icon": "egather", "title": "Herb gathering",
+    "gather": {"cooldown": 7200, "daily": 2, "min": 20, "max": 50, "fail": 0.10, "icon": "egather", "title": "Herb gathering",
                "wins": ("You climbed a misty ridge and picked a bundle of spirit herbs worth", "You found a hidden patch of moonlotus and sold it for"),
                "fails": ("The herbs wilted before you could carry them down.", "A rival disciple beat you to the herb patch.")},
-    "hunt": {"cooldown": 5400, "daily": 2, "min": 20, "max": 60, "fail": 0.40, "icon": "ehunt", "title": "Beast hunt",
+    "hunt": {"cooldown": 5400, "daily": 2, "min": 50, "max": 150, "fail": 0.40, "icon": "ehunt", "title": "Beast hunt",
              "wins": ("You felled a wild spirit boar and sold its core for", "You drove off a pack of mist wolves and collected pelts worth"),
              "fails": ("The beast slipped away into the forest.", "You came back empty handed and a little bruised.")},
-    "mine": {"cooldown": 10800, "daily": 2, "min": 12, "max": 32, "fail": 0.15, "icon": "emine", "title": "Spirit stone mine",
+    "mine": {"cooldown": 10800, "daily": 2, "min": 30, "max": 80, "fail": 0.15, "icon": "emine", "title": "Spirit stone mine",
              "wins": ("You chipped out spirit stone shards worth", "You opened a fresh vein and sold the ore for"),
              "fails": ("The tunnel collapsed before you found anything.", "The vein turned out to be plain rock.")},
-    "ruins": {"cooldown": 14400, "daily": 1, "min": 30, "max": 120, "fail": 0.40, "icon": "eruins", "title": "Ancient ruins",
+    "ruins": {"cooldown": 14400, "daily": 1, "min": 75, "max": 300, "fail": 0.40, "icon": "eruins", "title": "Ancient ruins",
               "wins": ("You braved the ruins and carried out relics worth", "You cracked a sealed chamber and found treasure worth"),
               "fails": ("A guardian formation drove you out with nothing.", "The chamber was already looted long ago.")},
 }

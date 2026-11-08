@@ -158,10 +158,14 @@ If that fails too, it plays a matching SoundCloud
 version of the song instead (matched by title, artist and length). Search results also
 have a SoundCloud tab. SoundCloud needs no cookies.
 
-The same Activity has a **Games** tab with chess: players create or join a room,
-others can watch, and the server checks every move against the full rules. Rooms live in
-the dashboard process's memory and there is no clock yet. `!gamesapp` posts a launch
-button.
+The same Activity has a **Games** tab with chess and Doom. In chess, players create or
+join a room, others can watch, and the server checks every move against the full rules.
+Rooms live in the dashboard process's memory and there is no clock yet. Doom runs in the
+browser as WebAssembly (Doom 1 shareware is bundled, and players can load their own WAD
+files). It has a solo mode where everyone plays their own copy, and a shared room where the
+whole session plays one game by taking turns or voting. The server only relays inputs, so
+every player's browser runs the same game in lockstep. The engine source and build script
+are in `third_party/doom/`. `!gamesapp` posts a launch button.
 
 Choose which apps are available in `addons.py`. Opening the Activity shows an apps
 page with a card for each app that is on. If only one is on, it opens straight away.
@@ -173,6 +177,7 @@ activities = {
     "game_lobby": {
         "enabled": True,
         "chess": True,
+        "doom": True,
     },
 }
 ```
@@ -182,7 +187,7 @@ command. `SOWARD_ACTIVITY=0` still turns every app off.
 
 ### Coins, family and clans
 
-Wallets hold two currencies. Coins are earned (`!reward`, `!work` at a sect job from `config.CULTIVATION_JOBS`, the `!gather`, `!hunt`, `!mine` and `!ruins` trips from `config.CULTIVATION_ACTIVITIES`, votes, tips) and gambled (`!coinflip`, `!gamble`); diamonds are bought through the crypto invoices at `config.DIAMOND_PER_USD` per dollar and, like coins, can be given to other users or converted one way into coins at `config.DIAMOND_TO_COINS`. Reward, work and trip commands can also drop diamonds (`config.DIAMOND_DROPS`), and votes give `config.VOTE_DIAMONDS_*` diamonds once a day per site. Votes (`config.VOTE_COINS`) and tips (`config.SUPPORT_COINS`) pay coins. Reward, work and gamble numbers are in `config.REWARD_*`, `config.WORK_*` and `config.GAMBLE_*`. On first start the wallet migration turns old bought coins into diamonds 1:1 and multiplies earned coins by 10, so back up the database before deploying. Premium can be bought with either currency (`!premium coins`, `!premium diamonds`); diamonds buy the plans in `config.PREMIUM_DIAMOND_PLANS` (no lifetime) and coins only buy `config.PREMIUM_COIN_PLAN` and only once every `config.PREMIUM_COIN_COOLDOWN_DAYS` days per user. Marriage and adoption slots, clan prices and
+Wallets hold two currencies. Coins are earned (`!reward`, `!work` at a sect job from `config.CULTIVATION_JOBS`, the `!gather`, `!hunt`, `!mine` and `!ruins` trips from `config.CULTIVATION_ACTIVITIES`, votes, tips) and gambled (`!coinflip`, `!gamble`); diamonds are bought through the crypto invoices at `config.DIAMOND_PER_USD` per dollar and, like coins, can be given to other users or converted one way into coins at `config.DIAMOND_TO_COINS`. Reward, work and trip commands can also drop diamonds (`config.DIAMOND_DROPS`), and votes give `config.VOTE_DIAMONDS_*` diamonds once a day per site. Votes (`config.VOTE_COINS`) and tips (`config.SUPPORT_COINS`) pay coins. Reward, work and gamble numbers are in `config.REWARD_*`, `config.WORK_*` and `config.GAMBLE_*`. On first start the wallet migration turns old bought coins into diamonds 1:1 and multiplies earned coins by 10, so back up the database before deploying. Premium can be bought with either currency (`!premium coins`, `!premium diamonds`); diamonds buy the plans in `config.PREMIUM_DIAMOND_PLANS` (no lifetime) and coins only buy `config.PREMIUM_COIN_PLAN` and only once every `config.PREMIUM_COIN_COOLDOWN_DAYS` days per user. Clans have tiers (`config.CLAN_TIERS`) that set member and family limits, a coin bonus on earning commands and a daily stipend paid from the clan bank; members build tiers up with `!clan deposit`. Marriage and adoption slots, clan prices and
 the other limits are constants near the top of the economy section of `config.py`.
 
 ### Vote rewards
@@ -197,6 +202,10 @@ with a real vote.
 
 Set `SOWARD_DBL_TOKEN` to the token from the page's **Generate token** link and the bot posts its
 server and user counts to discordbotlist.com every 30 minutes.
+
+### Cultivation
+
+`!cultivate` is a cultivation RPG. Players awaken a random spiritual root, choose a path, gather idle and active qi and break through realms, spending coins on pills and tribulation fees. The whole game lives in the `rpg/` folder (story, NPCs, events, settings and the game engine, see `rpg/README.md`) and `cogs/cultivation.py` is only the Discord layer. Players can read the story, talk to NPCs for a daily favor and wander into events with choices. The tables are `cult_characters`, `cult_items`, `cult_treasury`, `clan_buildings`, `clan_boss`, `clan_boss_hits`, `clan_wars`, `cult_npcs`, `cult_rifts` and `cult_spawn_channels`. Turn-based monster fights with path techniques and craftable gear are in. Open raids with a new-player shield, realm gap, cooldowns, daily loss caps and a coin safe are in. Family features (dual cultivation, bloodline, a shared treasury with inheritance and family dungeons, under `!lineage`) are in. Sect features for clans (buildings, tier-unlocked techniques, boss raids and wars, under `!sect`) are in too. Exploration (`!world`) adds a personal guide, randomly generated travelers, abyssal beasts, rifts into lower worlds and opt-in channel spawns.
 
 ### Auto partner
 

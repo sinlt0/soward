@@ -20,7 +20,7 @@ from flask import Blueprint, Response, abort, jsonify, render_template, request,
 from werkzeug.exceptions import HTTPException
 
 import config
-from dashboard import games
+from dashboard import doom, games
 from dashboard.ipc import BotClient, BotError, BotUnavailable
 
 log = logging.getLogger("soward.activity")
@@ -32,7 +32,7 @@ SC_ID = re.compile(r"^s\d{10}$")
 TITLE_NOISE = re.compile(r"\([^)]*\)|\[[^\]]*\]|official|video|audio|lyrics?|visualizer|hd|4k", re.I)
 CHUNK = 64 * 1024
 
-LIMITS = {"search": (30, 60), "play": (60, 60), "home": (20, 60), "write": (120, 60), "game": (300, 60)}
+LIMITS = {"search": (30, 60), "play": (60, 60), "home": (20, 60), "write": (120, 60), "game": (300, 60), "doom": (900, 60), "doominput": (900, 60), "doomwad": (240, 60)}
 
 _users: dict[str, tuple[float, dict]] = {}
 _buckets: dict[tuple, deque] = defaultdict(deque)
@@ -558,7 +558,7 @@ def register(app, ipc: BotClient, session_secret: str) -> None:
 
     def build_id() -> str:
         digest = hashlib.sha1()
-        for name in ("app.js", "app.css", "discord.js", "games.js"):
+        for name in ("app.js", "app.css", "discord.js", "games.js", "doom.js"):
             try:
                 digest.update(str(os.stat(os.path.join(STATIC, name)).st_mtime_ns).encode())
             except OSError:
@@ -934,4 +934,5 @@ def register(app, ipc: BotClient, session_secret: str) -> None:
         return write(f"/activity/playlists/{pid}")
 
     games.register(bp, need_user, _json_error, _hit, lambda: config.ACTIVITY_GAME_LIST)
+    doom.register(bp, need_user, _json_error, _hit, lambda: config.ACTIVITY_GAME_LIST)
     app.register_blueprint(bp)

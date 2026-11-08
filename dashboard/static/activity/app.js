@@ -121,8 +121,11 @@
   function api(path, options) {
     options = options || {};
     var headers = { Authorization: "Bearer " + token };
-    if (options.body) headers["Content-Type"] = "application/json";
-    return fetch("api/" + path, { method: options.method || (options.body ? "POST" : "GET"), headers: headers, body: options.body ? JSON.stringify(options.body) : undefined }).then(function (res) {
+    if (options.binary) headers["Content-Type"] = "application/octet-stream";
+    else if (options.body) headers["Content-Type"] = "application/json";
+    var payload = options.binary || (options.body ? JSON.stringify(options.body) : undefined);
+    return fetch("api/" + path, { method: options.method || (payload ? "POST" : "GET"), headers: headers, body: payload }).then(function (res) {
+      if (options.raw && res.ok) return res.arrayBuffer();
       return res.text().then(function (text) {
         var data = {};
         try { data = JSON.parse(text); } catch (e) { data = {}; }

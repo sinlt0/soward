@@ -27,7 +27,11 @@ group: Fun
 
 Every one of these, and `!reward` and `!work`, also has a small chance to drop diamonds along with the coins. A normal day of play drops only a couple of diamonds, so they stay rare.
 
-An active player earns about 800 coins a day, and a player who does every trip earns around 950, so a month of premium takes five to six weeks without paying. `!coins earn` lists the current amounts.
+An active player earns about 1,500 coins a day, and a player who does every trip earns around 1,900 (more with a higher job and a clan), so a month of premium takes about two to three weeks without paying. `!coins earn` lists the current amounts.
+
+## Clan bonus
+
+Members of a clan get extra coins from `!reward`, `!work` and the cultivation trips, from 3% to 20% depending on the clan tier, and can collect a daily stipend with `!clan stipend`. See [Family and Clans](/docs/family-and-clans).
 
 ## Sect jobs
 

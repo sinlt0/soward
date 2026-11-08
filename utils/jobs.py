@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import config
-from utils import coins, db, rewards
+from utils import clans, coins, db, rewards
 
 
 def all_jobs() -> tuple:
@@ -76,10 +76,11 @@ async def do_work(user_id: int, now: Optional[float] = None, rng: Optional[rando
         "INSERT INTO user_jobs (user_id, job, shifts) VALUES (?, ?, ?)"
         " ON CONFLICT(user_id) DO UPDATE SET job=excluded.job, shifts=excluded.shifts",
         (user_id, job["key"], shifts))
+    amount, bonus = await clans.boost(user_id, amount)
     await coins.add(user_id, amount)
     diamonds = await rewards.drop_diamonds(user_id, "work", rng)
     promoted = [item for item in all_jobs() if current["shifts"] < item["shifts"] <= shifts]
-    return {"ok": True, "amount": amount, "diamonds": diamonds, "job": job, "task": rng.choice(job["tasks"]), "left": config.WORK_DAILY_LIMIT - data["work_count"],
+    return {"ok": True, "amount": amount, "bonus": bonus, "diamonds": diamonds, "job": job, "task": rng.choice(job["tasks"]), "left": config.WORK_DAILY_LIMIT - data["work_count"],
             "shifts": shifts, "promoted": promoted[-1] if promoted else None}
 
 
@@ -105,6 +106,7 @@ async def do_activity(user_id: int, key: str, now: Optional[float] = None, rng: 
     if rng.random() < spec["fail"]:
         return {"ok": True, "amount": 0, "diamonds": 0, "text": rng.choice(spec["fails"]), "left": left}
     amount = rng.randint(spec["min"], spec["max"])
+    amount, bonus = await clans.boost(user_id, amount)
     await coins.add(user_id, amount)
     diamonds = await rewards.drop_diamonds(user_id, key, rng)
-    return {"ok": True, "amount": amount, "diamonds": diamonds, "text": rng.choice(spec["wins"]), "left": left}
+    return {"ok": True, "amount": amount, "bonus": bonus, "diamonds": diamonds, "text": rng.choice(spec["wins"]), "left": left}

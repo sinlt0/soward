@@ -22,3 +22,5 @@ Required options come first and optional ones are marked by Discord. A slash com
 `/eco` holds every economy command: rewards, work, sect jobs, the gather, hunt, mine and ruins trips, gambling and the wallet under `/eco coins`. If it ever grows past 25 entries, the extra commands move to `/eco-extra`.
 
 `/autopartner` holds the auto partner setup and management commands.
+
+`/cultivate` holds the cultivation RPG commands. `/lineage` holds the family cultivation commands: dual cultivation, treasury and dungeons. `/sect` holds the clan hall commands: buildings, boss raids and wars. `/world` holds exploration, travelers, rifts and your guide.

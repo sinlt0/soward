@@ -9,6 +9,7 @@ activities = {
     "game_lobby": {
         "enabled": True,
         "chess": True,
+        "doom": True,
     },
 }
 

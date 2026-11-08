@@ -30,6 +30,10 @@ Bundled fonts in `assets/fonts/` (Poppins, Cormorant Garamond, EB Garamond, Play
 Display, Libre Baskerville, Caveat, Bebas Neue, Special Elite) are distributed
 under the SIL Open Font License 1.1 by their respective authors.
 
+The Doom game in the Games app uses PureDOOM by Daivuk, a single-header port of the
+Doom source code released by id Software, under the GPL-2.0 (`third_party/doom/`). The
+bundled `doom1.wad` is the shareware Doom 1 data from id Software.
+
 See `requirements.txt` for the full dependency list and each project's license.
 
 ## Attribution Notice

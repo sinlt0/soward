@@ -1,10 +1,10 @@
 (function () {
   var GLYPH = { K: "♚", Q: "♛", R: "♜", B: "♝", N: "♞", P: "♟" };
   var TEXT = "︎";
-  var CATALOG = { chess: { title: "Chess", glyph: "\u265E", text: "Full rules including castling, en passant and promotion. Everyone in this session can watch." } };
+  var CATALOG = { doom: { title: "Doom", glyph: "\u2620", text: "Doom 1 in your browser, with your own WAD files too. Play solo, or share one game with the whole session by taking turns or voting." }, chess: { title: "Chess", glyph: "\u265E", text: "Full rules including castling, en passant and promotion. Everyone in this session can watch." } };
   var START_COUNTS = { P: 8, N: 2, B: 2, R: 2, Q: 1 };
   var VALUE = { P: 1, N: 3, B: 3, R: 5, Q: 9 };
-  var G = { view: "lobby", rooms: [], room: null, selected: -1, promotion: null, flipped: null, root: null, ctx: null, timer: null, busy: false, ticks: 0, confirmResign: false, resignTimer: null, started: 0 };
+  var G = { view: "lobby", rooms: [], doomRooms: [], room: null, selected: -1, promotion: null, flipped: null, root: null, ctx: null, timer: null, busy: false, ticks: 0, confirmResign: false, resignTimer: null, started: 0 };
 
   function h() { return G.ctx.h.apply(null, arguments); }
   function instance() { return G.ctx.instanceId || ""; }
@@ -62,15 +62,20 @@
   }
 
   function refreshRooms() {
-    return G.ctx.api("games/rooms?" + query()).then(function (res) {
-      G.rooms = res.rooms || [];
+    var doomOn = (G.ctx.games || []).indexOf("doom") >= 0;
+    var chessOn = (G.ctx.games || []).indexOf("chess") >= 0;
+    var jobs = [
+      chessOn ? G.ctx.api("games/rooms?" + query()).then(function (res) { G.rooms = res.rooms || []; }) : Promise.resolve(),
+      doomOn ? G.ctx.api("games/doom/rooms?" + query()).then(function (res) { G.doomRooms = res.rooms || []; }) : Promise.resolve()
+    ];
+    return Promise.all(jobs.map(function (job) { return job.catch(function () {}); })).then(function () {
       if (G.view === "lobby") draw();
-    }).catch(function () {});
+    });
   }
 
   function poll() {
     if (!G.root || !G.root.isConnected || !instance()) return;
-    if (G.busy) return;
+    if (G.busy || G.view === "doom") return;
     G.busy = true;
     var task;
     if (G.view === "room" && G.room) {
@@ -114,6 +119,13 @@
     }).then(function (res) { enter(res.room); }).catch(function (err) { G.ctx.toast(err.message); refreshRooms(); });
   }
 
+  function startDoom(mode, summary) {
+    G.view = "doom";
+    var back = function () { G.view = "lobby"; updatePresence(); refreshRooms(); draw(); };
+    if (mode === "join") window.SowardDoom.join(G.root, G.ctx, summary, back);
+    else window.SowardDoom.setup(G.root, G.ctx, mode, back);
+  }
+
   function drawLobby() {
     var box = h("div", { class: "games" });
     box.appendChild(h("div", { class: "section-head" }, h("h2", { text: "Games" })));
@@ -130,16 +142,29 @@
           h("h3", { text: info.title }),
           h("p", { class: "muted", text: info.text })));
       var row = h("div", { class: "game-actions" });
-      [["w", "Play as White"], ["b", "Play as Black"], ["random", "Random"]].forEach(function (item) {
-        row.appendChild(h("button", { class: "btn" + (item[0] === "random" ? " ghost" : ""), type: "button", onclick: function () { createRoom(id, item[0]); } }, item[1]));
-      });
+      if (id === "doom") {
+        row.appendChild(h("button", { class: "btn", type: "button", onclick: function () { startDoom("solo"); } }, "Play solo"));
+        row.appendChild(h("button", { class: "btn ghost", type: "button", onclick: function () { startDoom("shared"); } }, "Host a shared room"));
+      } else {
+        [["w", "Play as White"], ["b", "Play as Black"], ["random", "Random"]].forEach(function (item) {
+          row.appendChild(h("button", { class: "btn" + (item[0] === "random" ? " ghost" : ""), type: "button", onclick: function () { createRoom(id, item[0]); } }, item[1]));
+        });
+      }
       card.appendChild(row);
       box.appendChild(card);
     });
     box.appendChild(h("div", { class: "section-head" }, h("h2", { text: "Open rooms" }), h("button", { class: "btn ghost", type: "button", onclick: refreshRooms }, "Refresh")));
-    if (!G.rooms.length) {
+    if (!G.rooms.length && !G.doomRooms.length) {
       box.appendChild(h("p", { class: "muted", text: "No rooms yet. Create one and ask a friend to join." }));
     }
+    G.doomRooms.forEach(function (room) {
+      var label = room.status === "loading" ? "Loading" : room.you ? "Rejoin" : "Join";
+      box.appendChild(h("div", { class: "room-row" },
+        h("div", { class: "room-text" },
+          h("strong", { text: "Doom with " + room.host }),
+          h("span", { class: "muted", text: "Shared · " + (room.control === "turns" ? "taking turns" : "voting") + " · " + room.players + " playing" + (room.custom ? " · custom WADs" : "") })),
+        h("button", { class: "btn", type: "button", disabled: room.status === "loading", onclick: function () { startDoom("join", room); } }, label)));
+    });
     G.rooms.forEach(function (room) {
       var white = room.players.w || "Waiting…";
       var black = room.players.b || "Waiting…";
@@ -354,7 +379,7 @@
   }
 
   function draw() {
-    if (!G.root) return;
+    if (!G.root || G.view === "doom") return;
     var scroll = G.root.parentNode ? G.root.parentNode.scrollTop : 0;
     G.root.textContent = "";
     G.root.appendChild(G.view === "room" ? drawRoom() : drawLobby());
@@ -365,6 +390,7 @@
     mount: function (root, ctx) {
       G.root = root;
       G.ctx = ctx;
+      if (G.view === "doom" && !(window.SowardDoom && window.SowardDoom.attach(root, ctx))) G.view = "lobby";
       draw();
       startPolling();
       setTimeout(function () {
@@ -374,6 +400,8 @@
     },
     suspend: function () {
       stopPolling();
+      if (window.SowardDoom) window.SowardDoom.stop();
+      if (G.view === "doom") G.view = "lobby";
       G.root = null;
       if (G.ctx && G.ctx.setPresence) G.ctx.setPresence(null);
     }

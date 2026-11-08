@@ -1,0 +1,66 @@
+RACES = {
+    "human": {
+        "name": "Human", "zh": "人族", "weight": 35,
+        "about": "The most numerous people of Canhuang, favored by Heaven since the age of the Sages.",
+        "perk": "Favored by Heaven: +5% tribulation chance.",
+        "flaw": "None.",
+        "chance": 5,
+    },
+    "demon": {
+        "name": "Demon", "zh": "妖族", "weight": 12,
+        "about": "Beasts, birds and serpents that grasped the Dao and took human shape.",
+        "perk": "Beasts that grasped the Dao: +10% qi speed.",
+        "flaw": "Heavenly lightning is harsher on demons: -5% tribulation chance.",
+        "qi": 1.10, "chance": -5,
+    },
+    "beast": {
+        "name": "Beastkin", "zh": "兽族", "weight": 12,
+        "about": "The fauna of Canhuang, primal beasts with bodies tempered by the wild.",
+        "perk": "Primal bodies: +15% idle qi and injuries heal 25% faster.",
+        "flaw": "Instinct, not study: only the Body and Sword paths.",
+        "idle": 1.15, "injury": 0.75, "paths": ("body", "sword"), "fight": {"atk": 1.10},
+    },
+    "spirit": {
+        "name": "Spirit", "zh": "灵族", "weight": 10,
+        "about": "Spirits born of rocks, trees, flowers and water that absorbed the essence of heaven and earth.",
+        "perk": "Born of heaven and earth: +15% qi speed and 3 more hours of stored qi.",
+        "flaw": "Spirits take medicine poorly: pills are 20% weaker.",
+        "qi": 1.15, "offline": 3, "pills": 0.8,
+    },
+    "witch": {
+        "name": "Witch", "zh": "巫族", "weight": 10,
+        "about": "Descendants of Pangu's blood, the great body cultivators of the old world.",
+        "perk": "Blood of Pangu: +25% idle qi and +5% tribulation chance.",
+        "flaw": "Witches cannot cultivate spirit: only the Body path, and pills are 30% weaker.",
+        "idle": 1.25, "chance": 5, "pills": 0.7, "paths": ("body",), "fight": {"hp": 1.25, "atk": 1.10},
+    },
+    "witchhuman": {
+        "name": "Witch-Human", "zh": "巫人", "weight": 10,
+        "about": "Half-blood children of witches and humans, strong of body and partly open to the Dao.",
+        "perk": "Blood of two peoples: +5% qi speed and +15% qi from meditation.",
+        "flaw": "The spirit paths are closed: only the Body and Sword paths.",
+        "qi": 1.05, "meditate": 1.15, "paths": ("body", "sword"), "fight": {"hp": 1.10},
+    },
+    "ghost": {
+        "name": "Ghost", "zh": "鬼族", "weight": 6,
+        "about": "Spirits of the dead who linger between the living world and the Underworld.",
+        "perk": "Walks while the world sleeps: +10% qi speed and 6 more hours of stored qi.",
+        "flaw": "Hollow bodies: meditation is 20% weaker and the Body path is closed.",
+        "qi": 1.10, "offline": 6, "meditate": 0.8, "paths": ("sword", "alchemy", "formation"), "fight": {"dodge": 6},
+    },
+    "immortal": {
+        "name": "Immortal", "zh": "仙族", "weight": 3,
+        "about": "Descendants of celestial families who fell with the Shattering and still carry immortal blood.",
+        "perk": "Celestial blood: +25% qi speed and +8% tribulation chance.",
+        "flaw": "Celestial expectations: pills cost 25% more.",
+        "qi": 1.25, "chance": 8, "price": 1.25, "fight": {"def": 1.10},
+    },
+    "demonic": {
+        "name": "Demonic", "zh": "魔族", "weight": 2,
+        "about": "Heirs of the Chaos Demon Gods whose blood remembers the age before Pangu.",
+        "perk": "Chaos blood: +30% qi speed and injuries heal twice as fast.",
+        "flaw": "Heaven rejects chaos: -8% tribulation chance.",
+        "qi": 1.30, "chance": -8, "injury": 0.5, "fight": {"atk": 1.15},
+    },
+}
+DEFAULT_RACE = "human"
