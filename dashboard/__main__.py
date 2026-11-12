@@ -16,7 +16,7 @@ def main() -> None:
     except ImportError:
         app.run(host="0.0.0.0", port=port, threaded=True)
         return
-    serve(app, host="0.0.0.0", port=port, threads=32, ident="soward")
+    serve(app, host="0.0.0.0", port=port, threads=32, ident="zyro")
 
 
 main()

@@ -17,7 +17,7 @@ INTEL_TTL = 3600
 
 
 def _key() -> bytes:
-    return (config.WEB_VERIFY_SALT or os.environ.get("SOWARD_IPC_SECRET", "") or "soward").encode()
+    return (config.WEB_VERIFY_SALT or os.environ.get("ZYRO_IPC_SECRET", "") or "zyro").encode()
 
 
 def hash_value(guild_id: int, value: str) -> str:

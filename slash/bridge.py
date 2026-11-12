@@ -13,7 +13,7 @@ from discord.ext.commands.view import StringView
 import config
 from utils import blacklist, db, slash_sync
 
-log = logging.getLogger("soward.slash")
+log = logging.getLogger("zyro.slash")
 
 NAME_BAD = re.compile(r"[^a-z0-9_-]")
 CHANNEL_TYPES = (discord.TextChannel, discord.VoiceChannel, discord.CategoryChannel, discord.StageChannel, discord.ForumChannel, discord.Thread)
@@ -169,8 +169,10 @@ class Node:
         self.children[child.name] = child
 
 
-def usable(command: commands.Command) -> bool:
+def usable(command: commands.Command, picked: bool = False) -> bool:
     if command.hidden or not command.enabled:
+        return False
+    if not picked and command.qualified_name in config.SLASH_CLAIMED:
         return False
     if command.name in config.SLASH_EXCLUDE or command.qualified_name in config.HELP_HIDDEN_COMMANDS:
         return False
@@ -239,6 +241,15 @@ def build_layout(bot: commands.Bot) -> dict[str, Node]:
     roots: dict[str, Node] = {}
     for group_name, spec in config.SLASH_LAYOUT.items():
         description = spec["description"]
+        if "commands" in spec:
+            node = Node(group_name, description)
+            for qualified in spec["commands"]:
+                command = bot.get_command(qualified)
+                if command is not None and usable(command, True):
+                    node.add(Leaf(command.name, command))
+            if node.children:
+                roots[group_name] = node
+            continue
         if "flatten" in spec:
             command = bot.get_command(spec["flatten"])
             if not isinstance(command, commands.Group) or not usable(command):
@@ -273,6 +284,26 @@ def build_layout(bot: commands.Bot) -> dict[str, Node]:
             overflow(node)
             roots[group_name] = node
     return roots
+
+
+GUILD_CHECKS = ("guild_only", "has_guild_permission", "has_permissions", "bot_has_permissions", "has_guild_permissions", "bot_has_guild_permissions")
+
+
+def needs_guild(command: commands.Command) -> bool:
+    if command.qualified_name in config.USER_APP_BLOCKED:
+        return True
+    node = command
+    while node is not None:
+        for check in node.checks:
+            name = getattr(check, "__qualname__", "")
+            if any(name.startswith(prefix) for prefix in GUILD_CHECKS):
+                return True
+        node = node.parent
+    return False
+
+
+def bot_in_guild(bot: commands.Bot, interaction: discord.Interaction) -> bool:
+    return interaction.guild_id is not None and bot.get_guild(interaction.guild_id) is not None
 
 
 def root_of(command: commands.Command) -> commands.Command:
@@ -313,8 +344,14 @@ class Slash(commands.Cog):
             callback = app_commands.describe(**{o.slash: clip(o.description) for o in options})(callback)
         return app_commands.Command(name=leaf.name, description=leaf.descriptions, callback=callback)
 
-    def make_group(self, node: Node) -> app_commands.Group:
-        group = app_commands.Group(name=node.name, description=node.description)
+    def make_group(self, node: Node, top: bool = False) -> app_commands.Group:
+        extra = {}
+        if top and node.name in config.USER_APP_GROUPS:
+            extra = {
+                "allowed_installs": app_commands.AppInstallationType(guild=True, user=True),
+                "allowed_contexts": app_commands.AppCommandContext(guild=True, dm_channel=True, private_channel=True),
+            }
+        group = app_commands.Group(name=node.name, description=node.description, **extra)
         for child in node.children.values():
             group.add_command(self.make_group(child) if isinstance(child, Node) else self.make_command(child))
         return group
@@ -322,7 +359,7 @@ class Slash(commands.Cog):
     async def cog_load(self):
         for name, node in build_layout(self.bot).items():
             try:
-                self.bot.tree.add_command(self.make_group(node))
+                self.bot.tree.add_command(self.make_group(node, top=True))
                 self.registered.append(name)
             except Exception:
                 log.error("Could not register slash group '%s'", name, exc_info=True)
@@ -351,6 +388,11 @@ class Slash(commands.Cog):
     async def run(self, interaction: discord.Interaction, command: commands.Command, options: list[Option], values: dict):
         if await blacklist.is_user_blacklisted(interaction.user.id) or (interaction.guild and await blacklist.is_guild_blacklisted(interaction.guild.id)):
             return await interaction.response.send_message("You cannot use this bot.", ephemeral=True)
+        from utils import dev_state
+        if dev_state.blocks(interaction.user):
+            return await interaction.response.send_message(dev_state.notice_text(), ephemeral=True)
+        if not bot_in_guild(self.bot, interaction) and needs_guild(command):
+            return await interaction.response.send_message("That command needs Zyro to be added to this server. Use it in a server where Zyro is added, or ask a server admin to add it.", ephemeral=True)
         await interaction.response.defer()
         tokens = [tail_of(command)]
         given = [o for o in options if values.get(o.slash) not in (None, "")]

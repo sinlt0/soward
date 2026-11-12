@@ -33,7 +33,7 @@ Only to run the features above: carrying out commands, enforcing server rules, s
 
 ## 3. Cookies and sessions
 
-The dashboard sets one cookie, `soward_session`, after you sign in. It keeps you signed in and protects forms from cross-site requests. It is not used for tracking. The public pages set no cookies.
+The dashboard sets one cookie, `zyro_session`, after you sign in. It keeps you signed in and protects forms from cross-site requests. It is not used for tracking. The public pages set no cookies.
 
 ## 4. Where data is stored
 

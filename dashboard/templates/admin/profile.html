@@ -1,0 +1,68 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Bot profile{% endblock %}
+{% block admin_heading %}Bot profile{% endblock %}
+{% block admin_body %}
+{% if not p.can_edit %}<div class="note">Only bot owners can change the name, avatar, banner and bio. You can still change the presence.</div>{% endif %}
+<section class="panel">
+  <div class="panel__head"><h2>Identity</h2><p>Name, avatar, banner and the About Me text shown on the bot's profile.</p></div>
+  <form class="adminform" data-admin="profile" data-reload>
+    <div class="idrow">
+      <img class="idrow__avatar" id="avatar-preview" src="{{ p.avatar }}" alt="" width="96" height="96">
+      <div class="stack">
+        <label class="lbl" for="f-avatar">Avatar</label>
+        <input id="f-avatar" class="input" type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" data-image data-preview="avatar-preview" {% if not p.can_edit %}disabled{% endif %}>
+        <label class="check"><input type="checkbox" name="remove_avatar" {% if not p.can_edit %}disabled{% endif %}> Remove avatar</label>
+      </div>
+    </div>
+    <div class="idrow">
+      <div class="idrow__banner" id="banner-preview"{% if p.banner %} style="background-image:url('{{ p.banner }}')"{% endif %}></div>
+      <div class="stack">
+        <label class="lbl" for="f-banner">Banner</label>
+        <input id="f-banner" class="input" type="file" name="banner" accept="image/png,image/jpeg,image/gif,image/webp" data-image data-preview="banner-preview" {% if not p.can_edit %}disabled{% endif %}>
+        <label class="check"><input type="checkbox" name="remove_banner" {% if not p.can_edit %}disabled{% endif %}> Remove banner</label>
+      </div>
+    </div>
+    <div class="stack"><label class="lbl" for="f-name">Username</label><input id="f-name" class="input" name="username" value="{{ p.name }}" minlength="2" maxlength="32" {% if not p.can_edit %}disabled{% endif %}><small class="hint">Discord limits username changes to about twice an hour.</small></div>
+    <div class="stack"><label class="lbl" for="f-bio">Bio (About Me)</label><textarea id="f-bio" class="textarea" name="description" maxlength="400" {% if not p.can_edit %}disabled{% endif %}>{{ p.description }}</textarea><small class="hint">Up to 400 characters. Shown on the bot's profile.</small></div>
+    {% if p.can_edit %}<div><button class="btn btn--primary" type="submit">Save profile</button></div>{% endif %}
+  </form>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Presence</h2><p>The status (online, idle, do not disturb, invisible) and what shows under the bot's name. It is saved and restored after every restart, and nothing in the code overrides it.</p></div>
+  <form class="adminform" data-admin="presence" data-reload>
+    <div class="formgrid">
+      <div class="stack"><label class="lbl" for="p-status">Status</label>
+        <select id="p-status" class="select" name="status">{% for v in ("online","idle","dnd","invisible") %}<option value="{{ v }}"{% if p.presence.status == v %} selected{% endif %}>{{ v | title if v != "dnd" else "Do not disturb" }}</option>{% endfor %}</select></div>
+      <div class="stack"><label class="lbl" for="p-mode">Activity (rich presence)</label>
+        <select id="p-mode" class="select" name="mode" data-mode-toggle="presence-custom">
+          <option value="default"{% if p.presence.mode == "default" %} selected{% endif %}>Built-in rotation</option>
+          <option value="custom"{% if p.presence.mode == "custom" %} selected{% endif %}>Custom</option>
+          <option value="off"{% if p.presence.mode == "off" %} selected{% endif %}>Off, status only</option>
+        </select></div>
+    </div>
+    <p class="hint" data-mode-hint="default"{% if p.presence.mode != "default" %} hidden{% endif %}>Rotates every 30 seconds through: {% for t in p.default_items %}<code>{{ t }}</code>{{ ", " if not loop.last }}{% endfor %}.</p>
+    <p class="hint" data-mode-hint="off"{% if p.presence.mode != "off" %} hidden{% endif %}>No activity is shown. Only the status above is kept.</p>
+    <div id="presence-custom" class="stack" data-mode-panel="custom"{% if p.presence.mode != "custom" %} hidden{% endif %}>
+      <div class="formgrid">
+        <label class="check check--box"><input type="checkbox" name="rotate"{% if p.presence.rotate %} checked{% endif %}> Rotate between activities</label>
+        <div class="stack"><label class="lbl" for="p-interval">Rotate every (seconds)</label>
+          <input id="p-interval" class="input" type="number" name="interval" value="{{ p.presence.interval }}" min="{{ p.limits.min }}" max="{{ p.limits.max }}"></div>
+      </div>
+      <div class="itemlist" id="presence-items" data-max="{{ p.limits["items"] }}">
+        {% for item in p.presence["items"] or [{"kind": "playing", "text": ""}] %}
+        <div class="itemrow" data-item-row>
+          <select class="select" data-f="kind" aria-label="Activity type">{% for v in ("playing","watching","listening","competing","custom") %}<option value="{{ v }}"{% if item.kind == v %} selected{% endif %}>{{ v | title }}</option>{% endfor %}</select>
+          <input class="input" data-f="text" maxlength="128" value="{{ item.text }}" placeholder="for !help · {servers} servers" aria-label="Activity text">
+          <button class="btn btn--ghost btn--sm" type="button" data-remove-item aria-label="Remove activity">Remove</button>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="actions"><button class="btn btn--ghost btn--sm" type="button" data-add-item="presence-items">Add activity</button><small class="hint">Placeholders: <code>{{ p.placeholders }}</code>. With rotation off, the first row is used.</small></div>
+    </div>
+    <div class="stack"><label class="lbl" for="p-platform">Platform icon</label>
+      <select id="p-platform" class="select" name="platform" {% if not p.can_edit %}disabled{% endif %}>{% for key, label in p.platforms.items() %}<option value="{{ key }}"{% if p.presence.platform == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+      <small class="hint">Changes the device icon next to the bot's status. Applies after a restart{% if p.presence.platform != p.platform_active %} (currently running as {{ p.platforms[p.platform_active] }}){% endif %}. Owners only. This relies on how Discord reads the connection details and is not an official feature. Discord decides what icon appears and may change it, so check how it looks in the client. A PS5 specific icon is not available.</small></div>
+    <div><button class="btn btn--primary" type="submit">Save presence</button></div>
+  </form>
+</section>
+{% endblock %}

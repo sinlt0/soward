@@ -5,7 +5,8 @@ import discord
 from discord.ext import commands
 from PIL import Image
 
-from utils import clans, coins, cosmetics, db, emoji_manager, family, pets, profile_card, profiles as store
+from rpg import engine as cult, settings, titles
+from utils import clans, coins, cosmetics, db, emoji_manager, family, pets, profile_card, profiles as store, user_apps
 from utils.components import ConfirmLayout, error_layout, info_layout, success_layout
 
 NO_MENTIONS = discord.AllowedMentions.none()
@@ -67,7 +68,8 @@ def find_theme(text: str) -> Optional[str]:
 
 
 class Profiles(commands.Cog):
-    category = "Profile"
+    category = "Utility"
+    submodule = "User Utilities"
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -81,6 +83,27 @@ class Profiles(commands.Cog):
                 return "someone"
         return user.display_name
 
+    async def cultivation(self, user_id: int) -> Optional[dict]:
+        try:
+            character = await cult.get(user_id)
+            if character is None or not character["path"]:
+                return None
+            await cult.check_titles(user_id)
+            character = await cult.get(user_id)
+            earned = await cult.title_rows(user_id)
+            wearing = titles.TITLES.get(character.get("title") or "")
+            way = cult.way_info(character)
+            return {
+                "realm": cult.realm_text(character),
+                "path": settings.PATHS[character["path"]]["name"],
+                "way": way["name"] if way else "",
+                "race": cult.race_info(character)["name"],
+                "title": titles.label(character.get("title") or "", character.get("transcend") or 0) if wearing else "",
+                "titles": f"{len(earned)}/{len(titles.TITLES)}",
+            }
+        except Exception:
+            return None
+
     async def card_data(self, user: discord.abc.User, guild: Optional[discord.Guild], theme: Optional[str] = None) -> dict:
         data = await store.get(user.id) or {}
         look = await cosmetics.get(user.id)
@@ -89,10 +112,7 @@ class Profiles(commands.Cog):
             avatar = Image.open(io.BytesIO(await user.display_avatar.replace(size=256, format="png").read()))
         except (discord.HTTPException, OSError):
             pass
-        level = None
-        if guild is not None:
-            xp = await db.raw_fetchone("SELECT level FROM member_xp WHERE guild_id=? AND user_id=?", (guild.id, user.id))
-            level = xp["level"] if xp else 0
+        cultivation = await self.cultivation(user.id)
         partner_ids = await family.partners(user.id)
         parent_id = await family.parent_of(user.id)
         member = await clans.membership(user.id)
@@ -105,7 +125,7 @@ class Profiles(commands.Cog):
             "pronouns": data.get("pronouns") or "",
             "bio": data.get("bio") or "",
             "interests": data.get("interests") or [],
-            "level": level,
+            "cultivation": cultivation,
             "coins": await coins.balance(user.id),
             "diamonds": await coins.diamonds(user.id),
             "badges": await cosmetics.badges(user.id),
@@ -127,13 +147,14 @@ class Profiles(commands.Cog):
     @commands.group(name="profile", aliases=["card"], invoke_without_command=True, help="Show a profile card. Usage: profile [user]")
     async def profile(self, ctx: commands.Context, user: Optional[discord.User] = None):
         target = user or ctx.author
-        if ctx.guild is not None:
-            target = ctx.guild.get_member(target.id) or target
+        guild = user_apps.known_guild(ctx)
+        if guild is not None:
+            target = guild.get_member(target.id) or target
         saved = await store.get(target.id)
         if saved and saved["hidden"] and target.id != ctx.author.id:
             return await ctx.send(view=info_layout("Private profile", f"{target.display_name} keeps their profile private."))
         async with ctx.typing():
-            data = await self.card_data(target, ctx.guild)
+            data = await self.card_data(target, guild)
         await self.send_card(ctx, data)
 
     @profile.command(name="edit", aliases=["set", "create"], help="Create or edit your profile.")
@@ -191,9 +212,10 @@ class Profiles(commands.Cog):
         key = await self.theme_arg(ctx, name)
         if key is None:
             return
-        member = ctx.guild.get_member(ctx.author.id) if ctx.guild else None
+        guild = user_apps.known_guild(ctx)
+        member = guild.get_member(ctx.author.id) if guild else None
         async with ctx.typing():
-            data = await self.card_data(member or ctx.author, ctx.guild, theme=key)
+            data = await self.card_data(member or ctx.author, guild, theme=key)
         await self.send_card(ctx, data)
 
     @profile_theme.command(name="buy", help="Buy a theme with coins. Usage: profile theme buy <name>")

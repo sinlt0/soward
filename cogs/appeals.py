@@ -178,7 +178,7 @@ class Appeals(commands.Cog):
     async def web_info(self, guild_id: int, user_id: int) -> dict:
         guild = self.bot.get_guild(guild_id)
         if guild is None:
-            raise ValueError("Soward is not in that server.")
+            raise ValueError("Zyro is not in that server.")
         cfg = await store.get_config(guild.id)
         info = {
             "guild": guild.name, "icon": guild.icon.replace(size=128).url if guild.icon else "",
@@ -335,7 +335,7 @@ class Appeals(commands.Cog):
         body = (
             f"**Status:** {'on' if cfg['enabled'] else 'off'} · **Review channel:** {channel.mention if channel else 'not set'}\n"
             f"**Votes needed:** {cfg['votes']} · **Cooldown after a denial:** {cfg['cooldown']} day(s)\n"
-            f"**Appeal page:** {url or 'set SOWARD_DASHBOARD_URL on the bot to enable the link'}\n\n"
+            f"**Appeal page:** {url or 'set ZYRO_DASHBOARD_URL on the bot to enable the link'}\n\n"
             "Banned members get a message with an **Appeal this ban** button. They sign in with Discord on the dashboard, answer the questions and staff review it in the review channel or on the dashboard.\n\n"
             "`appeal on|off` · `appeal channel <#channel>` · `appeal questions` · `appeal question add|remove|reset` · `appeal votes <n>` · `appeal cooldown <days>` · "
             "`appeal notice <text|reset>` · `appeal role <@role|none>` · `appeal rejoin <#channel|none>` · `appeal reason on|off` · `appeal dm on|off` · "
@@ -389,7 +389,7 @@ class Appeals(commands.Cog):
     async def appeal_role(self, ctx: commands.Context, role: Optional[discord.Role] = None):
         await self._set(ctx, "role", role.id if role else None, f"New appeals ping {role.mention}." if role else "New appeals no longer ping a role.")
 
-    @appeal.command(name="rejoin", help="Channel Soward makes a one-use invite for when an appeal is accepted, or `none`.")
+    @appeal.command(name="rejoin", help="Channel Zyro makes a one-use invite for when an appeal is accepted, or `none`.")
     @has_guild_permission("manage_guild")
     async def appeal_rejoin(self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None):
         await self._set(ctx, "rejoin", channel.id if channel else None, f"Accepted members get a one-use invite to {channel.mention}." if channel else "Accepted members are told to use any invite.")
@@ -408,7 +408,7 @@ class Appeals(commands.Cog):
     async def appeal_link(self, ctx: commands.Context):
         url = store.appeal_url(ctx.guild.id)
         if not url:
-            return await ctx.send(view=error_layout("No dashboard address", "Set `SOWARD_DASHBOARD_URL` on the bot so ban messages can link to the appeal page."))
+            return await ctx.send(view=error_layout("No dashboard address", "Set `ZYRO_DASHBOARD_URL` on the bot so ban messages can link to the appeal page."))
         await ctx.send(view=info_layout("Appeal page", url))
 
     @appeal.command(name="questions", help="Show the appeal questions.")

@@ -6,7 +6,7 @@ from utils import db
 from utils.events_bus import bus, INCIDENT_STATE_CHANGED
 import config
 
-log = logging.getLogger("soward.incident")
+log = logging.getLogger("zyro.incident")
 
 _cache: dict[int, int] = {}
 

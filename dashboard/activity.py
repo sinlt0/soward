@@ -23,7 +23,7 @@ import config
 from dashboard import doom, games
 from dashboard.ipc import BotClient, BotError, BotUnavailable
 
-log = logging.getLogger("soward.activity")
+log = logging.getLogger("zyro.activity")
 DISCORD_API = "https://discord.com/api/v10"
 TRACK_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 STATIC = Path(__file__).resolve().parent / "static" / "activity"
@@ -80,7 +80,7 @@ def _extractor():
 
 
 def _cookie_file() -> str:
-    encoded = os.getenv("SOWARD_YTDLP_COOKIES_B64", "").strip()
+    encoded = os.getenv("ZYRO_YTDLP_COOKIES_B64", "").strip()
     if encoded:
         target = Path(config.DATA_DIR) / "yt_cookies.txt"
         try:
@@ -89,8 +89,8 @@ def _cookie_file() -> str:
                 target.write_bytes(data)
             return str(target)
         except Exception as exc:
-            log.warning("Could not use SOWARD_YTDLP_COOKIES_B64: %s", exc)
-    path = os.getenv("SOWARD_YTDLP_COOKIES", "")
+            log.warning("Could not use ZYRO_YTDLP_COOKIES_B64: %s", exc)
+    path = os.getenv("ZYRO_YTDLP_COOKIES", "")
     if path and os.path.isfile(path):
         copy = Path(config.DATA_DIR) / "yt_cookies_copy.txt"
         try:
@@ -130,7 +130,7 @@ def _ytdlp_opts(client=None, **extra) -> dict:
         opts["cookiefile"] = cookies
     if client:
         opts["extractor_args"] = {"youtube": {"player_client": client}}
-    runtime = os.getenv("SOWARD_YTDLP_JS_RUNTIME", "").strip()
+    runtime = os.getenv("ZYRO_YTDLP_JS_RUNTIME", "").strip()
     if runtime:
         opts["js_runtimes"] = {runtime: {}}
     opts.update(extra)
@@ -379,7 +379,7 @@ def _resolve_lavalink(track_id: str) -> tuple[str, dict]:
     if _lavalink_pause[0] > time.time():
         raise LookupError("paused after the node refused requests")
     last: Optional[Exception] = None
-    client = os.getenv("SOWARD_LAVALINK_CLIENT", "").strip()
+    client = os.getenv("ZYRO_LAVALINK_CLIENT", "").strip()
     for _, base, password in _lavalink_nodes():
         url = f"{base}/youtube/stream/{track_id}" + (f"?withClient={client}" if client else "")
         headers = {"Authorization": password}
@@ -482,8 +482,8 @@ def prepare(track_id: str):
 
 def register(app, ipc: BotClient, session_secret: str) -> None:
     bp = Blueprint("activity", __name__)
-    client_id = os.getenv("SOWARD_CLIENT_ID", "")
-    client_secret = os.getenv("SOWARD_CLIENT_SECRET", "")
+    client_id = os.getenv("ZYRO_CLIENT_ID", "")
+    client_secret = os.getenv("ZYRO_CLIENT_SECRET", "")
 
     def sign(uid: str, track_id: str, exp: int) -> str:
         return hmac.new(session_secret.encode(), f"{uid}:{track_id}:{exp}".encode(), hashlib.sha256).hexdigest()[:40]
@@ -615,7 +615,7 @@ def register(app, ipc: BotClient, session_secret: str) -> None:
         report = {"you": user["id"], "owner": privileged}
         if not privileged:
             report["note"] = "Your account id is not in devs.json for the dashboard process, so only basic checks run."
-        report.update({"python_threads": threading.active_count(), "node": shutil.which("node"), "deno": shutil.which("deno"), "cookies": bool(_cookie_file()), "js_runtime_setting": os.getenv("SOWARD_YTDLP_JS_RUNTIME", "")} if privileged else {})
+        report.update({"python_threads": threading.active_count(), "node": shutil.which("node"), "deno": shutil.which("deno"), "cookies": bool(_cookie_file()), "js_runtime_setting": os.getenv("ZYRO_YTDLP_JS_RUNTIME", "")} if privileged else {})
         try:
             yt_dlp = _extractor()
             report["yt_dlp"] = getattr(getattr(yt_dlp, "version", None), "__version__", "unknown")

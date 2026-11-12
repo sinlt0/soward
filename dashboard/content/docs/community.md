@@ -7,7 +7,7 @@ group: Community
 
 ## Birthdays
 
-Members save their birthday and Soward announces it, gives them a birthday role for the day and shows who is next.
+Members save their birthday and Zyro announces it, gives them a birthday role for the day and shows who is next.
 
 | Command | What it does |
 | --- | --- |
@@ -34,7 +34,7 @@ Members send anonymous messages that are posted by the bot.
 
 1. `!confess channel #confessions` sets where confessions are posted.
 2. `!confess panel` posts a **Confess** button. Members press it, write in the form and the bot posts the confession as a numbered message.
-3. Every confession gets its own public thread named after its number, so members can reply without touching the channel. `!confess threads on|off` turns this on or off. Soward needs Create Public Threads and Send Messages in Threads in the channel.
+3. Every confession gets its own public thread named after its number, so members can reply without touching the channel. `!confess threads on|off` turns this on or off. Zyro needs Create Public Threads and Send Messages in Threads in the channel.
 4. Optional: `!confess log #staff-channel` sends a copy to a private channel so staff can moderate. The author is never shown there.
 
 Confessions are anonymous to members and to staff. The bot does keep the sender in its database so abuse can be handled without revealing anyone:
@@ -67,7 +67,7 @@ Reactions from the author and from bots do not count. Messages in NSFW channels 
 
 ## Milestones
 
-Soward can celebrate members without anyone running a command. Set a channel first:
+Zyro can celebrate members without anyone running a command. Set a channel first:
 
 ```
 !milestones channel #level-up

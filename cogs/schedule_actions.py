@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands, tasks
 
 import config
-from utils import embed_templates, emoji_manager, premium_limits, schedule_actions as store, scheduler
+from utils import embed_templates, emoji_manager, main_role, premium_limits, schedule_actions as store, scheduler
 from utils.checks import has_guild_permission
 from utils.components import error_layout, info_layout, success_layout
 from utils.events_bus import LOG_EVENT, bus
@@ -122,7 +122,7 @@ class ScheduleActions(commands.Cog):
         if ctx.author.id != ctx.guild.owner_id and role >= ctx.author.top_role:
             return await ctx.send(view=error_layout("Role too high", "You can only schedule roles below your own highest role."))
         if role.is_default() or role.managed or role >= ctx.guild.me.top_role:
-            return await ctx.send(view=error_layout("Cannot manage role", "Soward cannot assign that role."))
+            return await ctx.send(view=error_layout("Cannot manage role", "Zyro cannot assign that role."))
         parsed = await self._when(ctx, when)
         if parsed is None:
             return
@@ -183,16 +183,17 @@ class ScheduleActions(commands.Cog):
                     return "The message is empty."
                 await channel.send(content=text, embeds=embeds[:10], allowed_mentions=discord.AllowedMentions(roles=True, users=True, everyone=False))
                 return None
-            overwrite = channel.overwrites_for(guild.default_role)
+            target = await main_role.get(guild)
+            overwrite = channel.overwrites_for(target)
             overwrite.send_messages = False if kind == "lock" else None
-            await channel.set_permissions(guild.default_role, overwrite=overwrite, reason=f"Scheduled {kind} ({row['action_id']})")
+            await channel.set_permissions(target, overwrite=overwrite, reason=f"Scheduled {kind} ({row['action_id']})")
             return None
         role = guild.get_role(int(payload.get("role_id", 0)))
         member = guild.get_member(int(payload.get("user_id", 0)))
         if role is None or member is None:
             return "The role or member no longer exists."
         if role >= guild.me.top_role:
-            return "The role is above Soward's highest role."
+            return "The role is above Zyro's highest role."
         if kind == "role_add":
             await member.add_roles(role, reason=f"Scheduled action {row['action_id']}")
         else:

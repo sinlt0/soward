@@ -15,18 +15,16 @@ COUNT_TTL = 60
 _count_cache = {}
 
 CATEGORY_DESCRIPTIONS = {
-    "Profile": "Your global profile card, themes, badges and pets.",
-    "Economy": "Coins: earn them by voting, buy them, and spend them.",
     "Family": "Marriage, adoption and global clans.",
     "Moderation": "Ban, kick, mute, warn, purge, and case logging.",
-    "Config": "Server setup and protection systems.",
-    "Engagement": "Giveaways, alerts, Join to Create voice channels and other ways to engage your members.",
-    "Cultivation": "A cultivation RPG: awaken a spiritual root, gather qi and break through realms.",
+    "Config": "Server setup, tickets, protection systems and bot customization.",
+    "Engagement": "Giveaways, alerts, leveling, the coin economy and other ways to engage your members.",
+    "Cultivation": "A cultivation RPG: awaken a spiritual root, gather qi, hunt calamities and break through realms.",
     "Partners": "Automatic partnerships: partners post your ad, send a screenshot and get posted.",
     "Tickets": "Support ticket panels, claiming, transcripts, and staff tools.",
     "Server": "Server presets and templates: build a full server in one command or save your own.",
     "Music": "Voice channel music playback and queueing.",
-    "Utility": "Server and user information commands.",
+    "Utility": "Server and user information, your profile card and everyday tools.",
     "Premium": "Premium activation and no-prefix settings.",
     "Community": "Birthdays, anonymous confessions, suggestions and the starboard.",
 }
@@ -42,6 +40,18 @@ COG_DESCRIPTIONS = {
     "Logging": "Configurable audit and moderation logging.",
     "CustomCommands": "Per-server custom text commands.",
     "Alerts": "YouTube and Twitch upload/live notifications.",
+    "Tickets": "Support ticket panels, claiming, transcripts, and staff tools.",
+    "Evasion": "Ban evasion detection.",
+    "Customization": "Change the bot's name, bio, avatar and banner in this server.",
+    "Board": "Daily calamity bosses.",
+    "CultAdmin": "Staff tools for the cultivation game.",
+    "Marketplace": "Player-to-player item market.",
+    "Pouch": "Storage pouches for herbs and materials.",
+    "Realms": "Secret realms, keys and essences.",
+    "Profiles": "Your global profile card, themes and badges.",
+    "Pets": "Adopt and care for pets.",
+    "Earn": "Ways to earn coins.",
+    "Economy": "Coins, diamonds and spending them.",
 }
 
 def _humanize(name):

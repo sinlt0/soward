@@ -42,7 +42,7 @@ async def fetch_json(url: str, params: Optional[dict] = None, ttl: float = 0.0) 
     if ttl and cached and time.time() - cached[0] < ttl:
         return 200, cached[1]
     try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10), headers={"User-Agent": "SowardBot/1.0"}) as session:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10), headers={"User-Agent": "ZyroBot/1.0"}) as session:
             async with session.get(url, params=params) as response:
                 data = await response.json(content_type=None)
                 if ttl and response.status == 200:

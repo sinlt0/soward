@@ -742,7 +742,7 @@ class JoinToCreate(commands.Cog):
         body = (
             f"**Interface channel:** {channel.mention if channel else 'none yet'}\n"
             f"**Create automatically:** {'on' if auto else 'off'}\n\n"
-            "When a member creates a temporary channel and no interface exists, Soward creates a text channel with a voice management panel. "
+            "When a member creates a temporary channel and no interface exists, Zyro creates a text channel with a voice management panel. "
             "If one already exists it is reused and the small panel inside each voice channel is skipped. When no temporary channel is active the interface channel is deleted and it is created again when the next one is made.\n\n"
             "`jtc interface create [#channel]` post the panel now, `jtc interface remove`, `jtc interface auto <on|off>`"
         )
@@ -806,7 +806,7 @@ class JoinToCreate(commands.Cog):
         me = ctx.guild.me.guild_permissions
         missing = [n for n, ok in (("Manage Channels", me.manage_channels), ("Move Members", me.move_members)) if not ok]
         if missing:
-            return await ctx.send(view=error_layout("Missing permissions", "Soward needs: " + ", ".join(missing) + "."))
+            return await ctx.send(view=error_layout("Missing permissions", "Zyro needs: " + ", ".join(missing) + "."))
         count = await db.raw_fetchone("SELECT COUNT(*) AS n FROM jtc_hubs WHERE guild_id=?", (ctx.guild.id,))
         if count["n"] >= await hub_limit(ctx.guild.id):
             return await ctx.send(view=error_layout("Hub limit reached", "Remove a hub first or get Premium for more."))

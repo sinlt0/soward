@@ -7,7 +7,7 @@ group: Moderation
 
 ## How it works
 
-Soward saves every moderation action, security change and logged server event in the **Audit Vault**. It records them whether or not you set up a log channel, so you can look back later and ask "what happened to this member?" or "what did this moderator do last month?".
+Zyro saves every moderation action, security change and logged server event in the **Audit Vault**. It records them whether or not you set up a log channel, so you can look back later and ask "what happened to this member?" or "what did this moderator do last month?".
 
 Free servers keep **7 days** of history. Premium servers keep **365 days** and can export it as a CSV file.
 

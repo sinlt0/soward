@@ -1,0 +1,48 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Users{% endblock %}
+{% block admin_heading %}Users{% endblock %}
+{% block admin_body %}
+<section class="panel">
+  <form class="tabletools" method="get" action="{{ url_for('admin_users') }}">
+    <input class="input tabletools__search" type="search" name="id" inputmode="numeric" value="{{ u.id if u else '' }}" placeholder="Discord user ID" aria-label="User ID">
+    <button class="btn btn--primary btn--sm" type="submit">Look up</button>
+  </form>
+  {% if error %}<div class="empty empty--inset"><strong>{{ error }}</strong></div>{% elif not u %}<div class="empty empty--inset">Look up any Discord user by ID to see their wallet, bans and shared servers.</div>{% endif %}
+</section>
+{% if u %}
+<section class="panel">
+  <div class="panel__head panel__head--row">
+    <div class="srvcell"><img class="idrow__avatar" style="width:56px;height:56px" src="{{ u.avatar }}" alt="" width="56" height="56"><div><h2>{{ u.display }}</h2><p>{{ u.name }} · <code>{{ u.id }}</code></p></div></div>
+    <div class="panel__tools">{% if u.staff %}<span class="badge badge--ok">{{ u.staff | title }}</span>{% endif %}{% if u.bot %}<span class="badge">Bot account</span>{% endif %}{% if u.banned %}<span class="badge badge--bad">Banned from Zyro</span>{% endif %}</div>
+  </div>
+  <div class="facts">
+    <div><span>Account created</span><strong>{{ u.created | stamp }}</strong></div>
+    <div><span>Coins</span><strong>{{ "{:,}".format(u.coins) }}</strong></div>
+    <div><span>Diamonds</span><strong>{{ "{:,}".format(u.diamonds) }}</strong></div>
+    <div><span>Shared servers</span><strong>{{ u.mutual_count }}</strong></div>
+  </div>
+  {% if u.banned %}<div class="setting"><div><div class="setting__label">Ban reason</div><div class="setting__help">{{ u.ban_reason or "No reason" }}</div></div><div class="setting__control"><button class="btn btn--ghost btn--sm" type="button" data-admin="bans/remove" data-body='{"type":"user","id":"{{ u.id }}"}' data-reload>Unban</button></div></div>
+  {% elif not u.staff %}
+  <div class="setting setting--stack"><div><div class="setting__label">Ban from Zyro</div><div class="setting__help">They can no longer use the bot anywhere.</div></div>
+    <form class="setting__control adminform adminform--inline" data-admin="bans/add" data-confirm="Ban this user from Zyro?" data-body='{"type":"user","id":"{{ u.id }}"}' data-reload><input class="input" name="reason" maxlength="200" placeholder="Reason" aria-label="Reason"><button class="btn btn--danger btn--sm" type="submit">Ban user</button></form></div>
+  {% endif %}
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Wallet</h2><p>Add or remove coins and diamonds. Changes are recorded in the admin log.</p></div>
+  <form class="adminform" data-admin="user/{{ u.id }}/wallet" data-reload>
+    <div class="formgrid">
+      <div class="stack"><label class="lbl" for="w-cur">Currency</label><select id="w-cur" class="select" name="currency"><option value="coins">Coins</option><option value="diamonds">Diamonds</option></select></div>
+      <div class="stack"><label class="lbl" for="w-act">Action</label><select id="w-act" class="select" name="action"><option value="add">Add</option><option value="remove">Remove</option></select></div>
+      <div class="stack"><label class="lbl" for="w-amt">Amount</label><input id="w-amt" class="input" type="number" name="amount" min="1" max="1000000000" required></div>
+    </div>
+    <div><button class="btn btn--primary" type="submit">Apply</button></div>
+  </form>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Shared servers</h2><p>Servers with Zyro where this user is a member{% if u.mutual_count > 30 %} (first 30 of {{ u.mutual_count }}){% endif %}.</p></div>
+  {% if u.mutual %}<div class="tablewrap"><table class="table"><thead><tr><th>Server</th><th>Role</th><th></th></tr></thead><tbody>
+    {% for g in u.mutual %}<tr><td data-label="Server"><a href="{{ url_for('admin_server', gid=g.id) }}">{{ g.name }}</a><br><code>{{ g.id }}</code></td><td data-label="Role">{{ "Owner" if g.owner else "Member" }}</td><td class="rowtools"><a class="btn btn--ghost btn--sm" href="{{ url_for('admin_server', gid=g.id) }}">Manage</a></td></tr>{% endfor %}
+  </tbody></table></div>{% else %}<div class="empty empty--inset">No shared servers found in the member cache.</div>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

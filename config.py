@@ -5,6 +5,9 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 
+for _name in [k for k in os.environ if k.startswith("SOWARD_")]:
+    os.environ.setdefault("ZYRO_" + _name[len("SOWARD_"):], os.environ[_name])
+
 with open(BASE_DIR / "devs.json", "r") as _f:
     _devs_data = json.load(_f)
 
@@ -14,7 +17,7 @@ def _load_addons() -> dict:
     except ImportError:
         return {}
     except Exception:
-        logging.getLogger("soward.config").error("addons.py could not be loaded, using defaults.", exc_info=True)
+        logging.getLogger("zyro.config").error("addons.py could not be loaded, using defaults.", exc_info=True)
         return {}
     return {k: v for k, v in vars(addons).items() if not k.startswith("_") and isinstance(v, dict)}
 
@@ -31,15 +34,15 @@ def _addon_port(value, fallback: int) -> int:
     return port if 1 <= port <= 65535 else fallback
 
 
-BOT_TOKEN: str = os.getenv("SOWARD_TOKEN", "")
-MONGODB_URI: str = os.getenv("SOWARD_MONGO_URI", "mongodb://localhost:27017")
-MONGODB_DB_NAME: str = os.getenv("SOWARD_MONGO_DB", "soward")
+BOT_TOKEN: str = os.getenv("ZYRO_TOKEN", "")
+MONGODB_URI: str = os.getenv("ZYRO_MONGO_URI", "mongodb://localhost:27017")
+MONGODB_DB_NAME: str = os.getenv("ZYRO_MONGO_DB", "soward")
 DATA_DIR: Path = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
-SQLITE_PATH: str = str(DATA_DIR / "soward.db")
+SQLITE_PATH: str = str(DATA_DIR / "zyro.db")
 
 DEFAULT_PREFIX: str = "!"
-BOT_NAME: str = "Soward"
+BOT_NAME: str = "Zyro"
 BOT_VERSION: str = "3.1"
 DEVELOPER_USER_ID: int = 1181137505505001544
 
@@ -52,16 +55,16 @@ ALL_PRIVILEGED_IDS: list[int] = list(set(OWNER_IDS + DEV_IDS))
 MONGO_RECONNECT_INTERVAL: int = 30
 MONGO_SYNC_INTERVAL: int = 300
 
-DEV_LOG_COMMANDS_WEBHOOK_URL: str = os.getenv("SOWARD_DEV_LOG_COMMANDS_WEBHOOK", "")
-DEV_LOG_LIFECYCLE_WEBHOOK_URL: str = os.getenv("SOWARD_DEV_LOG_LIFECYCLE_WEBHOOK", "")
-DEV_LOG_ERRORS_WEBHOOK_URL: str = os.getenv("SOWARD_DEV_LOG_ERRORS_WEBHOOK", "")
-DEV_LOG_GUILDS_WEBHOOK_URL: str = os.getenv("SOWARD_DEV_LOG_GUILDS_WEBHOOK", "")
-DEV_STATS_WEBHOOK_URL: str = os.getenv("SOWARD_DEV_STATS_WEBHOOK", "")
+DEV_LOG_COMMANDS_WEBHOOK_URL: str = os.getenv("ZYRO_DEV_LOG_COMMANDS_WEBHOOK", "")
+DEV_LOG_LIFECYCLE_WEBHOOK_URL: str = os.getenv("ZYRO_DEV_LOG_LIFECYCLE_WEBHOOK", "")
+DEV_LOG_ERRORS_WEBHOOK_URL: str = os.getenv("ZYRO_DEV_LOG_ERRORS_WEBHOOK", "")
+DEV_LOG_GUILDS_WEBHOOK_URL: str = os.getenv("ZYRO_DEV_LOG_GUILDS_WEBHOOK", "")
+DEV_STATS_WEBHOOK_URL: str = os.getenv("ZYRO_DEV_STATS_WEBHOOK", "")
 DEV_STATS_UPDATE_INTERVAL: int = 300
 
-YOUTUBE_API_KEY: str = os.getenv("SOWARD_YOUTUBE_API_KEY", "")
-TWITCH_CLIENT_ID: str = os.getenv("SOWARD_TWITCH_CLIENT_ID", "")
-TWITCH_CLIENT_SECRET: str = os.getenv("SOWARD_TWITCH_CLIENT_SECRET", "")
+YOUTUBE_API_KEY: str = os.getenv("ZYRO_YOUTUBE_API_KEY", "")
+TWITCH_CLIENT_ID: str = os.getenv("ZYRO_TWITCH_CLIENT_ID", "")
+TWITCH_CLIENT_SECRET: str = os.getenv("ZYRO_TWITCH_CLIENT_SECRET", "")
 
 ALERT_POLL_INTERVAL: int = 120
 ALERT_YOUTUBE_FALLBACK_INTERVAL: int = 900
@@ -74,8 +77,8 @@ WEBSUB_RENEW_BEFORE_SECONDS: int = 172800
 WEBSUB_RENEW_INTERVAL: int = 1800
 WEBSUB_PENDING_RETRY_SECONDS: int = 900
 WEBSUB_MAX_BODY_BYTES: int = 65536
-WEBSUB_ENABLED_FLAG: bool = os.getenv("SOWARD_WEBSUB", "1") not in ("0", "false", "no")
-WEBSUB_SECRET: str = os.getenv("SOWARD_WEBSUB_SECRET", "") or os.getenv("SOWARD_IPC_SECRET", "")
+WEBSUB_ENABLED_FLAG: bool = os.getenv("ZYRO_WEBSUB", "1") not in ("0", "false", "no")
+WEBSUB_SECRET: str = os.getenv("ZYRO_WEBSUB_SECRET", "") or os.getenv("ZYRO_IPC_SECRET", "")
 
 EMBED_TEMPLATE_MAX_FREE: int = 100
 EMBED_TEMPLATE_MAX_PREMIUM: int = 250
@@ -105,7 +108,7 @@ CRYPTO_POLL_SECONDS: int = 45
 CRYPTO_CONFIRMATIONS: dict = {"btc": 1, "ltc": 1}
 CRYPTO_UNDERPAY_TOLERANCE: float = 0.01
 CRYPTO_MAX_OPEN_PER_USER: int = 2
-BLOCKCYPHER_TOKEN: str = os.getenv("SOWARD_BLOCKCYPHER_TOKEN", "")
+BLOCKCYPHER_TOKEN: str = os.getenv("ZYRO_BLOCKCYPHER_TOKEN", "")
 CRYPTO_MIN_AGREE: int = 2
 CRYPTO_GRACE_POLL_SECONDS: int = 600
 CRYPTO_PROVIDERS: dict = {
@@ -178,12 +181,12 @@ VERIFICATION_LEVELS: dict = {
 }
 
 WEB_VERIFY_TOKEN_TTL_SECONDS: int = 900
-WEB_VERIFY_PROVIDER: str = os.getenv("SOWARD_IPINTEL_PROVIDER", "none").lower()
-WEB_VERIFY_PROVIDER_KEY: str = os.getenv("SOWARD_IPINTEL_KEY", "")
-WEB_VERIFY_SALT: str = os.getenv("SOWARD_IP_SALT", "")
-WEB_VERIFY_TURNSTILE_SITE: str = os.getenv("SOWARD_TURNSTILE_SITE_KEY", "")
-WEB_VERIFY_TURNSTILE_SECRET: str = os.getenv("SOWARD_TURNSTILE_SECRET", "")
-WEB_VERIFY_BEHIND_PROXY: bool = os.getenv("SOWARD_BEHIND_PROXY", "") in ("1", "true", "yes")
+WEB_VERIFY_PROVIDER: str = os.getenv("ZYRO_IPINTEL_PROVIDER", "none").lower()
+WEB_VERIFY_PROVIDER_KEY: str = os.getenv("ZYRO_IPINTEL_KEY", "")
+WEB_VERIFY_SALT: str = os.getenv("ZYRO_IP_SALT", "")
+WEB_VERIFY_TURNSTILE_SITE: str = os.getenv("ZYRO_TURNSTILE_SITE_KEY", "")
+WEB_VERIFY_TURNSTILE_SECRET: str = os.getenv("ZYRO_TURNSTILE_SECRET", "")
+WEB_VERIFY_BEHIND_PROXY: bool = os.getenv("ZYRO_BEHIND_PROXY", "") in ("1", "true", "yes")
 
 VERIFICATION_MAX_ATTEMPTS_DEFAULT: int = 3
 VERIFICATION_LOCKOUT_SECONDS: int = 300
@@ -321,13 +324,13 @@ LOG_EVENTS: list[str] = [
     "support_access_revoked",
 ]
 
-LOG_CATEGORY_NAME: str = "soward-logs"
+LOG_CATEGORY_NAME: str = "zyro-logs"
 
 LOG_CATEGORIES: dict[str, dict] = {
     "mod": {
         "label": "Moderation",
         "channel_name": "mod-logs",
-        "events": ["ban", "softban", "unban", "kick", "mute", "unmute", "warn", "warn_ladder", "purge", "lockdown", "unlock", "slowmode", "role_add", "role_remove"],
+        "events": ["ban", "softban", "unban", "kick", "mute", "unmute", "warn", "warn_ladder", "purge", "lockdown", "unlock", "hide", "unhide", "nuke", "slowmode", "role_add", "role_remove"],
     },
     "security": {
         "label": "Security",
@@ -372,14 +375,14 @@ LOG_CATEGORIES: dict[str, dict] = {
 MUSIC_INACTIVITY_TIMEOUT: int = 300
 MUSIC_MAX_QUEUE_SIZE: int = 200
 
-LAVALINK_HOST: str = os.getenv("SOWARD_LAVALINK_HOST", "127.0.0.1")
-LAVALINK_PORT: int = int(os.getenv("SOWARD_LAVALINK_PORT", "2333"))
-LAVALINK_PASSWORD: str = os.getenv("SOWARD_LAVALINK_PASSWORD", "youshallnotpass")
-LAVALINK_SECURE: bool = os.getenv("SOWARD_LAVALINK_SECURE", "false").lower() == "true"
+LAVALINK_HOST: str = os.getenv("ZYRO_LAVALINK_HOST", "127.0.0.1")
+LAVALINK_PORT: int = int(os.getenv("ZYRO_LAVALINK_PORT", "2333"))
+LAVALINK_PASSWORD: str = os.getenv("ZYRO_LAVALINK_PASSWORD", "youshallnotpass")
+LAVALINK_SECURE: bool = os.getenv("ZYRO_LAVALINK_SECURE", "false").lower() == "true"
 
 def _parse_lavalink_nodes() -> list[dict]:
     import json as _json
-    raw = os.getenv("SOWARD_LAVALINK_NODES")
+    raw = os.getenv("ZYRO_LAVALINK_NODES")
     if raw:
         try:
             return _json.loads(raw)
@@ -391,13 +394,13 @@ def _parse_lavalink_nodes() -> list[dict]:
             "port": LAVALINK_PORT,
             "password": LAVALINK_PASSWORD,
             "secure": LAVALINK_SECURE,
-            "identifier": "SOWARD-MAIN",
+            "identifier": "ZYRO-MAIN",
         }
     ]
 
 LAVALINK_NODES: list[dict] = _parse_lavalink_nodes()
 
-SPOTIFY_SEARCH_CONFIGURED: bool = os.getenv("SOWARD_SPOTIFY_CLIENT_ID", "") != "" and os.getenv("SOWARD_SPOTIFY_CLIENT_SECRET", "") != ""
+SPOTIFY_SEARCH_CONFIGURED: bool = os.getenv("ZYRO_SPOTIFY_CLIENT_ID", "") != "" and os.getenv("ZYRO_SPOTIFY_CLIENT_SECRET", "") != ""
 
 TICKET_TRANSCRIPT_FORMAT: str = "html"
 TICKET_MAX_OPEN_LIMIT: int = 25
@@ -482,14 +485,14 @@ TICKET_CATEGORY_CHANNEL_CAP: int = 50
 TICKET_LIST_LIMIT: int = 15
 
 DASHBOARD_ENABLED_DEFAULT: bool = True
-DASHBOARD_IPC_SOCKET: str = "data/soward-ipc.sock"
+DASHBOARD_IPC_SOCKET: str = "data/zyro-ipc.sock"
 DASHBOARD_IPC_FALLBACK_PORT: int = 8765
 DASHBOARD_SESSION_DAYS: int = 7
 DASHBOARD_AUDIT_PAGE_SIZE: int = 25
 DASHBOARD_LIST_LIMIT: int = 25
 DASHBOARD_RESTART_DELAY_SECONDS: int = 5
-DASHBOARD_URL: str = os.getenv("SOWARD_DASHBOARD_URL", "").rstrip("/")
-WEBSUB_CALLBACK_URL: str = os.getenv("SOWARD_WEBSUB_CALLBACK", "") or (DASHBOARD_URL + "/websub/youtube" if DASHBOARD_URL else "")
+DASHBOARD_URL: str = os.getenv("ZYRO_DASHBOARD_URL", "").rstrip("/")
+WEBSUB_CALLBACK_URL: str = os.getenv("ZYRO_WEBSUB_CALLBACK", "") or (DASHBOARD_URL + "/websub/youtube" if DASHBOARD_URL else "")
 DASHBOARD_ADDON_ENABLED: bool = bool(_DASH_ADDON.get("dashboard", True))
 DASHBOARD_PORT: int = _addon_port(_DASH_ADDON.get("dashboard_port"), _addon_port(os.getenv("PORT"), 8080))
 
@@ -515,7 +518,7 @@ _activities: dict = ADDONS.get("activities", {})
 _lobby = _activities.get("game_lobby", _activities.get("game-lobby", {}))
 if not isinstance(_lobby, dict):
     _lobby = {"enabled": bool(_lobby)}
-_activities_on = _flag(_activities.get("enabled")) and os.getenv("SOWARD_ACTIVITY", "1") != "0"
+_activities_on = _flag(_activities.get("enabled")) and os.getenv("ZYRO_ACTIVITY", "1") != "0"
 ACTIVITY_MUSIC: bool = _activities_on and _flag(_activities.get("music"))
 ACTIVITY_GAME_LIST: dict = {
     "chess": _activities_on and _flag(_lobby.get("enabled")) and _flag(_lobby.get("chess", _lobby.get("chess-enabled"))),
@@ -586,14 +589,17 @@ REMINDER_TEXT_MAX: int = 500
 REMINDER_CHECK_SECONDS: int = 20
 TODO_LIMIT: int = 50
 TODO_TEXT_MAX: int = 200
-SUPPORT_URL: str = os.getenv("SOWARD_SUPPORT_URL", "").strip()
-VOTE_DBL_SECRET: str = os.getenv("SOWARD_VOTE_DBL_SECRET", "").strip()
-VOTE_DBL_TOKEN: str = os.getenv("SOWARD_DBL_TOKEN", "").strip()
+SUPPORT_URL: str = os.getenv("ZYRO_SUPPORT_URL", "").strip()
+VOTE_DBL_SECRET: str = os.getenv("ZYRO_VOTE_DBL_SECRET", "").strip()
+VOTE_DBL_TOKEN: str = os.getenv("ZYRO_DBL_TOKEN", "").strip()
 VOTE_STATS_MINUTES = 30
-VOTE_NP_HOURS: int = max(1, int(os.getenv("SOWARD_VOTE_NP_HOURS", "12") or 12))
+VOTE_NP_HOURS: int = max(1, int(os.getenv("ZYRO_VOTE_NP_HOURS", "12") or 12))
 VOTE_STREAK_WINDOW_HOURS = 36
-SUPPORT_GUILD_ID: int = int(os.getenv("SOWARD_SUPPORT_GUILD", "0") or 0)
-SUPPORTER_ROLE_ID: int = int(os.getenv("SOWARD_SUPPORTER_ROLE", "0") or 0)
+SUPPORT_GUILD_ID: int = int(os.getenv("ZYRO_SUPPORT_GUILD", "0") or 0)
+SUPPORTER_ROLE_ID: int = int(os.getenv("ZYRO_SUPPORTER_ROLE", "0") or 0)
+CHANGELOG_CHANNEL_ID: int = int(os.getenv("ZYRO_CHANGELOG_CHANNEL", "1512619072758612089") or 0)
+CHANGELOG_CHECK_MINUTES = 10
+CHANGELOG_MAX_POSTS = 3
 _ads: dict = ADDONS.get("ads", {})
 ADS_UNIT: str = str(_ads.get("aads_unit", "") or "").strip()
 ADS_ENABLED: bool = bool(_ads.get("enabled", False)) and ADS_UNIT.isdigit()
@@ -614,9 +620,15 @@ SLASH_LAYOUT: dict = {
     "eco": {"description": "Coins, diamonds, jobs and ways to earn", "entries": ["Earn", "Economy"]},
     "autopartner": {"description": "Automatic server partnerships", "flatten": "autopartner"},
     "cultivate": {"description": "Cultivation RPG", "flatten": "cultivate"},
+    "heaven": {"description": "Defy the heavens", "commands": ["cultivate transcend"]},
     "lineage": {"description": "Family cultivation: dual cultivation, treasury and dungeons", "flatten": "lineage"},
     "sect": {"description": "Clan hall buildings, boss raids and wars", "flatten": "sect"},
     "world": {"description": "Explore the wilds, meet travelers and enter rifts", "flatten": "world"},
+    "pouch": {"description": "Storage pouches for herbs and materials", "flatten": "pouch"},
+    "market": {"description": "Player marketplace for items and crafted weapons", "flatten": "market"},
+    "auction": {"description": "Player auction house", "flatten": "auction"},
+    "board": {"description": "Daily calamity bosses", "flatten": "board"},
+    "realm": {"description": "Secret realms and element attunement", "flatten": "realm"},
     "family": {"description": "Marriage, adoption and family", "entries": ["Family"]},
     "clan": {"description": "Global clans", "flatten": "clan"},
     "profile": {"description": "Your global profile card", "flatten": "profile"},
@@ -625,8 +637,11 @@ SLASH_LAYOUT: dict = {
 }
 SLASH_EXCLUDE: set[str] = {"leveling", "suggestions", "tod", "familysize"}
 SLASH_RENAMES: dict[str, str] = {"tictactoe": "tic-tac-toe", "connect4": "connect-4", "truthordare": "truth-or-dare"}
-SLASH_BARE_NAMES: dict[str, str] = {"remind": "set", "todo": "list", "coins": "balance", "birthday": "view", "clan": "info", "games": "list", "autopartner": "status", "cultivate": "status", "lineage": "status", "sect": "status", "world": "guide"}
+SLASH_BARE_NAMES: dict[str, str] = {"remind": "set", "todo": "list", "coins": "balance", "birthday": "view", "clan": "info", "games": "list", "autopartner": "status", "cultivate": "status", "lineage": "status", "sect": "status", "world": "guide", "market": "browse", "pouch": "view", "auction": "list", "board": "view", "realm": "view"}
+SLASH_CLAIMED: set[str] = {name for spec in SLASH_LAYOUT.values() for name in spec.get("commands", [])}
 SLASH_GROUP_LIMIT: int = 25
+USER_APP_GROUPS: set[str] = {"interact", "cultivate", "heaven", "world", "pouch", "market", "auction", "board", "realm", "eco", "eco-extra", "profile", "pet"}
+USER_APP_BLOCKED: set[str] = {"world spawn", "world spawns"}
 SLASH_OVERFLOW_GROUPS: dict[str, str] = {"eco": "eco-extra"}
 
 GAME_INVITE_SECONDS: int = 120
@@ -635,8 +650,8 @@ TRIVIA_SECONDS: int = 20
 TYPERACE_SECONDS: int = 45
 HANGMAN_LIVES: int = 6
 
-TRANSLATE_DEEPL_KEY: str = os.getenv("SOWARD_DEEPL_KEY", "").strip()
-TRANSLATE_EMAIL: str = os.getenv("SOWARD_TRANSLATE_EMAIL", "").strip()
+TRANSLATE_DEEPL_KEY: str = os.getenv("ZYRO_DEEPL_KEY", "").strip()
+TRANSLATE_EMAIL: str = os.getenv("ZYRO_TRANSLATE_EMAIL", "").strip()
 TRANSLATE_MAX_CHARS: int = 6000
 SLASH_OPTION_DESCRIPTIONS: dict[str, str] = {
     "translate.language": "Language name or code, like spanish or es (default english)",

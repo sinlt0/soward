@@ -39,7 +39,7 @@ class TruthOrDare(commands.Cog):
         self.session: Optional[aiohttp.ClientSession] = None
 
     async def cog_load(self):
-        self.session = aiohttp.ClientSession(headers={"User-Agent": "Soward/1.0"})
+        self.session = aiohttp.ClientSession(headers={"User-Agent": "Zyro/1.0"})
 
     async def cog_unload(self):
         if self.session:

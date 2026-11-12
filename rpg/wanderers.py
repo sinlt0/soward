@@ -59,7 +59,7 @@ KINDS = {
         "intro": "drifts between the living and the dead, buying whatever the dead leave behind.",
         "lines": (
             "I pay well for things nobody else wants. That is the whole business.",
-            "Do not ask where my coins come from. I do not ask where your materials come from.",
+            "Do not ask where my spirit stones come from. I do not ask where your materials come from.",
             "Everything has a price. Even regret. Especially regret.",
             "Spirit Iron? Thunder Crystal? Lovely. Names fade, but material is forever.",
         ),

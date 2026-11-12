@@ -222,7 +222,7 @@
 
   function makeAudio() {
     var self = { ctx: null, node: null, queue: [], gain: null, muted: false, pull: null };
-    try { self.muted = localStorage.getItem("soward-doom-muted") === "1"; } catch (e) {}
+    try { self.muted = localStorage.getItem("zyro-doom-muted") === "1"; } catch (e) {}
     self.start = function () {
       if (self.ctx) { if (self.ctx.state === "suspended") self.ctx.resume(); return; }
       var Context = window.AudioContext || window.webkitAudioContext;
@@ -262,7 +262,7 @@
     };
     self.toggle = function () {
       self.muted = !self.muted;
-      try { localStorage.setItem("soward-doom-muted", self.muted ? "1" : "0"); } catch (e) {}
+      try { localStorage.setItem("zyro-doom-muted", self.muted ? "1" : "0"); } catch (e) {}
       return self.muted;
     };
     self.close = function () {
@@ -806,7 +806,7 @@
     return pad;
   }
 
-  window.SowardDoom = {
+  window.ZyroDoom = {
     setup: setup,
     join: join,
     stop: teardown,

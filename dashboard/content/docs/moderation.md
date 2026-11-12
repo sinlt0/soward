@@ -91,10 +91,16 @@ Your command message is deleted and the result message disappears after a few se
 
 | Command | What it does | Needs |
 | --- | --- | --- |
-| `!lockdown [channel] [reason]` | Stops `@everyone` from sending messages in a channel (the current one by default). Alias: `!lock`. | Manage Channels |
+| `!lockdown [channel] [reason]` | Stops your [main role](/docs/security#main-role) (or `@everyone` if none is set) from sending messages in a channel (the current one by default). Alias: `!lock`. | Manage Channels |
 | `!unlock [channel] [reason]` | Restores sending in a channel. | Manage Channels |
 | `!lockdownall [reason]` | Starts a [server lockdown](/docs/security-center#server-lockdown) after you confirm. Every channel's earlier settings are saved. Same as `!serverlock on`. | Administrator |
 | `!unlockall [reason]` | Lifts the lockdown and puts every channel back as it was. If no lockdown is active it just unlocks channels that deny sending to everyone. | Administrator |
+| `!hide [channel] [reason]` | Hides a channel from the main role. | Manage Channels |
+| `!unhide [channel] [reason]` | Makes a hidden channel visible again. Alias: `!show`. | Manage Channels |
+| `!hideall [reason]` | Hides every channel the main role can see after you confirm. | Administrator |
+| `!unhideall` | Unhides only the channels `!hideall` hid. | Administrator |
+| `!nuke [channel] [reason]` | Deletes a channel and recreates it with the same name, topic, permissions and position after you confirm. Messages are gone and the channel gets a new ID. Rules and community updates channels are blocked. | Manage Channels |
+| `!mainrole [role\|clear]` | Shows, sets or clears the main role. Same as the Security setting. | Manage Server |
 | `!slowmode <seconds> [channel]` | Sets slowmode from 0 (off) to 21600 seconds. | Manage Channels |
 
 ## Nicknames and roles
@@ -189,7 +195,7 @@ Give a **permanent** role to everyone who was in the server during a period, suc
 
 Members press **Claim role** while the claim window is open. Anyone who joined before the period ended can claim it. The last part is when claiming closes. For a period that has not ended yet you can leave it out and claiming closes when the period ends. Use `!badge grant <id>` (administrators) to hand the role to every eligible member at once, `!badge extend <id> <when>` to reopen claiming, `!badge list` to see claim counts and `!badge delete <id>` to remove a badge (members keep the role).
 
-Soward only knows when a member **last** joined, so someone who left and came back after the period cannot claim it, and members who already left cannot receive it.
+Zyro only knows when a member **last** joined, so someone who left and came back after the period cannot claim it, and members who already left cannot receive it.
 
 ## Member timeline (500+ members)
 

@@ -30,10 +30,10 @@ class _UnixConnection(http.client.HTTPConnection):
 
 class BotClient:
     def __init__(self):
-        self.secret = os.getenv("SOWARD_IPC_SECRET", "")
-        self.mode = os.getenv("SOWARD_IPC_MODE", "unix")
-        self.path = os.getenv("SOWARD_IPC_PATH", "data/soward-ipc.sock")
-        self.port = int(os.getenv("SOWARD_IPC_PORT", "8765"))
+        self.secret = os.getenv("ZYRO_IPC_SECRET", "")
+        self.mode = os.getenv("ZYRO_IPC_MODE", "unix")
+        self.path = os.getenv("ZYRO_IPC_PATH", "data/zyro-ipc.sock")
+        self.port = int(os.getenv("ZYRO_IPC_PORT", "8765"))
 
     def _connection(self, timeout: float) -> http.client.HTTPConnection:
         if self.mode == "unix":
@@ -41,11 +41,11 @@ class BotClient:
         return http.client.HTTPConnection("127.0.0.1", self.port, timeout=timeout)
 
     def request(self, method: str, path: str, user_id: Optional[str] = None, body: Any = None, timeout: float = 8.0, name: Optional[str] = None) -> Any:
-        headers = {"X-Soward-Secret": self.secret, "Content-Type": "application/json"}
+        headers = {"X-Zyro-Secret": self.secret, "Content-Type": "application/json"}
         if user_id:
-            headers["X-Soward-User"] = str(user_id)
+            headers["X-Zyro-User"] = str(user_id)
         if name:
-            headers["X-Soward-Name"] = name.encode("ascii", "ignore").decode()[:80]
+            headers["X-Zyro-Name"] = name.encode("ascii", "ignore").decode()[:80]
         payload = json.dumps(body) if body is not None else None
         conn = self._connection(timeout)
         try:

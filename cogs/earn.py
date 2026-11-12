@@ -25,7 +25,8 @@ def drop(result: dict, e) -> str:
 
 
 class Earn(commands.Cog):
-    category = "Economy"
+    category = "Engagement"
+    submodule = "Economy"
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot

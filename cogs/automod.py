@@ -495,7 +495,7 @@ class AutoMod(commands.Cog):
     async def automod_native(self, ctx: commands.Context):
         await self.automod_native_status(ctx)
 
-    @automod_native.command(name="status", help="Show the Discord AutoMod rules Soward manages.")
+    @automod_native.command(name="status", help="Show the Discord AutoMod rules Zyro manages.")
     @security_staff()
     async def automod_native_status(self, ctx: commands.Context):
         from utils.components import info_layout
@@ -513,7 +513,7 @@ class AutoMod(commands.Cog):
         layout = info_layout if made else error_layout
         await ctx.send(view=layout("Native AutoMod", "\n".join(lines)))
 
-    @automod_native.command(name="off", aliases=["remove"], help="Delete the Discord AutoMod rules Soward created.")
+    @automod_native.command(name="off", aliases=["remove"], help="Delete the Discord AutoMod rules Zyro created.")
     @security_staff()
     async def automod_native_off(self, ctx: commands.Context):
         from utils.components import info_layout

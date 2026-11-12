@@ -9,7 +9,7 @@ from utils.components import footer_block
 from utils.prefix import get_guild_prefix
 import config
 
-log = logging.getLogger("soward.events.mention_menu")
+log = logging.getLogger("zyro.events.mention_menu")
 
 
 def _is_bare_mention(bot: commands.Bot, message: discord.Message) -> bool:
@@ -49,7 +49,7 @@ class MentionMenuLinksRow(discord.ui.ActionRow):
         body = await _build_team_body(interaction.client)
         view = discord.ui.LayoutView(timeout=60)
         container = discord.ui.Container(accent_color=0x5865F2)
-        container.add_item(discord.ui.TextDisplay(f"## {e('soward')} Owners & Developers"))
+        container.add_item(discord.ui.TextDisplay(f"## {e('zyro')} Owners & Developers"))
         container.add_item(discord.ui.Separator())
         container.add_item(discord.ui.TextDisplay(body))
         view.add_item(container)
@@ -62,7 +62,7 @@ def _build_mention_menu(bot: commands.Bot, prefix: str, guild: discord.Guild | N
     container = discord.ui.Container(accent_color=0x5865F2)
 
     container.add_item(discord.ui.TextDisplay(
-        f"## {e('soward')} Hey, I'm {config.BOT_NAME}!\n"
+        f"## {e('zyro')} Hey, I'm {config.BOT_NAME}!\n"
         f"My prefix here is `{prefix}` — try `{prefix}help` to see everything I can do."
     ))
     container.add_item(discord.ui.Separator())

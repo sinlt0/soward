@@ -160,7 +160,7 @@ Any five letters count as a guess, so the game does not check a dictionary.
 
 ## Daily question
 
-Soward can post a new question every day without repeating one until all have been used.
+Zyro can post a new question every day without repeating one until all have been used.
 
 - `!daily channel #channel` sets the channel.
 - `!daily time <HH:MM>` and `!daily offset <hours>` set when it posts, for example `09:00` and `6`.

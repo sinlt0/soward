@@ -2,7 +2,7 @@
 
 ## Our Standard
 
-Soward is a small open-source project maintained by Sinlt and the Soward
+Zyro is a small open-source project maintained by Sinlt and the Zyro
 Team. Everyone participating — through issues, pull requests,
 discussions, or any other project space — is expected to help keep it a
 welcoming, harassment-free environment.

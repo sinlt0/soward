@@ -22,13 +22,13 @@ Booster Perks rewards members who boost your server:
 !booster custom on
 ```
 
-`setup` turns the system on and creates two starter tiers: **Rich** (1 boost) and **Wealthy** (2 boosts). Add more with `!booster tier create <number> <name>` if you want them, and rename or recolour the roles however you like. Soward needs Manage Roles and its role must sit above the roles it manages.
+`setup` turns the system on and creates two starter tiers: **Rich** (1 boost) and **Wealthy** (2 boosts). Add more with `!booster tier create <number> <name>` if you want them, and rename or recolour the roles however you like. Zyro needs Manage Roles and its role must sit above the roles it manages.
 
 ## How boosts are counted
 
-Discord does not tell bots how many boosts one member gives. It only shows whether someone is boosting and since when. Soward therefore uses two methods:
+Discord does not tell bots how many boosts one member gives. It only shows whether someone is boosting and since when. Zyro therefore uses two methods:
 
-- **Count mode** (default): Soward counts the boost messages Discord posts in your system channel while it is online, and `booster backfill` reads recent history. Boosting messages must be switched on in Server Settings. If a member removes one of several boosts, Discord does not announce it, so correct them with `!booster set @member <count>`.
+- **Count mode** (default): Zyro counts the boost messages Discord posts in your system channel while it is online, and `booster backfill` reads recent history. Boosting messages must be switched on in Server Settings. If a member removes one of several boosts, Discord does not announce it, so correct them with `!booster set @member <count>`.
 - **Days mode**: `!booster mode days` tiers by how long someone has been boosting. This needs no message tracking and is always accurate.
 
 A member who stops boosting completely loses the roles and their count resets.
@@ -80,7 +80,7 @@ Members use `!booster role`:
 
 - **Display separately** (`hoist`) is off for members until you allow it, because it adds a group to the member list for each role.
 - **Permissions** are off by default. When on, members can only pick harmless ones: change nickname, embed links, attach files, external emojis and stickers, add reactions, create public threads, thread messages, stream, voice activity, soundboard and external sounds. Dangerous permissions can never be given.
-- **Position**: new roles are placed directly above or below the role you choose. With no role chosen, Soward uses the booster role you set with `booster base`, then Discord's Server Booster role. Soward can only place roles below its own top role.
+- **Position**: new roles are placed directly above or below the role you choose. With no role chosen, Zyro uses the booster role you set with `booster base`, then Discord's Server Booster role. Zyro can only place roles below its own top role.
 - **Icons** need Boost Level 2 on the server.
 - Names cannot contain mentions or links, cannot copy an existing role name, and are checked against your blocked words.
 
@@ -88,4 +88,4 @@ Members use `!booster role`:
 
 - A server holds up to 15 tiers, or 30 with Premium, and Discord's 250 role limit applies.
 - Count mode only knows about boosts it saw. Use `booster backfill` once, then `booster set` for any fix.
-- Soward checks boosters every 15 minutes in case it was offline when something changed.
+- Zyro checks boosters every 15 minutes in case it was offline when something changed.

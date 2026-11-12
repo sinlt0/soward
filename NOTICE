@@ -1,8 +1,8 @@
-Soward
-Copyright 2026 Sinlt (辛特) and the Soward Team
+Zyro
+Copyright 2026 Sinlt (辛特) and the Zyro Team
 
 This product includes software originally developed as part of the
-"Soward" project (modular Discord moderation, security, music and
+"Zyro" project (modular Discord moderation, security, music and
 community bot).
 
 Original repository: https://github.com/sinlt0/soward
@@ -27,7 +27,7 @@ in part, you MUST:
   2. Retain a visible attribution to the original author in your project's
      README, documentation, or "About" page. Acceptable wording:
 
-         "Built upon Soward by Sinlt (https://github.com/sinlt0/soward)"
+         "Built upon Zyro by Sinlt (https://github.com/sinlt0/soward)"
 
   3. Carry this same attribution requirement forward to anyone you
      distribute the software (or a Derivative Work of it) to.
@@ -38,7 +38,7 @@ own server, product, or service. You may NOT:
   - Remove or alter this NOTICE file or the LICENSE file.
   - Claim that you independently wrote the original codebase from scratch,
     or otherwise misrepresent the origin of this software.
-  - Use the "Soward" name, or Sinlt's name, to imply endorsement of your
+  - Use the "Zyro" name, or Sinlt's name, to imply endorsement of your
     fork without permission.
 
 No attribution is required inside the running bot's Discord output or on a

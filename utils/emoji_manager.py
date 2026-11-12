@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-log = logging.getLogger("soward.emoji")
+log = logging.getLogger("zyro.emoji")
 
 _table: dict[str, str] = {}
 

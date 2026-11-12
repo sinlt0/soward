@@ -7,7 +7,7 @@ from typing import Optional
 import discord
 from discord.ext import commands, tasks
 
-from utils import db, emoji_manager, postmortem, security
+from utils import db, emoji_manager, main_role, postmortem, security
 from utils import security_settings as settings
 from utils.components import error_layout, info_layout, success_layout
 from utils.events_bus import ANTINUKE_INCIDENT, LOG_EVENT, bus
@@ -109,7 +109,7 @@ class Lockdown(commands.Cog):
                 return 0
             skip = set(await settings.get(guild.id, "security", "lockdown_skip_channels") or [])
             length = duration or int(await settings.get(guild.id, "security", "lockdown_duration"))
-            default = guild.default_role
+            default = await main_role.get(guild)
             saved: list[dict] = []
             locked = 0
             now = time.time()
@@ -131,10 +131,10 @@ class Lockdown(commands.Cog):
                     changes = {f: False for f in ("connect", "speak")}
                 else:
                     changes = {f: False for f in LOCK_FIELDS if f not in ("connect", "speak")}
-                saved.append({"id": channel.id, "before": {k: before[k] for k in changes}})
+                saved.append({"id": channel.id, "role": default.id, "before": {k: before[k] for k in changes}})
                 overwrite.update(**changes)
                 try:
-                    await channel.set_permissions(default, overwrite=overwrite, reason=f"Soward lockdown: {reason}")
+                    await channel.set_permissions(default, overwrite=overwrite, reason=f"Zyro lockdown: {reason}")
                     locked += 1
                 except (discord.Forbidden, discord.HTTPException):
                     saved.pop()
@@ -154,13 +154,14 @@ class Lockdown(commands.Cog):
                 channel = guild.get_channel(entry["id"])
                 if channel is None:
                     continue
-                overwrite = channel.overwrites_for(guild.default_role)
+                target = guild.get_role(int(entry.get("role", guild.id))) or guild.default_role
+                overwrite = channel.overwrites_for(target)
                 overwrite.update(**entry["before"])
                 try:
                     if overwrite.is_empty():
-                        await channel.set_permissions(guild.default_role, overwrite=None, reason=f"Soward lockdown {reason}")
+                        await channel.set_permissions(target, overwrite=None, reason=f"Zyro lockdown {reason}")
                     else:
-                        await channel.set_permissions(guild.default_role, overwrite=overwrite, reason=f"Soward lockdown {reason}")
+                        await channel.set_permissions(target, overwrite=overwrite, reason=f"Zyro lockdown {reason}")
                     restored += 1
                 except (discord.Forbidden, discord.HTTPException):
                     pass
@@ -377,7 +378,7 @@ class Lockdown(commands.Cog):
             if not fields:
                 continue
             try:
-                await channel.edit(reason="Soward backup restore: channel repaired", **fields)
+                await channel.edit(reason="Zyro backup restore: channel repaired", **fields)
                 repaired += 1
             except (discord.Forbidden, discord.HTTPException):
                 failed += 1
@@ -417,7 +418,7 @@ class Lockdown(commands.Cog):
                 if existing is None:
                     role = await guild.create_role(
                         name=entry["name"], permissions=perms, colour=discord.Colour(entry["color"]),
-                        hoist=entry["hoist"], mentionable=entry["mentionable"], reason="Soward backup restore",
+                        hoist=entry["hoist"], mentionable=entry["mentionable"], reason="Zyro backup restore",
                     )
                     by_id[role.id] = role
                     by_name[role.name] = role
@@ -426,7 +427,7 @@ class Lockdown(commands.Cog):
                 elif repair and existing.position < top and not existing.managed:
                     await existing.edit(
                         permissions=perms, colour=discord.Colour(entry["color"]), hoist=entry["hoist"],
-                        mentionable=entry["mentionable"], reason="Soward backup restore",
+                        mentionable=entry["mentionable"], reason="Zyro backup restore",
                     )
                     repaired += 1
             except (discord.Forbidden, discord.HTTPException):
@@ -472,17 +473,17 @@ class Lockdown(commands.Cog):
             overwrites = self._overwrites(guild, data, entry)
             try:
                 if kind is discord.ChannelType.category:
-                    made = await guild.create_category(entry["name"], overwrites=overwrites, reason="Soward backup restore")
+                    made = await guild.create_category(entry["name"], overwrites=overwrites, reason="Zyro backup restore")
                     new_parents[entry["id"]] = made
                 elif kind is discord.ChannelType.text:
                     await guild.create_text_channel(
                         entry["name"], category=parent, overwrites=overwrites, topic=entry.get("topic"),
-                        nsfw=entry.get("nsfw", False), slowmode_delay=entry.get("slowmode", 0), reason="Soward backup restore",
+                        nsfw=entry.get("nsfw", False), slowmode_delay=entry.get("slowmode", 0), reason="Zyro backup restore",
                     )
                 elif kind is discord.ChannelType.voice:
                     await guild.create_voice_channel(
                         entry["name"], category=parent, overwrites=overwrites, bitrate=entry.get("bitrate", 64000),
-                        user_limit=entry.get("user_limit", 0), reason="Soward backup restore",
+                        user_limit=entry.get("user_limit", 0), reason="Zyro backup restore",
                     )
                 else:
                     continue
@@ -703,16 +704,16 @@ class Lockdown(commands.Cog):
             if role.is_default() or role.managed:
                 continue
             if me and role >= me.top_role and security.dangerous_permissions(role.permissions):
-                issues.append((2, f"{role.mention} has dangerous permissions and sits above Soward, so it cannot be controlled"))
+                issues.append((2, f"{role.mention} has dangerous permissions and sits above Zyro, so it cannot be controlled"))
         bots = [m for m in guild.members if m.bot and m.id != guild.me.id and m.guild_permissions.administrator]
         if bots:
             issues.append((2, f"{len(bots)} bots hold Administrator: {', '.join(b.mention for b in bots[:8])}"))
         if me and not me.guild_permissions.administrator:
             needed = [p for p in ("ban_members", "kick_members", "manage_roles", "manage_channels", "view_audit_log", "manage_guild", "manage_webhooks", "moderate_members") if not getattr(me.guild_permissions, p)]
             if needed:
-                issues.append((3, f"Soward is missing permissions: {', '.join(needed)}"))
+                issues.append((3, f"Zyro is missing permissions: {', '.join(needed)}"))
         if me and guild.roles and me.top_role.position < max(r.position for r in guild.roles) - 3:
-            issues.append((1, "Move Soward's role higher so it can act on more roles"))
+            issues.append((1, "Move Zyro's role higher so it can act on more roles"))
         if not await settings.get(guild.id, "antinuke", "enabled"):
             issues.append((3, "AntiNuke is off"))
         if not await settings.get(guild.id, "antiraid", "enabled"):

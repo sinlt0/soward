@@ -5,7 +5,7 @@ import discord
 from utils import guild_settings
 from utils import security_settings as settings
 
-PREFIX = "Soward · "
+PREFIX = "Zyro · "
 STORE_KEY = "automod_native_rules"
 MAX_KEYWORDS = 1000
 MAX_KEYWORD_LENGTH = 60
@@ -43,7 +43,7 @@ async def remove(guild: discord.Guild, reason: str) -> int:
 
 
 async def sync(guild: discord.Guild, actor: Optional[discord.abc.User] = None) -> tuple[list[str], list[str]]:
-    reason = f"Soward native AutoMod sync{f' by {actor}' if actor else ''}"
+    reason = f"Zyro native AutoMod sync{f' by {actor}' if actor else ''}"
     gid = guild.id
     notes: list[str] = []
     made: list[str] = []
@@ -53,7 +53,7 @@ async def sync(guild: discord.Guild, actor: Optional[discord.abc.User] = None) -
     await remove(guild, reason)
     exempt_roles = [discord.Object(id=i) for i in _ids(await settings.get(gid, "automod", "exempt_roles"), 20)]
     exempt_channels = [discord.Object(id=i) for i in _ids(await settings.get(gid, "automod", "exempt_channels"), 50)]
-    block = discord.AutoModRuleAction(custom_message="Blocked by Soward AutoMod.")
+    block = discord.AutoModRuleAction(custom_message="Blocked by Zyro AutoMod.")
     created: list[int] = []
 
     async def make(name: str, trigger: discord.AutoModTrigger):

@@ -1,11 +1,12 @@
 import random
 
-from rpg import arts, bestiary
+from rpg import arts, bestiary, elements
 
 MAX_TURNS = 30
 TRAIT_SKILL_EVERY = 3
 SKILL_POWER = 1.6
 FLEE_CHANCE = 60
+ATTUNE_MULT = 1.25
 
 
 def scale(realm: int, stage: int) -> float:
@@ -26,10 +27,23 @@ def player_stats(character: dict, mods: dict) -> dict:
         "dodge": min(40, 5 + mods.get("dodge", 0)),
         "crit": min(60, mods.get("crit", 0)),
         "tech": mods.get("tech", 1.0),
+        "attune": mods.get("attune", ""),
     }
 
 
-def strike(state: dict, power: float, rng, tech: bool = False) -> tuple:
+def affix_scale(state: dict, damage: int, rng) -> tuple:
+    m = state["m"]
+    affixes = m.get("affixes", ())
+    note = ""
+    if "evasive" in affixes and rng.random() < 0.2:
+        return 0, " It slips away from the blow."
+    if "bulwark" in affixes and state["turn"] <= 3:
+        damage = max(1, int(damage * 0.55))
+        note = " Its ward absorbs part of the blow."
+    return damage, note
+
+
+def strike(state: dict, power: float, rng, tech: bool = False, key: str = "") -> tuple:
     p, m = state["p"], state["m"]
     if tech:
         power *= p.get("tech", 1.0)
@@ -39,6 +53,13 @@ def strike(state: dict, power: float, rng, tech: bool = False) -> tuple:
     crit = rng.random() * 100 < p.get("crit", 0)
     if crit:
         damage = int(damage * 1.5)
+    if tech and key:
+        multiplier = elements.modifier(key, m.get("element", ""))
+        if p.get("attune") and elements.of(key) == p["attune"]:
+            multiplier *= ATTUNE_MULT
+        if multiplier != 1.0:
+            damage = max(1, int(damage * multiplier))
+            state["element_note"] = " **Weakness!**" if multiplier > 1 else " Resisted."
     return damage, crit
 
 
@@ -94,8 +115,25 @@ def ready(state: dict) -> dict:
     return {key: tech for key, tech in state["techs"].items() if state["p"]["cd"].get(key, 0) <= 0}
 
 
+def reflect(state: dict, damage: int) -> None:
+    m, p = state["m"], state["p"]
+    if "thorns" in m.get("affixes", ()) and damage > 0:
+        back = max(1, int(damage * 0.12))
+        p["hp"] -= back
+        state["log"].append(f"Thorns lash back for {back}.")
+        if p["hp"] <= 0:
+            state["done"] = "lose"
+
+
 def monster_turn(state: dict, rng) -> None:
     p, m = state["p"], state["m"]
+    if state["done"]:
+        return
+    if "regen" in m.get("affixes", ()) and m["hp"] > 0:
+        gained = min(m["max"] - m["hp"], max(1, int(m["max"] * 0.04)))
+        if gained:
+            m["hp"] += gained
+            state["log"].append(f"{m['name']} regenerates {gained}.")
     if m["poison"] > 0:
         m["hp"] -= m["poison_dmg"]
         m["poison"] -= 1
@@ -118,6 +156,8 @@ def monster_turn(state: dict, rng) -> None:
         state["log"].append(f"{m['name']} {'uses ' + label if heavy else label}, but you slip aside.")
         return
     attack = m["atk"]
+    if "frenzy" in m.get("affixes", ()) and m["hp"] <= m["max"] * 0.5:
+        attack *= 1.35
     if m.get("weak", 0) > 0:
         attack *= 1 - m.get("weak_cut", 0.3)
         m["weak"] -= 1
@@ -126,6 +166,16 @@ def monster_turn(state: dict, rng) -> None:
         damage = max(1, damage // 2)
         p["guard"] -= 1
     p["hp"] -= damage
+    state["foe"] = "foe_skill" if heavy else "foe_attack"
+    if "vampiric" in m.get("affixes", ()):
+        drained = min(m["max"] - m["hp"], int(damage * 0.35))
+        if drained > 0:
+            m["hp"] += drained
+            state["log"].append(f"{m['name']} drinks {drained} health from the wound.")
+    if "venom" in m.get("affixes", ()):
+        extra = max(1, int(p["max"] * 0.04))
+        p["hp"] -= extra
+        state["log"].append(f"Venom burns you for {extra}.")
     state["log"].append(f"{m['name']} {'uses **' + label + '**' if heavy else label} for {damage}.")
     if p["hp"] <= 0:
         state["done"] = "lose"
@@ -135,6 +185,8 @@ def act(state: dict, action: str, rng=None) -> dict:
     rng = rng or random
     p, m = state["p"], state["m"]
     state["log"] = []
+    state["anim"] = None
+    state["foe"] = None
     if action == "flee":
         if rng.randint(1, 100) <= FLEE_CHANCE:
             state["done"] = "flee"
@@ -143,25 +195,33 @@ def act(state: dict, action: str, rng=None) -> dict:
         state["log"].append("You try to flee, but it blocks your way.")
     elif action == "defend":
         p["guard"] = max(p["guard"], 1)
+        state["anim"] = "defend"
         state["log"].append("You brace yourself.")
     elif action == "attack":
         damage, crit = strike(state, 1.0, rng)
+        damage, note = affix_scale(state, damage, rng)
         m["hp"] -= damage
-        state["log"].append(f"You strike with a qi palm for {damage}." + (" **Critical!**" if crit else ""))
+        state["anim"] = "attack"
+        state["log"].append(f"You strike with a qi palm for {damage}." + (" **Critical!**" if crit else "") + note)
+        reflect(state, damage)
     else:
         tech = state["techs"].get(action)
         if tech is None or p["cd"].get(action, 0) > 0:
             state["log"].append("That technique is not ready.")
             return state
         p["cd"][action] = tech["cd"] + 1
+        state["anim"] = action
         kind = tech["kind"]
         if kind in ("damage", "poison", "stun", "weaken", "lifesteal", "execute"):
             power = tech["power"]
             if kind == "execute" and m["hp"] <= m["max"] * tech["below"]:
                 power *= tech["bonus"]
-            damage, crit = strike(state, power, rng, True)
+            state["element_note"] = ""
+            damage, crit = strike(state, power, rng, True, action)
+            damage, note = affix_scale(state, damage, rng)
             m["hp"] -= damage
-            state["log"].append(f"**{tech['name']}** hits for {damage}." + (" **Critical!**" if crit else ""))
+            state["log"].append(f"**{tech['name']}** hits for {damage}." + (" **Critical!**" if crit else "") + state["element_note"] + note)
+            reflect(state, damage)
             if kind == "poison":
                 m["poison"] = tech["turns"]
                 m["poison_dmg"] = max(1, int(p["atk"] * 0.3))
@@ -177,11 +237,14 @@ def act(state: dict, action: str, rng=None) -> dict:
                     state["log"].append(f"You drink in {gained} health.")
         elif kind == "multi":
             total = 0
+            state["element_note"] = ""
             for _ in range(tech["hits"]):
-                damage, _crit = strike(state, tech["power"], rng, True)
+                damage, _crit = strike(state, tech["power"], rng, True, action)
+                damage, _note = affix_scale(state, damage, rng)
                 total += damage
             m["hp"] -= total
-            state["log"].append(f"**{tech['name']}** lands {tech['hits']} hits for {total}.")
+            state["log"].append(f"**{tech['name']}** lands {tech['hits']} hits for {total}." + state["element_note"])
+            reflect(state, total)
         elif kind == "buff":
             p["buff"] = tech["turns"] + 1
             p["buff_mult"] = tech["mult"]

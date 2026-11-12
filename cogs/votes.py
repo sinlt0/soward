@@ -9,7 +9,7 @@ import config
 from utils import coins as coin_store, emoji_manager, prefix as prefix_utils, rewards, votes
 from utils.components import info_layout, success_layout
 
-log = logging.getLogger("soward.votes")
+log = logging.getLogger("zyro.votes")
 
 
 def remaining(seconds: float) -> str:
@@ -81,7 +81,7 @@ class Votes(commands.Cog):
             except discord.HTTPException:
                 return
         body = (
-            f"{e('star')} Thanks for voting for Soward.\n"
+            f"{e('star')} Thanks for voting for Zyro.\n"
             + (f"{e('ecoin')} **+{coin_store.fmt(reward)}** coins.\n" if reward else "")
             + (f"{e('ediamond')} **+{diamonds}** diamonds.\n" if diamonds else f"-# Diamonds from this site come once a day.\n")
             + f"You now have **global no-prefix** for **{config.VOTE_NP_HOURS} hours**.\n"
@@ -92,7 +92,7 @@ class Votes(commands.Cog):
         except discord.HTTPException:
             pass
 
-    @commands.command(name="vote", help="Vote for Soward and get global no-prefix for a while.")
+    @commands.command(name="vote", help="Vote for Zyro and get global no-prefix for a while.")
     async def vote(self, ctx: commands.Context):
         e = emoji_manager.get
         links = self.vote_links()
@@ -105,7 +105,7 @@ class Votes(commands.Cog):
             lines.append(f"\nYour votes: **{row['total']}** · Streak: **{row['streak']}**")
             if row["np_until"] > now:
                 lines.append(f"No-prefix left: **{remaining(row['np_until'] - now)}**")
-        await ctx.send(view=info_layout("Vote for Soward", "\n".join(lines)))
+        await ctx.send(view=info_layout("Vote for Zyro", "\n".join(lines)))
 
 
 async def setup(bot: commands.Bot):

@@ -7,7 +7,7 @@ group: Utility
 
 ## How AFK works
 
-When you go AFK, Soward tells anyone who mentions you that you are away and shows your message. When you send any message again, you are marked as back, and the bot shows a short summary of who mentioned you while you were gone.
+When you go AFK, Zyro tells anyone who mentions you that you are away and shows your message. When you send any message again, you are marked as back, and the bot shows a short summary of who mentioned you while you were gone.
 
 You can go AFK in one server, in several servers, or globally in every server you share with the bot.
 

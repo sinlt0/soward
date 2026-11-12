@@ -42,7 +42,7 @@
       var g = c.getContext("2d");
       g.textBaseline = "top";
       g.font = "14px Arial";
-      g.fillText("soward-verify", 2, 2);
+      g.fillText("zyro-verify", 2, 2);
       canvas = c.toDataURL();
     } catch (e) {}
     var parts = [

@@ -1,0 +1,69 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}{{ g.name }}{% endblock %}
+{% block admin_heading %}{{ g.name }}{% endblock %}
+{% block admin_links %}<a class="btn btn--ghost btn--sm" href="{{ url_for('admin_servers') }}">All servers</a>{% if g.present %}<a class="btn btn--primary btn--sm" href="{{ url_for('server_page', gid=g.id) }}">Open dashboard</a>{% endif %}{% endblock %}
+{% block admin_body %}
+{% if not g.present %}<div class="note">Zyro is not in this server right now. Premium and ban settings still apply if it is added again.</div>{% endif %}
+<section class="panel">
+  <div class="panel__head panel__head--row"><div><h2>Overview</h2><p><code>{{ g.id }}</code></p></div>
+    <div class="panel__tools">{% if g.premium %}<span class="badge badge--premium">Premium · {{ g.expires | until }}</span>{% else %}<span class="badge">Free</span>{% endif %}{% if g.banned %}<span class="badge badge--bad">Banned</span>{% endif %}</div></div>
+  {% if g.present %}
+  <div class="facts">
+    <div><span>Owner</span><strong>{{ g.owner_name or "Unknown" }}</strong><code>{{ g.owner_id }}</code></div>
+    <div><span>Members</span><strong>{{ "{:,}".format(g.members) }}</strong><small>{{ g.bots }} bots</small></div>
+    <div><span>Channels</span><strong>{{ g.text_channels + g.voice_channels }}</strong><small>{{ g.text_channels }} text · {{ g.voice_channels }} voice · {{ g.categories }} categories</small></div>
+    <div><span>Roles</span><strong>{{ g.roles }}</strong><small>{{ g.emojis }} emojis</small></div>
+    <div><span>Boosts</span><strong>{{ g.boosts }}</strong><small>Tier {{ g.boost_tier }}</small></div>
+    <div><span>Created</span><strong>{{ g.created | stamp }}</strong></div>
+    <div><span>Zyro joined</span><strong>{{ g.joined | ago if g.joined else "unknown" }}</strong></div>
+    <div><span>Open tickets</span><strong>{{ g.open_tickets }}</strong></div>
+    <div><span>Prefix</span><strong>{{ g.prefix or "default" }}</strong></div>
+    <div><span>Zyro permissions</span><strong>{{ "Administrator" if g.bot_admin else "Limited" }}</strong></div>
+    <div><span>Verification</span><strong>{{ g.verification }}</strong></div>
+    <div><span>Locale</span><strong>{{ g.locale }}</strong></div>
+  </div>
+  {% if g.features %}<div class="featurebar">{% for f in g.features %}<span class="badge">{{ f | replace("_", " ") | lower }}</span>{% endfor %}</div>{% endif %}
+  {% endif %}
+</section>
+{% if g.present %}
+<section class="panel">
+  <div class="panel__head"><h2>Invite</h2><p>Create a temporary invite to join and look at the server.</p></div>
+  <form class="adminform" data-admin="guild/{{ g.id }}/invite" data-result="invite-result">
+    <div class="formgrid">
+      <div class="stack"><label class="lbl" for="i-hours">Expires after (hours, 0 never)</label><input id="i-hours" class="input" type="number" name="hours" value="1" min="0" max="168" step="0.5"></div>
+      <div class="stack"><label class="lbl" for="i-uses">Max uses (0 unlimited)</label><input id="i-uses" class="input" type="number" name="uses" value="1" min="0" max="100"></div>
+    </div>
+    <div class="actions"><button class="btn btn--primary" type="submit">Create invite</button><span id="invite-result" class="result" hidden></span></div>
+  </form>
+</section>
+{% endif %}
+<section class="panel">
+  <div class="panel__head"><h2>Premium</h2><p>{% if g.lifetime %}This server has lifetime Premium.{% elif g.premium %}Active, {{ g.expires | until }} (until {{ g.expires | stamp }}).{% else %}This server does not have Premium.{% endif %}</p></div>
+  <form class="adminform" data-admin="guild/{{ g.id }}/premium" data-reload data-body='{"action":"grant"}'>
+    <div class="formgrid">
+      <div class="stack"><label class="lbl" for="g-days">Add time</label>
+        <input id="g-days" class="input" name="days" list="presets" placeholder="30 or 1m, 3mo, 1y" value="1m"><datalist id="presets">{% for v in ("3d","1w","2w","1m","3mo","6mo","1y") %}<option value="{{ v }}">{% endfor %}</datalist></div>
+      <label class="check check--box"><input type="checkbox" name="lifetime"> Lifetime</label>
+    </div>
+    <div class="actions"><button class="btn btn--primary" type="submit">{{ "Extend Premium" if g.premium else "Grant Premium" }}</button>
+      {% if g.premium %}<button class="btn btn--danger" type="button" data-admin="guild/{{ g.id }}/premium" data-body='{"action":"revoke"}' data-confirm="Revoke Premium from this server?" data-reload>Revoke</button>{% endif %}</div>
+  </form>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Access</h2><p>Control how this server can use Zyro.</p></div>
+  <div class="setting"><div><div class="setting__label">Web dashboard for this server</div><div class="setting__help">Currently {{ "on" if g.dashboard_enabled else "off" }}. Owners and developers can always open it.</div></div>
+    <div class="setting__control"><button class="btn btn--ghost btn--sm" type="button" data-admin="guild/{{ g.id }}/dashboard" data-body='{"enabled": {{ "false" if g.dashboard_enabled else "true" }}}' data-reload>Turn {{ "off" if g.dashboard_enabled else "on" }}</button></div></div>
+  {% if g.banned %}
+  <div class="setting"><div><div class="setting__label">Server ban</div><div class="setting__help">Banned. {{ g.ban_reason }}</div></div>
+    <div class="setting__control"><button class="btn btn--ghost btn--sm" type="button" data-admin="guild/{{ g.id }}/unban" data-reload>Unban server</button></div></div>
+  {% else %}
+  <div class="setting setting--stack"><div><div class="setting__label">Ban server</div><div class="setting__help">Blocks commands there and makes Zyro leave. It leaves again if it is re-added.</div></div>
+    <form class="setting__control adminform adminform--inline" data-admin="guild/{{ g.id }}/ban" data-confirm="Ban this server from Zyro?" data-reload>
+      <input class="input" name="reason" maxlength="200" placeholder="Reason" aria-label="Reason"><button class="btn btn--danger btn--sm" type="submit">Ban server</button></form></div>
+  {% endif %}
+  {% if g.present %}
+  <div class="setting"><div><div class="setting__label">Leave server</div><div class="setting__help">Zyro leaves without banning. It can be added again.</div></div>
+    <div class="setting__control"><button class="btn btn--danger btn--sm" type="button" data-admin="guild/{{ g.id }}/leave" data-confirm="Make Zyro leave this server?" data-redirect="{{ url_for('admin_servers') }}">Leave</button></div></div>
+  {% endif %}
+</section>
+{% endblock %}

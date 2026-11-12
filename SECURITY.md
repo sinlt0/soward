@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-Soward includes AntiNuke, AutoMod and permission logic, so security reports
+Zyro includes AntiNuke, AutoMod and permission logic, so security reports
 matter. Please **do not** open a public issue. Report privately:
 
 - Open a [GitHub Security Advisory](../../security/advisories/new) on this
@@ -19,7 +19,7 @@ Only the latest version on `main` receives security fixes.
 
 ## Secrets
 
-Never commit `SOWARD_TOKEN`, database URIs, Lavalink passwords, API keys,
+Never commit `ZYRO_TOKEN`, database URIs, Lavalink passwords, API keys,
 webhook URLs. Use `.env` (gitignored) and the provided `.env.example`
 template.
 

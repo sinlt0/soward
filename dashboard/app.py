@@ -16,6 +16,7 @@ from flask import Flask, Response, abort, jsonify, redirect, render_template, re
 from markupsafe import Markup
 
 import config
+from dashboard import admin
 from dashboard.ipc import BotClient, BotError, BotUnavailable
 
 BASE = Path(__file__).resolve().parent
@@ -116,9 +117,9 @@ def create_app() -> Flask:
     app = Flask(__name__, static_folder=str(BASE / "static"), template_folder=str(BASE / "templates"))
     ipc = BotClient()
     base_url = config.DASHBOARD_URL
-    app.secret_key = os.getenv("SOWARD_SESSION_SECRET") or hashlib.sha256((ipc.secret + config.BOT_TOKEN).encode()).hexdigest()
+    app.secret_key = os.getenv("ZYRO_SESSION_SECRET") or hashlib.sha256((ipc.secret + config.BOT_TOKEN).encode()).hexdigest()
     app.config.update(
-        SESSION_COOKIE_NAME="soward_session",
+        SESSION_COOKIE_NAME="zyro_session",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=base_url.startswith("https://"),
@@ -127,8 +128,8 @@ def create_app() -> Flask:
         TEMPLATES_AUTO_RELOAD=False,
     )
 
-    client_secret = os.getenv("SOWARD_CLIENT_SECRET", "")
-    support_url = os.getenv("SOWARD_SUPPORT_URL", "")
+    client_secret = os.getenv("ZYRO_CLIENT_SECRET", "")
+    support_url = os.getenv("ZYRO_SUPPORT_URL", "")
 
     def bot_status() -> dict:
         def load():
@@ -140,7 +141,7 @@ def create_app() -> Flask:
         return _cached("status", DEFAULT_STATUS_TTL, load)
 
     def client_id() -> Optional[str]:
-        return os.getenv("SOWARD_CLIENT_ID") or bot_status().get("user_id")
+        return os.getenv("ZYRO_CLIENT_ID") or bot_status().get("user_id")
 
     def invite_url() -> str:
         cid = client_id()
@@ -175,6 +176,7 @@ def create_app() -> Flask:
             "invite_url": invite_url(),
             "support_url": support_url,
             "csrf_token": session.get("csrf", ""),
+            "is_staff": admin.is_staff(current_user()),
             "show_ad": bool(config.ADS_ENABLED and current_user() is None and request.endpoint in AD_PAGES),
             "ad_unit": config.ADS_UNIT,
             "year": time.gmtime().tm_year,
@@ -186,7 +188,7 @@ def create_app() -> Flask:
         if not request.path.startswith("/activity"):
             response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        if request.path.startswith(("/dashboard", "/api", "/login", "/callback", "/verify", "/appeal")):
+        if request.path.startswith(("/dashboard", "/admin", "/api", "/login", "/callback", "/verify", "/appeal")):
             response.headers["Cache-Control"] = "no-store"
         if request.path.startswith("/verify"):
             response.headers["Referrer-Policy"] = "no-referrer"
@@ -220,7 +222,7 @@ def create_app() -> Flask:
             except BotUnavailable:
                 if request.path.startswith("/api"):
                     return jsonify(error="The bot is not reachable right now. Try again in a moment."), 503
-                return render_error(503, "Bot is starting", "Soward is not reachable yet. This usually clears up within a minute.", ("Try again", request.path))
+                return render_error(503, "Bot is starting", "Zyro is not reachable yet. This usually clears up within a minute.", ("Try again", request.path))
             except BotError as exc:
                 if request.path.startswith("/api"):
                     return jsonify(error=_friendly(exc)), exc.status
@@ -233,7 +235,7 @@ def create_app() -> Flask:
             "guild_off": "Dashboard access is turned off for this server.",
             "no_permission": "You need Manage Server in this server.",
             "not_member": "You are not a member of this server.",
-            "guild": "Soward is not in that server.",
+            "guild": "Zyro is not in that server.",
             "module": "That module does not exist.",
         }.get(exc.message, exc.message)
 
@@ -245,7 +247,7 @@ def create_app() -> Flask:
         if exc.message in ("no_permission", "not_member"):
             return render_error(403, "No access", "You need the Manage Server permission in that server.", ("Pick another server", url_for("servers")))
         if exc.status == 404:
-            return render_error(404, "Not found", "Soward is not in that server, or the page does not exist.", ("Pick a server", url_for("servers")))
+            return render_error(404, "Not found", "Zyro is not in that server, or the page does not exist.", ("Pick a server", url_for("servers")))
         return render_error(exc.status, "Request failed", _friendly(exc), ("Back", url_for("servers")))
 
     def csrf_required(view):
@@ -680,6 +682,8 @@ def create_app() -> Flask:
         if hours:
             return f"{hours}h {minutes}m"
         return f"{minutes}m"
+
+    admin.register(app, ipc, current_user, render_error)
 
     from dashboard import activity
     activity.register(app, ipc, app.secret_key)

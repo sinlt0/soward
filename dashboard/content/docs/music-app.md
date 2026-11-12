@@ -17,7 +17,7 @@ Your liked songs, playlists and history belong to your Discord account, so they 
 
 Run `!musicapp` and press **Open Music**. Aliases: `!activity`, `!player`, `!webplayer`.
 
-You can also open the App Launcher in a voice channel, a text channel or a DM and pick Soward there.
+You can also open the App Launcher in a voice channel, a text channel or a DM and pick Zyro there.
 
 ## What you can do
 

@@ -136,5 +136,50 @@ BREWS: dict = {
     "vigor_pill": {"name": "Vigor Pill", "zh": "神力丹", "info": "+20% attack until midnight UTC", "atk": 1.20},
     "ironskin_pill": {"name": "Iron Skin Pill", "zh": "铁肤丹", "info": "+20% health and defense until midnight UTC", "hp": 1.20, "def": 1.20},
     "windstep_pill": {"name": "Windstep Pill", "zh": "风行丹", "info": "+8% dodge until midnight UTC", "dodge": 8},
-    "fortune_pill": {"name": "Fortune Pill", "zh": "福运丹", "info": "+50% coins from fights until midnight UTC", "coins": 1.5},
+    "fortune_pill": {"name": "Fortune Pill", "zh": "福运丹", "info": "+50% spirit stones from fights until midnight UTC", "coins": 1.5},
 }
+
+MARKET_FEE_PCT: int = 5
+MARKET_MAX_LISTINGS: int = 10
+MARKET_DAYS: int = 7
+MARKET_MAX_PRICE: int = 1_000_000_000
+MARKET_MAX_QTY: int = 9999
+AUCTION_FEE_PCT: int = 8
+AUCTION_MAX: int = 5
+AUCTION_MIN_HOURS: int = 1
+AUCTION_MAX_HOURS: int = 72
+AUCTION_DEFAULT_HOURS: int = 24
+AUCTION_RAISE_PCT: int = 5
+AUCTION_SNIPE_SECONDS: int = 300
+TRADE_PAGE: int = 8
+GATHER_DAILY: int = 8
+GATHER_HERB_KINDS: int = 2
+GATHER_HERB_QTY: tuple = (1, 3)
+GATHER_UP_CHANCE: int = 10
+GATHER_FIBER_CHANCE: int = 30
+GATHER_HIDE_CHANCE: int = 40
+HUNT_QTY: tuple = (1, 3)
+HERB_FIGHT_CHANCE: int = 20
+HERB_EXPLORE_CHANCE: int = 30
+STONE_COINS_PER_LOW: int = 1
+STONE_MID: int = 100
+STONE_HIGH: int = 100
+TRANSCEND_MAX: int = 9
+TRANSCEND_FEE: int = 250000
+TRANSCEND_WAVES: int = 3
+TRANSCEND_WAVES_MAX: int = 7
+TRANSCEND_POWER: float = 0.06
+TRANSCEND_QI: float = 0.05
+TRANSCEND_OMEN: int = 64
+TRANSCEND_OMEN_STEP: int = 3
+TRANSCEND_OMEN_MIN: int = 45
+TRANSCEND_HEALS: int = 2
+TRANSCEND_HEAL: float = 0.30
+TRANSCEND_FAIL_QI: float = 0.5
+TRANSCEND_INJURY: float = 2.0
+TRANSCEND_BASE: float = 0.15
+TRANSCEND_WAVE_STEP: float = 0.012
+TRANSCEND_TIER_STEP: float = 0.014
+TRANSCEND_RIGHT: float = 0.45
+TRANSCEND_WRONG: float = 1.2
+TRANSCEND_TIMEOUT: int = 240

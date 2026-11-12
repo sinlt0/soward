@@ -1225,7 +1225,7 @@ def datingv2() -> dict:
         ("Second opinions", "Ticket team: in review-queue use `!rq <short summary>`. Moderators and managers pick a decision from the menu and it is logged there.", 0),
         ("Safety cases", "Assistant managers and managers: in safety-review use `!safecase <summary>` and record the decision, follow-up and result. Never discuss these in review-queue.", 0),
         ("Stay private", "Never share tickets, proof or reports outside staff channels. Discuss safety cases in safety-review.", 0),
-        ("Log actions", "Use Soward moderation commands so every action is logged.", 0),
+        ("Log actions", "Use Zyro moderation commands so every action is logged.", 0),
         ("Ask when unsure", "Ask a manager before big actions.", 0)])
     b.embed("tpl-ticket-info", "🛟 Support", "Press the button below to open a private ticket with staff.", 0x3498DB)
 

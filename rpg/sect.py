@@ -3,7 +3,7 @@ import secrets
 import time
 from typing import Optional
 
-from rpg import bestiary, combat, engine, gear, settings
+from rpg import bestiary, combat, engine, gear, pouch, settings
 from utils import clans, coins, db
 
 OFFICER = clans.ROLE_ORDER["officer"]
@@ -154,12 +154,10 @@ async def boss_payout(clan_id: str, rng) -> dict:
         await coins.add(hit["user_id"], amount)
         entry: dict = {"coins": amount, "damage": hit["damage"]}
         material = gear.GRADES[tier]["material"]
-        count = rng.randint(2, 4)
-        await engine.add_item(hit["user_id"], material, count)
+        count = await pouch.stash(hit["user_id"], material, rng.randint(2, 4))
         entry["material"] = (material, count)
         if rng.randint(1, 100) <= settings.BOSS_GEAR_CHANCE:
-            drop = gear.drop(rng, tier)
-            await engine.add_item(hit["user_id"], drop)
+            drop = await engine.give_gear(hit["user_id"], gear.drop(rng, tier), rng)
             entry["gear"] = drop
         payouts[hit["user_id"]] = entry
     if clan is not None:

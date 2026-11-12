@@ -9,7 +9,7 @@ from utils.components import ConfirmLayout, error_layout, success_layout
 from utils.events_bus import LOG_EVENT, bus
 import config
 
-SUPPORT_ROLE_NAME = "Soward Support"
+SUPPORT_ROLE_NAME = "Zyro Support"
 
 
 async def _support_role(guild: discord.Guild) -> Optional[discord.Role]:
@@ -23,7 +23,7 @@ class SupportAccess(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.command(name="supportaccess", aliases=["grantsupport"], help="Grant the Soward development team temporary Administrator access to this server for support/troubleshooting. Only the server owner or an Extra Owner can grant it.")
+    @commands.command(name="supportaccess", aliases=["grantsupport"], help="Grant the Zyro development team temporary Administrator access to this server for support/troubleshooting. Only the server owner or an Extra Owner can grant it.")
     @security_owner()
     @commands.guild_only()
     async def supportaccess(self, ctx: commands.Context):
@@ -44,7 +44,7 @@ class SupportAccess(commands.Cog):
             f"{e('warning')} Confirm Support Access Grant",
             (
                 f"This will create a **{SUPPORT_ROLE_NAME}** role with **Administrator** permissions "
-                f"and assign it to the bot and the Soward dev team ({len(dev_members)} currently in this server).\n\n"
+                f"and assign it to the bot and the Zyro dev team ({len(dev_members)} currently in this server).\n\n"
                 "This is meant for troubleshooting issues you're having with the bot. "
                 f"You can remove this access at any time with `revokesupport`, and only the server owner or an Extra Owner can grant or revoke it.\n\n"
                 "Do you want to proceed?"
@@ -64,7 +64,7 @@ class SupportAccess(commands.Cog):
                 colour=discord.Colour(0x5865F2),
                 hoist=True,
                 mentionable=False,
-                reason=f"Soward support access granted by {ctx.author} ({ctx.author.id})",
+                reason=f"Zyro support access granted by {ctx.author} ({ctx.author.id})",
             )
         except discord.HTTPException as ex:
             return await msg.edit(view=error_layout("Failed", f"Couldn't create the support role: {ex}"))
@@ -72,14 +72,14 @@ class SupportAccess(commands.Cog):
         await guild_settings.set(ctx.guild.id, "support_role_id", role.id)
         granted_to = []
         try:
-            await ctx.guild.me.add_roles(role, reason="Soward support access self-assignment")
+            await ctx.guild.me.add_roles(role, reason="Zyro support access self-assignment")
             granted_to.append(str(ctx.guild.me))
         except discord.HTTPException:
             pass
 
         for member in dev_members:
             try:
-                await member.add_roles(role, reason=f"Soward support access granted by {ctx.author} ({ctx.author.id})")
+                await member.add_roles(role, reason=f"Zyro support access granted by {ctx.author} ({ctx.author.id})")
                 granted_to.append(str(member))
             except discord.HTTPException:
                 continue
@@ -96,7 +96,7 @@ class SupportAccess(commands.Cog):
         )
         await msg.edit(view=success_layout(f"{e('check')} Support Access Granted", body))
 
-    @commands.command(name="revokesupport", help="Remove the Soward support access role from this server.")
+    @commands.command(name="revokesupport", help="Remove the Zyro support access role from this server.")
     @security_owner()
     @commands.guild_only()
     async def revokesupport(self, ctx: commands.Context):
@@ -106,7 +106,7 @@ class SupportAccess(commands.Cog):
             return await ctx.send(view=error_layout("Not Found", f"There is no **{SUPPORT_ROLE_NAME}** role in this server."))
 
         try:
-            await role.delete(reason=f"Soward support access revoked by {ctx.author} ({ctx.author.id})")
+            await role.delete(reason=f"Zyro support access revoked by {ctx.author} ({ctx.author.id})")
         except discord.HTTPException as ex:
             return await ctx.send(view=error_layout("Failed", f"Couldn't remove the support role: {ex}"))
 
@@ -114,7 +114,7 @@ class SupportAccess(commands.Cog):
         await bus.publish(LOG_EVENT, guild_id=ctx.guild.id, action="support_access_revoked", actor_id=ctx.author.id, detail="The support role was removed")
         await ctx.send(view=success_layout(f"{e('check')} Support Access Revoked", f"The **{SUPPORT_ROLE_NAME}** role has been removed."))
 
-    @commands.command(name="supportstatus", help="Check whether Soward support access is currently active in this server.")
+    @commands.command(name="supportstatus", help="Check whether Zyro support access is currently active in this server.")
     @commands.guild_only()
     async def supportstatus(self, ctx: commands.Context):
         e = emoji_manager.get

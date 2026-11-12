@@ -5,7 +5,7 @@ EVENTS = (
          {"label": "Carry them all at once", "outcomes": (
              {"w": 60, "text": "Your arms burn, but your body tempers. Qi settles in your limbs.", "qi_hours": 1.5},
              {"w": 40, "text": "The stack scatters down the steps and you spend the afternoon gathering it."})},
-         {"label": "Make two trips", "outcomes": ({"w": 100, "text": "Elder Mu nods and pays you a few coins.", "coins": (10, 25)},)},
+         {"label": "Make two trips", "outcomes": ({"w": 100, "text": "Elder Mu nods and pays you a few spirit stones.", "coins": (10, 25)},)},
          {"label": "Refuse politely", "outcomes": ({"w": 100, "text": "Elder Mu sighs and carries them himself."},)},
      )},
     {"id": "pouch", "npc": "granny_yao", "realm": 0, "title": "A lost pouch",
@@ -15,7 +15,7 @@ EVENTS = (
              {"w": 85, "text": "Granny Yao grunts and rewards you.", "coins": (20, 40)},
              {"w": 15, "text": "Granny Yao stares at you, then hands over a pill.", "item": "qi_pill"})},
          {"label": "Keep it", "outcomes": (
-             {"w": 50, "text": "Nobody saw you. The pouch holds a few coins.", "coins": (40, 90)},
+             {"w": 50, "text": "Nobody saw you. The pouch holds a few spirit stones.", "coins": (40, 90)},
              {"w": 50, "text": "Granny Yao always knows. She collects a steep 'tax' from you.", "lose": (30, 60)})},
      )},
     {"id": "race", "npc": "shen_wu", "realm": 0, "title": "The race",
@@ -27,9 +27,9 @@ EVENTS = (
          {"label": "Decline", "outcomes": ({"w": 100, "text": "Shen Wu scoffs and walks away."},)},
      )},
     {"id": "scrap", "npc": "tie_gu", "realm": 0, "title": "Scrap iron",
-     "text": "Tie Gu offers a sack of scrap iron for 50 coins and swears there is ore in it.",
+     "text": "Tie Gu offers a sack of scrap iron for 50 spirit stones and swears there is ore in it.",
      "choices": (
-         {"label": "Buy it (50 coins)", "cost": 50, "outcomes": (
+         {"label": "Buy it (50 spirit stones)", "cost": 50, "outcomes": (
              {"w": 55, "text": "There really is ore in it. You sell it back to him for more.", "coins": (90, 160)},
              {"w": 45, "text": "It is just rust. Tie Gu shrugs."})},
          {"label": "Walk away", "outcomes": ({"w": 100, "text": "Tie Gu puts the sack away without a word."},)},
@@ -44,7 +44,7 @@ EVENTS = (
     {"id": "lot", "npc": "madam_zhu", "realm": 1, "title": "A private lot",
      "text": "Madam Zhu lets you bid on a sealed lot before the public auction opens.",
      "choices": (
-         {"label": "Bid 150 coins", "cost": 150, "outcomes": (
+         {"label": "Bid 150 spirit stones", "cost": 150, "outcomes": (
              {"w": 30, "text": "The lot was a relic. She buys it back at a premium.", "coins": (180, 260)},
              {"w": 30, "text": "The lot was a sealed pill. You keep it.", "item": "qi_pill"},
              {"w": 40, "text": "The lot was a fake. Madam Zhu smiles sympathetically."})},
@@ -62,21 +62,21 @@ EVENTS = (
      "choices": (
          {"label": "Volunteer", "outcomes": (
              {"w": 70, "text": "You find only mist and a stray pelt. Elder Mu pays you.", "coins": (30, 60)},
-             {"w": 30, "text": "Something formless moves in the fog. You run, losing coins from your purse.", "lose": (20, 40)})},
-         {"label": "Report it and stay put", "outcomes": ({"w": 100, "text": "Elder Mu notes it down and gives you a few coins for the report.", "coins": (5, 15)},)},
+             {"w": 30, "text": "Something formless moves in the fog. You run, losing spirit stones from your purse.", "lose": (20, 40)})},
+         {"label": "Report it and stay put", "outcomes": ({"w": 100, "text": "Elder Mu notes it down and gives you a few spirit stones for the report.", "coins": (5, 15)},)},
      )},
     {"id": "spar", "npc": "shen_wu", "realm": 2, "title": "Sparring bet",
-     "text": "Shen Wu challenges you to a sparring match with 60 coins on it.",
+     "text": "Shen Wu challenges you to a sparring match with 60 spirit stones on it.",
      "choices": (
-         {"label": "Accept (60 coins)", "cost": 60, "outcomes": (
+         {"label": "Accept (60 spirit stones)", "cost": 60, "outcomes": (
              {"w": 55, "text": "You win the exchange and he pays double.", "coins": (120, 120)},
              {"w": 45, "text": "He wins and gloats."})},
          {"label": "Decline", "outcomes": ({"w": 100, "text": "Shen Wu calls you a coward, then leaves."},)},
      )},
     {"id": "herb", "npc": "granny_yao", "realm": 2, "title": "A rare herb",
-     "text": "A rare spirit herb has appeared at Granny Yao's stall for 400 coins.",
+     "text": "A rare spirit herb has appeared at Granny Yao's stall for 400 spirit stones.",
      "choices": (
-         {"label": "Buy it (400 coins)", "cost": 400, "outcomes": (
+         {"label": "Buy it (400 spirit stones)", "cost": 400, "outcomes": (
              {"w": 100, "text": "You grind it and drink. Qi floods your meridians.", "qi_hours": 5},)},
          {"label": "Not today", "outcomes": ({"w": 100, "text": "Granny Yao puts it back in the jar."},)},
      )},

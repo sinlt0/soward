@@ -372,7 +372,7 @@ async def grant_server(guild_id: int, days: Optional[int]) -> Optional[float]:
 
 async def create_key(days: Optional[int], label: str, user_id: int) -> str:
     part = lambda: secrets.token_hex(4).upper()
-    key = f"SOWARD-{part()}-{part()}-{part()}"
+    key = f"ZYRO-{part()}-{part()}-{part()}"
     await db.raw_execute(
         "INSERT INTO premium_keys (key_id, duration_days, duration_label, used, created_by, created_at) VALUES (?, ?, ?, 0, ?, ?)",
         (key, days if days is not None else 36500, label, user_id, time.time()))

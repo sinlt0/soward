@@ -80,8 +80,8 @@
     return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
   }
 
-  function save(key, value) { try { localStorage.setItem("soward_" + key, JSON.stringify(value)); } catch (e) {} }
-  function load(key, fallback) { try { var raw = localStorage.getItem("soward_" + key); return raw == null ? fallback : JSON.parse(raw); } catch (e) { return fallback; } }
+  function save(key, value) { try { localStorage.setItem("zyro_" + key, JSON.stringify(value)); } catch (e) {} }
+  function load(key, fallback) { try { var raw = localStorage.getItem("zyro_" + key); return raw == null ? fallback : JSON.parse(raw); } catch (e) { return fallback; } }
 
   var toastTimer = null;
   function toast(message) {
@@ -434,7 +434,7 @@
     var cards = [];
     if (musicOn) cards.push(["music", "Music", "Search songs, build playlists and show what you are listening to."]);
     if (gameIds.length) cards.push(["games", "Games", "Play " + gameIds.map(function (id) { return id.charAt(0).toUpperCase() + id.slice(1); }).join(", ") + " with friends in this session."]);
-    var box = h("div", { class: "hub" }, h("h1", { text: "Soward" }), h("p", { class: "muted", text: "Pick an app to open." }));
+    var box = h("div", { class: "hub" }, h("h1", { text: "Zyro" }), h("p", { class: "muted", text: "Pick an app to open." }));
     var grid = h("div", { class: "hub-grid" });
     cards.forEach(function (card) {
       grid.appendChild(h("button", { class: "hub-card", type: "button", onclick: function () { state.mode = card[0]; render(); } },
@@ -448,11 +448,11 @@
 
   function viewGames() {
     var box = h("div", { class: "view" });
-    if (!window.SowardGames) {
+    if (!window.ZyroGames) {
       box.appendChild(h("p", { class: "muted", text: "Games could not load. Reopen the activity." }));
       return box;
     }
-    window.SowardGames.mount(box, { api: api, h: h, toast: toast, user: user, instanceId: discord.instanceId || "", games: gameIds, setPresence: setGamePresence });
+    window.ZyroGames.mount(box, { api: api, h: h, toast: toast, user: user, instanceId: discord.instanceId || "", games: gameIds, setPresence: setGamePresence });
     return box;
   }
 
@@ -617,7 +617,7 @@
     var searchValue = document.getElementById("q") ? document.getElementById("q").value : state.query;
     $app.textContent = "";
     if (state.mode === "hub") {
-      if (window.SowardGames) window.SowardGames.suspend();
+      if (window.ZyroGames) window.ZyroGames.suspend();
       $app.appendChild(viewHub());
       return;
     }
@@ -641,7 +641,7 @@
     else if (state.view === "history") body = viewHistory();
     else if (state.view === "settings") body = viewSettings();
     else body = viewHome();
-    if (state.mode !== "games" && window.SowardGames) window.SowardGames.suspend();
+    if (state.mode !== "games" && window.ZyroGames) window.ZyroGames.suspend();
     var content = h("main", { class: "content" }, state.mode === "games" ? null : top, body);
     var shell = h("div", { class: "shell" + (state.mode === "games" ? " games-mode" : "") + (state.mode === "games" && apps.length < 2 ? " no-rail" : ""), }, nav, content, state.queueOpen && state.mode !== "games" ? renderQueue() : null);
     $app.appendChild(shell);
@@ -684,7 +684,7 @@
   function boot() {
     if (!apps.length) return fail("Not available", "No apps are turned on for this bot.");
     if (!enabled) return fail("Not available", "The music activity is not set up on this bot yet.");
-    if (!discord.embedded) return fail("Open this inside Discord", "Soward Music is a Discord Activity. Launch it from the App Launcher in a server, a DM or a voice channel.");
+    if (!discord.embedded) return fail("Open this inside Discord", "Zyro Music is a Discord Activity. Launch it from the App Launcher in a server, a DM or a voice channel.");
     discord.ready().then(function () {
       return discord.authorize(["identify", "rpc.activities.write"]);
     }).then(function (res) {

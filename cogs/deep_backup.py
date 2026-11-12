@@ -76,7 +76,7 @@ class DeepBackup(commands.Cog):
         cfg = await store.get_config(ctx.guild.id)
         state = f"on, every {max(config.DEEP_BACKUP_MIN_HOURS, int(cfg['hours']))}h" if cfg["enabled"] else "off"
         body = (
-            "Saves roles, channels, permissions **and** Soward's settings, embeds, panels and custom commands. Restoring puts them back without deleting anything extra.\n\n"
+            "Saves roles, channels, permissions **and** Zyro's settings, embeds, panels and custom commands. Restoring puts them back without deleting anything extra.\n\n"
             "`deepbackup create [label]` · `deepbackup list` · `deepbackup info <id>` · `deepbackup restore <id> [roles|channels|settings|content|all]`\n"
             "`deepbackup auto <on|off> [hours]` · `deepbackup export <id>` · `deepbackup delete <id>`\n\n"
             f"**Automatic:** {state} (newest {config.DEEP_BACKUP_KEEP} kept)\n"

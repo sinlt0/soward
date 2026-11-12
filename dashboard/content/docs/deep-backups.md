@@ -7,7 +7,7 @@ group: Security
 
 ## How it works
 
-A **deep backup** saves your whole setup: roles and their permissions, categories and channels and their permission overwrites, plus Soward's settings, embeds, panels and custom commands. You can take one by hand or let Soward take one automatically, then restore it with one command if something goes wrong. This is a **Premium** feature.
+A **deep backup** saves your whole setup: roles and their permissions, categories and channels and their permission overwrites, plus Zyro's settings, embeds, panels and custom commands. You can take one by hand or let Zyro take one automatically, then restore it with one command if something goes wrong. This is a **Premium** feature.
 
 The free `!backup` command only saves roles and channels. Deep backups also save your bot configuration. See [the Security Center](/docs/security-center) for `!backup`.
 
@@ -46,7 +46,7 @@ Restoring asks you to confirm, takes a **safety backup** of the current server f
 - Puts back settings, embeds, panels and custom commands.
 - Does **not** delete anything that is not in the backup.
 
-Large servers take a few minutes. If Discord rate limits Soward, it pauses and tells you to run the restore again. Items that already exist are reused.
+Large servers take a few minutes. If Discord rate limits Zyro, it pauses and tells you to run the restore again. Items that already exist are reused.
 
 ## Good to know
 

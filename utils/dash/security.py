@@ -133,7 +133,7 @@ async def nsfw_channels_section(guild: discord.Guild) -> dict:
 
 
 def _nsfw_reason(ctx: ActionContext, what: str) -> str:
-    return f"[Soward NSFW] {what} - requested by {ctx.user_name} ({ctx.user_id}) from the dashboard"
+    return f"[Zyro NSFW] {what} - requested by {ctx.user_name} ({ctx.user_id}) from the dashboard"
 
 
 async def _nsfw_log(ctx: ActionContext, detail: str) -> None:

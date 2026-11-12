@@ -3,7 +3,7 @@ import discord
 from utils.colors import ERROR, NEUTRAL, SUCCESS
 import config
 
-_FOOTER_TEXT = f"-# {config.BOT_NAME} · Made by Soward Team"
+_FOOTER_TEXT = f"-# {config.BOT_NAME}  ·  Made By Lexor Development"
 
 def footer_block() -> list:
     return [

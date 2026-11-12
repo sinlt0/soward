@@ -3,7 +3,7 @@ import logging
 from collections import defaultdict
 from typing import Any, Callable, Coroutine
 
-log = logging.getLogger("soward.bus")
+log = logging.getLogger("zyro.bus")
 
 class EventBus:
     def __init__(self):

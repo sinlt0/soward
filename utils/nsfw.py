@@ -11,7 +11,7 @@ from discord.ext import commands
 
 from utils import db
 
-log = logging.getLogger("soward.nsfw")
+log = logging.getLogger("zyro.nsfw")
 
 SUPPORTED_CHANNEL_TYPES = (discord.TextChannel, discord.ForumChannel)
 

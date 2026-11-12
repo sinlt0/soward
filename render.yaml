@@ -7,57 +7,57 @@ services:
     startCommand: python main.py
     healthCheckPath: /health
     envVars:
-      - key: SOWARD_TOKEN
+      - key: ZYRO_TOKEN
         sync: false
-      - key: SOWARD_MONGO_URI
+      - key: ZYRO_MONGO_URI
         sync: false
-      - key: SOWARD_MONGO_DB
+      - key: ZYRO_MONGO_DB
         sync: false
-      - key: SOWARD_LAVALINK_HOST
+      - key: ZYRO_LAVALINK_HOST
         sync: false
-      - key: SOWARD_LAVALINK_PORT
+      - key: ZYRO_LAVALINK_PORT
         sync: false
-      - key: SOWARD_LAVALINK_PASSWORD
+      - key: ZYRO_LAVALINK_PASSWORD
         sync: false
-      - key: SOWARD_LAVALINK_SECURE
+      - key: ZYRO_LAVALINK_SECURE
         sync: false
-      - key: SOWARD_WEBSUB
+      - key: ZYRO_WEBSUB
         value: "1"
-      - key: SOWARD_WEBSUB_SECRET
+      - key: ZYRO_WEBSUB_SECRET
         generateValue: true
-      - key: SOWARD_YOUTUBE_API_KEY
+      - key: ZYRO_YOUTUBE_API_KEY
         sync: false
-      - key: SOWARD_TWITCH_CLIENT_ID
+      - key: ZYRO_TWITCH_CLIENT_ID
         sync: false
-      - key: SOWARD_TWITCH_CLIENT_SECRET
+      - key: ZYRO_TWITCH_CLIENT_SECRET
         sync: false
-      - key: SOWARD_DEV_LOG_COMMANDS_WEBHOOK
+      - key: ZYRO_DEV_LOG_COMMANDS_WEBHOOK
         sync: false
-      - key: SOWARD_DEV_LOG_LIFECYCLE_WEBHOOK
+      - key: ZYRO_DEV_LOG_LIFECYCLE_WEBHOOK
         sync: false
-      - key: SOWARD_DEV_LOG_ERRORS_WEBHOOK
+      - key: ZYRO_DEV_LOG_ERRORS_WEBHOOK
         sync: false
-      - key: SOWARD_DEV_LOG_GUILDS_WEBHOOK
+      - key: ZYRO_DEV_LOG_GUILDS_WEBHOOK
         sync: false
-      - key: SOWARD_DEV_STATS_WEBHOOK
+      - key: ZYRO_DEV_STATS_WEBHOOK
         sync: false
-      - key: SOWARD_CLIENT_ID
+      - key: ZYRO_CLIENT_ID
         sync: false
-      - key: SOWARD_CLIENT_SECRET
+      - key: ZYRO_CLIENT_SECRET
         sync: false
-      - key: SOWARD_DASHBOARD_URL
+      - key: ZYRO_DASHBOARD_URL
         sync: false
-      - key: SOWARD_SESSION_SECRET
+      - key: ZYRO_SESSION_SECRET
         generateValue: true
-      - key: SOWARD_IP_SALT
+      - key: ZYRO_IP_SALT
         generateValue: true
-      - key: SOWARD_BEHIND_PROXY
+      - key: ZYRO_BEHIND_PROXY
         value: "1"
-      - key: SOWARD_IPINTEL_PROVIDER
+      - key: ZYRO_IPINTEL_PROVIDER
         value: none
-      - key: SOWARD_IPINTEL_KEY
+      - key: ZYRO_IPINTEL_KEY
         sync: false
-      - key: SOWARD_SUPPORT_URL
+      - key: ZYRO_SUPPORT_URL
         sync: false
       - key: PORT
         value: 8080

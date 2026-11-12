@@ -61,7 +61,7 @@ Most commands only work inside a server. `!ping`, `!uptime`, `!about` and `!avat
 
 - The default prefix is `!`.
 - A prefix can be up to 5 characters and cannot be empty or only spaces.
-- Mentioning the bot always works as a prefix, for example `@Soward help`. Use this if you forget a custom prefix.
+- Mentioning the bot always works as a prefix, for example `@Zyro help`. Use this if you forget a custom prefix.
 - The prefix permission check is strict. Fake permissions from `!fakeperm` do not allow changing the prefix.
 - Servers with Premium can also let members run commands with no prefix at all. See [Premium](/docs/premium).
 
@@ -72,6 +72,6 @@ You can also change the prefix from your server's settings page. See [Using the 
 ## Troubleshooting
 
 - **A command says it only works in a server.** `!userinfo`, `!serverinfo`, `!roleinfo`, `!channelinfo`, `!servericon` and `!prefix` cannot be used in direct messages.
-- **I forgot my prefix.** Mention the bot and run `@Soward prefix`.
+- **I forgot my prefix.** Mention the bot and run `@Zyro prefix`.
 - **"Prefix must be 5 characters or fewer."** Pick a shorter prefix.
 - **`!userinfo` shows a member's status as Offline or Unknown.** Status depends on what Discord shares with the bot, so it can be inaccurate.

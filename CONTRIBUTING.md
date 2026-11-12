@@ -1,10 +1,10 @@
-# Contributing to Soward
+# Contributing to Zyro
 
 Thanks for your interest in contributing!
 
 ## Before You Start
 
-Soward is licensed under the **Apache License 2.0** (see `LICENSE` and
+Zyro is licensed under the **Apache License 2.0** (see `LICENSE` and
 `NOTICE`). By submitting a contribution you agree it is licensed under the same
 terms, and that the attribution requirements (crediting Sinlt as original
 author) continue to apply.

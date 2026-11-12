@@ -68,7 +68,7 @@ class ServerTemplates(commands.Cog):
         )
         await ctx.send(view=info_layout(f"{e('info')} Server templates", body))
 
-    @template_group.command(name="presets", aliases=["builtin"], help="List Soward's built-in presets.")
+    @template_group.command(name="presets", aliases=["builtin"], help="List Zyro's built-in presets.")
     async def presets(self, ctx: commands.Context):
         lines = []
         for meta in template_presets.all_meta():
@@ -136,7 +136,7 @@ class ServerTemplates(commands.Cog):
             return await self._not_found(ctx, state)
         dry = any(part.lower() in ("preview", "dry", "dryrun", "plan", "diff") for part in parts)
         if not dry and state == "builtin" and (data.get("meta") or {}).get("premium") and not await tickets.is_premium(ctx.guild.id) and ctx.author.id not in config.ALL_PRIVILEGED_IDS:
-            return await ctx.send(view=error_layout("Premium preset", f"**{row['name']}** uses more than the free limits (a staff ladder, 16 panels and 79 roles), so it needs Soward Premium on this server. You can still preview it with `template preview {ref.lower()}`."))
+            return await ctx.send(view=error_layout("Premium preset", f"**{row['name']}** uses more than the free limits (a staff ladder, 16 panels and 79 roles), so it needs Zyro Premium on this server. You can still preview it with `template preview {ref.lower()}`."))
         chosen = set()
         wipe = False
         full = False
@@ -172,7 +172,7 @@ class ServerTemplates(commands.Cog):
         me = guild.me.guild_permissions
         missing = [n for n, ok in (("Manage Roles", me.manage_roles), ("Manage Channels", me.manage_channels), ("Manage Webhooks", me.manage_webhooks)) if not ok]
         if missing:
-            return await ctx.send(view=error_layout("Missing permissions", "Soward needs: " + ", ".join(missing) + "."))
+            return await ctx.send(view=error_layout("Missing permissions", "Zyro needs: " + ", ".join(missing) + "."))
         foreign = state == "saved" and row["owner_id"] != ctx.author.id
         c = engine.summary_counts(data)
         body = (
@@ -187,22 +187,22 @@ class ServerTemplates(commands.Cog):
         if full:
             bots, old_channels, old_roles = engine.predict_full(guild)
             body += (
-                f"\n\n**FULL CLEAN.** Soward will kick **{bots} bots**, delete **all {old_channels} channels and categories** and **{old_roles} roles** "
+                f"\n\n**FULL CLEAN.** Zyro will kick **{bots} bots**, delete **all {old_channels} channels and categories** and **{old_roles} roles** "
                 "(including the quarantine role), then rebuild everything from the template with a fresh Quarantined role. "
                 "Every member loses their roles and must verify again. Messages in deleted channels, open tickets, log channels and saved panels are lost. A backup is taken first (`backup restore <id>`).\n"
-                "Kept: Soward, the rules and updates channels Discord requires, roles above Soward and integration roles."
+                "Kept: Zyro, the rules and updates channels Discord requires, roles above Zyro and integration roles."
             )
         elif wipe:
             old_channels, old_roles = await engine.predict_clean(guild, data, chosen)
             body += (
-                f"\n\n**Clean mode is on.** After building, Soward deletes about **{old_channels} channels and categories** and **{old_roles} roles** "
+                f"\n\n**Clean mode is on.** After building, Zyro deletes about **{old_channels} channels and categories** and **{old_roles} roles** "
                 "that are not in the template. This cannot be undone, but a backup is taken first (`backup restore <id>`).\n"
-                "Kept: log channels, open tickets, the rules and updates channels, Soward's quarantine role, bot roles and roles above Soward."
+                "Kept: log channels, open tickets, the rules and updates channels, Zyro's quarantine role, bot roles and roles above Zyro."
             )
         else:
             body += "\nNothing is deleted. Add `clean` to remove old channels and roles that are not in the template."
         if "roles" in chosen and "everyone_perms" in (data.get("flags") or {}) and not foreign:
-            body += "\n\n**@everyone permissions are turned off.** Only members with the member role (Fam) can talk, so existing members need that role. Soward will not touch anything else about your members."
+            body += "\n\n**@everyone permissions are turned off.** Only members with the member role (Fam) can talk, so existing members need that role. Zyro will not touch anything else about your members."
         if foreign:
             body += "\nThis is another server's template, so dangerous permissions are removed and lock and bypass settings are skipped."
         confirm = ConfirmLayout(f"{e('shield')} Apply template", body, author_id=ctx.author.id, color=ERROR if wipe else NEUTRAL, timeout=120.0)
@@ -250,7 +250,7 @@ class ServerTemplates(commands.Cog):
             return await message.edit(view=error_layout("Template stopped", f"{partial}\nNothing already built was removed. Run `template apply {ref.lower()}` again to continue, roles and channels that exist are reused."))
         failure = task.exception()
         if isinstance(failure, engine.Stalled):
-            return await message.edit(view=error_layout("Template paused by rate limit", f"Discord stopped answering for several minutes, so Soward stopped instead of hanging. {partial}\nWait a few minutes, then run `template apply {ref.lower()}` again to continue, roles and channels that exist are reused."))
+            return await message.edit(view=error_layout("Template paused by rate limit", f"Discord stopped answering for several minutes, so Zyro stopped instead of hanging. {partial}\nWait a few minutes, then run `template apply {ref.lower()}` again to continue, roles and channels that exist are reused."))
         if failure is not None:
             return await message.edit(view=error_layout("Template failed", f"Stopped part-way: {str(failure)[:200]}"))
         if state == "saved":
@@ -280,7 +280,7 @@ class ServerTemplates(commands.Cog):
             return await message.edit(view=result)
         await target.send(view=result)
         try:
-            await old.delete(reason="Soward server template clean")
+            await old.delete(reason="Zyro server template clean")
         except discord.HTTPException:
             await message.edit(view=result)
 

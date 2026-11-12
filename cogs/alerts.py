@@ -838,7 +838,7 @@ class Alerts(commands.Cog):
         if not websub.enabled():
             return await ctx.send(view=error_layout(
                 "WebSub Disabled",
-                "Set `SOWARD_DASHBOARD_URL` (or `SOWARD_WEBSUB_CALLBACK`) to a public https address and make sure `SOWARD_IPC_SECRET` is set. Alerts use polling until then.",
+                "Set `ZYRO_DASHBOARD_URL` (or `ZYRO_WEBSUB_CALLBACK`) to a public https address and make sure `ZYRO_IPC_SECRET` is set. Alerts use polling until then.",
             ))
         subs = await db.raw_fetch("SELECT DISTINCT target_id FROM alert_subscriptions WHERE platform='youtube'")
         channels = [r["target_id"] for r in subs]

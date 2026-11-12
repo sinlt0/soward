@@ -10,7 +10,7 @@ import motor.motor_asyncio
 
 import config
 
-log = logging.getLogger("soward.db")
+log = logging.getLogger("zyro.db")
 
 _mongo_client: Optional[motor.motor_asyncio.AsyncIOMotorClient] = None
 _mongo_db: Optional[motor.motor_asyncio.AsyncIOMotorDatabase] = None
@@ -50,14 +50,17 @@ async def init(bot_loop: asyncio.AbstractEventLoop) -> None:
     asyncio.ensure_future(_mongo_reconnect_loop())
 
     sqlite_path = Path(config.SQLITE_PATH)
-    legacy_path = sqlite_path.parent / "nexus.db"
-    if not sqlite_path.exists() and legacy_path.exists():
-        legacy_path.rename(sqlite_path)
-        for suffix in ("-wal", "-shm"):
-            legacy_extra = sqlite_path.parent / f"nexus.db{suffix}"
-            if legacy_extra.exists():
-                legacy_extra.rename(sqlite_path.parent / f"soward.db{suffix}")
-        log.info("Renamed legacy nexus.db to soward.db after rebrand.")
+    if not sqlite_path.exists():
+        for legacy_name in ("soward.db", "nexus.db"):
+            legacy_path = sqlite_path.parent / legacy_name
+            if legacy_path.exists():
+                legacy_path.rename(sqlite_path)
+                for suffix in ("-wal", "-shm"):
+                    legacy_extra = sqlite_path.parent / f"{legacy_name}{suffix}"
+                    if legacy_extra.exists():
+                        legacy_extra.rename(sqlite_path.parent / f"{sqlite_path.name}{suffix}")
+                log.info("Renamed legacy %s to %s after rebrand.", legacy_name, sqlite_path.name)
+                break
 
     is_fresh_database = not sqlite_path.exists() or sqlite_path.stat().st_size == 0
 
@@ -119,18 +122,15 @@ async def init(bot_loop: asyncio.AbstractEventLoop) -> None:
     except Exception:
         pass
 
-    for column in ("weapon TEXT NOT NULL DEFAULT ''", "armor TEXT NOT NULL DEFAULT ''", "charm TEXT NOT NULL DEFAULT ''", "safe INTEGER NOT NULL DEFAULT 0", "bloodline TEXT NOT NULL DEFAULT ''", "bonds INTEGER NOT NULL DEFAULT 0", "weapon_r INTEGER NOT NULL DEFAULT 0", "armor_r INTEGER NOT NULL DEFAULT 0", "charm_r INTEGER NOT NULL DEFAULT 0", "weapon_e TEXT NOT NULL DEFAULT ''", "armor_e TEXT NOT NULL DEFAULT ''", "charm_e TEXT NOT NULL DEFAULT ''", "title TEXT NOT NULL DEFAULT ''"):
+    for column in ("weapon TEXT NOT NULL DEFAULT ''", "armor TEXT NOT NULL DEFAULT ''", "charm TEXT NOT NULL DEFAULT ''", "safe INTEGER NOT NULL DEFAULT 0", "bloodline TEXT NOT NULL DEFAULT ''", "bonds INTEGER NOT NULL DEFAULT 0"):
         try:
             await _sqlite_conn.execute(f"ALTER TABLE cult_characters ADD COLUMN {column}")
             await _sqlite_conn.commit()
         except Exception:
             pass
 
-    try:
-        await _sqlite_conn.execute("ALTER TABLE clan_members ADD COLUMN branch TEXT NOT NULL DEFAULT ''")
-        await _sqlite_conn.commit()
-    except Exception:
-        pass
+    from rpg import schema
+    await schema.ensure(True)
 
     try:
         await _sqlite_conn.execute("ALTER TABLE clans ADD COLUMN stipend_on INTEGER NOT NULL DEFAULT 1")
@@ -361,7 +361,8 @@ async def _migrate_legacy_custom_commands() -> None:
         await _sqlite_conn.commit()
 
 async def _bootstrap_sqlite() -> None:
-    ddl_statements = [
+    from rpg import schema
+    ddl_statements = list(schema.TABLES) + [
         """CREATE TABLE IF NOT EXISTS kv (
             ns TEXT NOT NULL,
             key TEXT NOT NULL,
@@ -991,14 +992,6 @@ async def _bootstrap_sqlite() -> None:
             channel_id INTEGER PRIMARY KEY,
             guild_id INTEGER NOT NULL
         )""",
-        """CREATE TABLE IF NOT EXISTS cult_raid_log (
-            attacker_id INTEGER NOT NULL,
-            target_id INTEGER NOT NULL,
-            result TEXT NOT NULL DEFAULT '',
-            coins INTEGER NOT NULL DEFAULT 0,
-            item TEXT NOT NULL DEFAULT '',
-            at REAL NOT NULL DEFAULT 0
-        )""",
         """CREATE TABLE IF NOT EXISTS cult_treasury (
             owner_id INTEGER PRIMARY KEY,
             coins INTEGER NOT NULL DEFAULT 0,
@@ -1022,27 +1015,6 @@ async def _bootstrap_sqlite() -> None:
             role TEXT NOT NULL DEFAULT 'member',
             joined_at REAL NOT NULL,
             branch TEXT NOT NULL DEFAULT ''
-        )""",
-        """CREATE TABLE IF NOT EXISTS clan_branches (
-            clan_id TEXT NOT NULL,
-            branch_key TEXT NOT NULL,
-            name TEXT NOT NULL,
-            founder_id INTEGER NOT NULL,
-            created_at REAL NOT NULL DEFAULT 0,
-            PRIMARY KEY (clan_id, branch_key)
-        )""",
-        """CREATE TABLE IF NOT EXISTS cult_titles (
-            user_id INTEGER NOT NULL,
-            title_key TEXT NOT NULL,
-            earned_at REAL NOT NULL DEFAULT 0,
-            PRIMARY KEY (user_id, title_key)
-        )""",
-        """CREATE TABLE IF NOT EXISTS cult_story (
-            user_id INTEGER PRIMARY KEY,
-            chapter INTEGER NOT NULL DEFAULT 0,
-            progress TEXT NOT NULL DEFAULT '{}',
-            flags TEXT NOT NULL DEFAULT '{}',
-            updated_at REAL NOT NULL DEFAULT 0
         )""",
         """CREATE TABLE IF NOT EXISTS clan_invites (
             clan_id TEXT NOT NULL,

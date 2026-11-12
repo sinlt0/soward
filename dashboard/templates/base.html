@@ -29,6 +29,7 @@
     </nav>
     <div class="topbar__actions">
       {% if user %}
+      {% if is_staff %}<a class="btn btn--ghost btn--sm" href="{{ url_for('admin_home') }}">Admin</a>{% endif %}
       <a class="avatar-chip" href="{{ url_for('servers') }}"><img src="{{ user.avatar }}" alt="" width="26" height="26">{{ user.name }}</a>
       <a class="btn btn--ghost btn--sm" href="{{ url_for('logout') }}">Sign out</a>
       {% else %}
@@ -42,6 +43,7 @@
         {% for label, endpoint in nav %}<a href="{{ url_for(endpoint) }}">{{ label }}</a>{% endfor %}
         <a href="{{ url_for('servers') }}">Dashboard</a>
         <a href="{{ url_for('invite') }}">Add to server</a>
+        {% if is_staff %}<a href="{{ url_for('admin_home') }}">Admin</a>{% endif %}
         {% if user %}<a href="{{ url_for('logout') }}">Sign out</a>{% endif %}
       </div>
     </details>

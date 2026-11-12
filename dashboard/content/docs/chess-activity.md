@@ -45,7 +45,7 @@ Anyone in the session can open **Open rooms** and press **Join**. People who joi
 
 ### Your own WAD files
 
-Pick **My own WAD files** to load a full game IWAD such as DOOM.WAD, DOOM2.WAD or Freedoom, add-on level WADs, or both. Add-ons run on top of the built-in Doom 1 when no IWAD is picked. Add-on levels made for Doom II need a Doom II IWAD, and Soward tells you when one is missing. In solo mode the files stay in your browser. In a shared room the host's files are sent to the room (up to 4 files, 16 MB each and 24 MB in total) so everyone plays the same WADs, and they are deleted when the room closes. Only genuine Doom WAD files are accepted. Only the bundled Doom 1 shareware is provided. Bring your own copies of the other games.
+Pick **My own WAD files** to load a full game IWAD such as DOOM.WAD, DOOM2.WAD or Freedoom, add-on level WADs, or both. Add-ons run on top of the built-in Doom 1 when no IWAD is picked. Add-on levels made for Doom II need a Doom II IWAD, and Zyro tells you when one is missing. In solo mode the files stay in your browser. In a shared room the host's files are sent to the room (up to 4 files, 16 MB each and 24 MB in total) so everyone plays the same WADs, and they are deleted when the room closes. Only genuine Doom WAD files are accepted. Only the bundled Doom 1 shareware is provided. Bring your own copies of the other games.
 
 ### Controls
 

@@ -1,0 +1,21 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Database{% endblock %}
+{% block admin_heading %}Database{% endblock %}
+{% block admin_body %}
+<div class="stats">
+  <div class="stat"><div class="stat__value">{{ "MongoDB + SQLite" if d.mongo else "SQLite only" }}</div><div class="stat__label">Storage</div></div>
+  <div class="stat"><div class="stat__value">{{ d.tables | length }}</div><div class="stat__label">Tables</div></div>
+  <div class="stat"><div class="stat__value">{{ "{:,}".format(d.total_rows) }}</div><div class="stat__label">Total rows</div></div>
+  <div class="stat"><div class="stat__value">{{ d.last_sync | ago if d.last_sync else "never" }}</div><div class="stat__label">Last MongoDB sync</div></div>
+</div>
+<section class="panel">
+  <div class="panel__head"><h2>MongoDB sync</h2><p>Copy every table to MongoDB right now instead of waiting for the next scheduled sync.</p></div>
+  <div class="adminform"><div><button class="btn btn--primary" type="button" data-admin="database/sync"{% if not d.mongo %} disabled{% endif %}>Sync now</button>{% if not d.mongo %} <small class="hint">MongoDB is not connected.</small>{% endif %}</div></div>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Tables</h2><p>Row counts only. Nothing here can be edited.</p></div>
+  <div class="tablewrap"><table class="table"><thead><tr><th>Table</th><th>Rows</th></tr></thead><tbody>
+    {% for t in d.tables %}<tr><td data-label="Table"><code>{{ t.name }}</code></td><td data-label="Rows">{{ "{:,}".format(t.rows) }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}

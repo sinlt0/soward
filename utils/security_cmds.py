@@ -225,7 +225,7 @@ async def apply_preset(ctx: commands.Context, name: str, dry: bool = False):
 async def export_settings(ctx: commands.Context):
     import io
     payload = await settings.export_json(ctx.guild.id)
-    await ctx.send(file=discord.File(io.BytesIO(payload.encode()), filename=f"soward-security-{ctx.guild.id}.json"))
+    await ctx.send(file=discord.File(io.BytesIO(payload.encode()), filename=f"zyro-security-{ctx.guild.id}.json"))
 
 
 async def import_settings(ctx: commands.Context, dry: bool = False):

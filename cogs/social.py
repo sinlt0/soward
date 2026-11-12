@@ -78,7 +78,7 @@ class Social(commands.Cog):
         self._og_categories: Optional[set] = None
 
     async def cog_load(self):
-        self.session = aiohttp.ClientSession(headers={"User-Agent": "Soward/1.0"})
+        self.session = aiohttp.ClientSession(headers={"User-Agent": "Zyro/1.0"})
         try:
             async with self.session.get("https://nekos.best/api/v2/endpoints", timeout=aiohttp.ClientTimeout(total=6)) as resp:
                 if resp.status == 200:
@@ -307,7 +307,7 @@ class Social(commands.Cog):
         verb = "dodges an attack from" if target else "dodges"
         await self._do_interaction(ctx, target, "dodge", verb)
 
-    @commands.command(name="hide", help="Hide from someone.")
+    @commands.command(name="lurk", aliases=["hidefrom"], help="Hide from someone.")
     @commands.cooldown(1, 3.0, commands.BucketType.user)
     async def hide_social(self, ctx: commands.Context, target: discord.Member = None):
         verb = "hides from" if target else "is hiding"

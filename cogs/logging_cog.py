@@ -136,7 +136,7 @@ class Logging(commands.Cog):
         MOD_ACTION_LABELS = {
             "ban": "Member banned", "softban": "Member softbanned", "unban": "Member unbanned", "kick": "Member kicked",
             "mute": "Member muted", "unmute": "Member unmuted", "warn": "Member warned",
-            "purge": "Messages purged", "lockdown": "Channel locked", "unlock": "Channel unlocked",
+            "purge": "Messages purged", "lockdown": "Channel locked", "unlock": "Channel unlocked", "hide": "Channel hidden", "unhide": "Channel shown", "nuke": "Channel nuked",
             "slowmode": "Slowmode changed",
             "warn_ladder": "Warning ladder applied", "role_add": "Role added", "role_remove": "Role removed",
         }

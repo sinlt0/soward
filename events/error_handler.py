@@ -5,7 +5,7 @@ from discord.ext import commands
 
 from utils import embeds, emoji_manager
 
-log = logging.getLogger("soward.events.errors")
+log = logging.getLogger("zyro.events.errors")
 
 def setup(bot: commands.Bot) -> None:
     @bot.listen("on_command_error")

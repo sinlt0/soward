@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import config
 
-log = logging.getLogger("soward.mongo_sync")
+log = logging.getLogger("zyro.mongo_sync")
 
 TABLE_KEYS: dict[str, list[str]] = {
     "kv": ["ns", "key"],
@@ -90,6 +90,13 @@ TABLE_KEYS: dict[str, list[str]] = {
     "cult_raid_log": ["attacker_id", "target_id", "at"],
     "cult_titles": ["user_id", "title_key"],
     "cult_story": ["user_id"],
+    "cult_calamity": ["user_id", "day", "slot"],
+    "cult_feats": ["user_id", "feat"],
+    "cult_commissions": ["user_id", "period", "slot"],
+    "cult_weapons": ["weapon_id"],
+    "cult_pouches": ["user_id", "kind"],
+    "market_listings": ["listing_id"],
+    "auctions": ["auction_id"],
     "clan_branches": ["clan_id", "branch_key"],
     "cult_npcs": ["user_id", "npc_id"],
     "cult_rifts": ["user_id"],

@@ -1,6 +1,6 @@
 ---
 title: Voting
-description: Vote for Soward and get no-prefix access for a while.
+description: Vote for Zyro and get no-prefix access for a while.
 order: 54
 group: Fun
 ---

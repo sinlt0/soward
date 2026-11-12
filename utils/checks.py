@@ -84,6 +84,6 @@ def premium_only():
                 import time
                 if row["premium_expires_at"] is None or row["premium_expires_at"] > time.time():
                     return True
-        raise commands.CheckFailure("This feature requires Soward Premium.")
+        raise commands.CheckFailure("This feature requires Zyro Premium.")
 
     return commands.check(predicate)

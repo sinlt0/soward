@@ -1,0 +1,30 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Bans{% endblock %}
+{% block admin_heading %}Bans{% endblock %}
+{% block admin_body %}
+<section class="panel">
+  <div class="panel__head"><h2>Ban from the bot</h2><p>Banned users cannot use Zyro anywhere. A banned server is blocked and Zyro leaves it.</p></div>
+  <form class="adminform" data-admin="bans/add" data-confirm="Add this ban?" data-reload>
+    <div class="formgrid">
+      <div class="stack"><label class="lbl" for="b-type">Type</label><select id="b-type" class="select" name="type"><option value="user">User</option><option value="guild">Server</option></select></div>
+      <div class="stack"><label class="lbl" for="b-id">ID</label><input id="b-id" class="input" name="id" inputmode="numeric" required pattern="[0-9]{5,25}"></div>
+    </div>
+    <div class="stack"><label class="lbl" for="b-reason">Reason</label><input id="b-reason" class="input" name="reason" maxlength="200"></div>
+    <div><button class="btn btn--danger" type="submit">Ban</button></div>
+  </form>
+</section>
+{% for title, kind, rows in (("Banned users", "user", d.users), ("Banned servers", "guild", d.guilds)) %}
+<section class="panel">
+  <div class="panel__head"><h2>{{ title }}</h2></div>
+  {% if rows %}
+  <div class="tablewrap"><table class="table">
+    <thead><tr><th>{{ "User" if kind == "user" else "Server" }}</th><th>Reason</th><th>By</th><th>When</th><th></th></tr></thead>
+    <tbody>{% for r in rows %}
+    <tr><td data-label="Target">{% if kind == "guild" %}<a href="{{ url_for('admin_server', gid=r.id) }}">{{ r.name or "Server" }}</a>{% else %}{{ r.name }}{% endif %}<br><code>{{ r.id }}</code></td>
+      <td data-label="Reason">{{ r.reason }}</td><td data-label="By"><code>{{ r.by }}</code></td><td data-label="When">{{ r.at | ago if r.at else "unknown" }}</td>
+      <td class="rowtools"><button class="btn btn--ghost btn--sm" type="button" data-admin="bans/remove" data-body='{"type":"{{ kind }}","id":"{{ r.id }}"}' data-reload>Unban</button></td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<div class="empty empty--inset">Nobody is banned.</div>{% endif %}
+</section>
+{% endfor %}
+{% endblock %}

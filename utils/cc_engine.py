@@ -5,6 +5,8 @@ from typing import Optional
 
 import discord
 
+from utils import main_role
+
 TRIGGER_COMMAND = "command"
 TRIGGER_STARTS = "starts_with"
 TRIGGER_CONTAINS = "contains"
@@ -516,30 +518,30 @@ async def process_actions(
             elif action == "lockchannel":
                 ch = resolve_channel(guild, value) if value else ctx.channel
                 if ch and guild.me.guild_permissions.manage_channels:
-                    ow = ch.overwrites_for(guild.default_role)
+                    ow = ch.overwrites_for(await main_role.get(guild))
                     ow.send_messages = False
-                    await ch.set_permissions(guild.default_role, overwrite=ow)
+                    await ch.set_permissions(await main_role.get(guild), overwrite=ow)
 
             elif action == "unlockchannel":
                 ch = resolve_channel(guild, value) if value else ctx.channel
                 if ch and guild.me.guild_permissions.manage_channels:
-                    ow = ch.overwrites_for(guild.default_role)
+                    ow = ch.overwrites_for(await main_role.get(guild))
                     ow.send_messages = None
-                    await ch.set_permissions(guild.default_role, overwrite=ow)
+                    await ch.set_permissions(await main_role.get(guild), overwrite=ow)
 
             elif action == "hidechannel":
                 ch = resolve_channel(guild, value) if value else ctx.channel
                 if ch and guild.me.guild_permissions.manage_channels:
-                    ow = ch.overwrites_for(guild.default_role)
+                    ow = ch.overwrites_for(await main_role.get(guild))
                     ow.view_channel = False
-                    await ch.set_permissions(guild.default_role, overwrite=ow)
+                    await ch.set_permissions(await main_role.get(guild), overwrite=ow)
 
             elif action == "showchannel":
                 ch = resolve_channel(guild, value) if value else ctx.channel
                 if ch and guild.me.guild_permissions.manage_channels:
-                    ow = ch.overwrites_for(guild.default_role)
+                    ow = ch.overwrites_for(await main_role.get(guild))
                     ow.view_channel = None
-                    await ch.set_permissions(guild.default_role, overwrite=ow)
+                    await ch.set_permissions(await main_role.get(guild), overwrite=ow)
 
             elif action == "createrole":
                 parts = value.split("|")

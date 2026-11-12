@@ -16,7 +16,7 @@ from utils.components import ConfirmLayout, error_layout, footer_block, info_lay
 from utils.converters import DurationConverter, format_duration
 import config
 
-log = logging.getLogger("soward.giveaways")
+log = logging.getLogger("zyro.giveaways")
 
 
 

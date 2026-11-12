@@ -1,15 +1,15 @@
 ---
 title: Bot identity
-description: Give Soward its own nickname, avatar, banner and bio in your server.
+description: Give Zyro its own nickname, avatar, banner and bio in your server.
 order: 62
 group: Utility
 ---
 
 ## What this does
 
-Bot identity lets you change how Soward looks in your server only: its nickname, avatar, banner and About Me. Other servers are not affected.
+Bot identity lets you change how Zyro looks in your server only: its nickname, avatar, banner and About Me. Other servers are not affected.
 
-This feature needs **Soward Premium** on the server. See [Premium](/docs/premium).
+This feature needs **Zyro Premium** on the server. See [Premium](/docs/premium).
 
 ## Quick start
 
@@ -58,7 +58,7 @@ Administrators can use every command. Fake permissions granted for Manage Server
 
 ## Troubleshooting
 
-- **"This feature requires Soward Premium."** Your server does not have active Premium.
+- **"This feature requires Zyro Premium."** Your server does not have active Premium.
 - **"Failed to update nickname."** The bot needs the **Change Nickname** permission.
 - **"Provide an image URL or attach an image under 8MB."** The link did not load, or the file was too large.
 - **The banner fails.** Discord may require a higher boost level for it.

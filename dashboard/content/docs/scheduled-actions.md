@@ -49,7 +49,7 @@ All commands need Manage Server.
 - If the bot was offline and the time passed by more than 10 minutes, that run is skipped. A repeating action carries on at its next time.
 - If Premium ends, scheduled actions are paused and nothing runs. They are kept, and run again when Premium returns.
 - Each run is saved in the [Audit Vault](/docs/audit-vault).
-- A run fails safely when a channel, role or member no longer exists, or when Soward's role is below the role it needs to change. The reason shows in `!schedule info <id>`.
+- A run fails safely when a channel, role or member no longer exists, or when Zyro's role is below the role it needs to change. The reason shows in `!schedule info <id>`.
 
 ## Limits
 

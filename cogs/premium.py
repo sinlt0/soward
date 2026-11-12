@@ -12,7 +12,7 @@ import config
 
 def _generate_key() -> str:
     part = lambda: secrets.token_hex(4).upper()
-    return f"SOWARD-{part()}-{part()}-{part()}"
+    return f"ZYRO-{part()}-{part()}-{part()}"
 
 def _resolve_duration_days(raw: str) -> Optional[int]:
     raw = raw.lower().strip()
@@ -143,7 +143,7 @@ class Premium(commands.Cog):
         if not is_premium:
             preset_list = ", ".join(f"`{k}`" for k in config.PREMIUM_DURATION_PRESETS)
             embed = embeds.neutral(
-                f"{e('premium_cat')} Soward Premium",
+                f"{e('premium_cat')} Zyro Premium",
                 "This server does not have premium.\n\n"
                 "Premium unlocks **no-prefix mode**, letting the server use commands without typing a prefix.\n\n"
                 f"Use `premium buy` to pay with Bitcoin or Litecoin, or `premium claim <key>` to activate premium with a key.\n\nAvailable durations: {preset_list}",
@@ -295,7 +295,7 @@ class Premium(commands.Cog):
 
         embed = embeds.neutral(
             f"{e('premium_cat')} Confirm Premium Claim",
-            f"You are about to activate **Soward Premium** for this server.\n\n"
+            f"You are about to activate **Zyro Premium** for this server.\n\n"
             f"**Duration:** {duration_label} ({duration_days} days)\n\n"
             "This will unlock no-prefix mode for the server. Are you sure?",
         )
@@ -330,7 +330,7 @@ class Premium(commands.Cog):
         await msg.edit(
             embed=embeds.success(
                 f"{e('premium_cat')} Premium Activated!",
-                f"**Soward Premium** is now active for **{ctx.guild.name}**!\n"
+                f"**Zyro Premium** is now active for **{ctx.guild.name}**!\n"
                 f"**Expires:** <t:{int(expires_at)}:R>\n\n"
                 "No-prefix mode is enabled for everyone by default. Use `premium np server disable` and `premium np add <role or member>` to limit it, or `premium np disable` to turn it off.",
             ),
@@ -365,7 +365,7 @@ class Premium(commands.Cog):
         prefix_utils.invalidate_premium_cache(ctx.guild.id)
         await ctx.send(embed=embeds.success(
             f"{e('premium_cat')} Trial Started!",
-            f"**Soward Premium** is now active for **{ctx.guild.name}** for {premium_trials.TRIAL_DAYS} days.\n"
+            f"**Zyro Premium** is now active for **{ctx.guild.name}** for {premium_trials.TRIAL_DAYS} days.\n"
             f"**Ends:** <t:{int(ends_at)}:R>\n\n"
             "I will remind you 24 hours before it ends. No-prefix mode is on for everyone by default; use `premium np` to change it.",
         ))
@@ -546,7 +546,7 @@ class NoPrefix(commands.Cog, name="GlobalNoPrefix"):
         await prefix_utils.add_global_no_prefix(user.id, ctx.author.id)
         await ctx.send(embed=embeds.success(
             f"{e('check')} Global No-Prefix Granted",
-            f"{user.mention} can now use Soward commands without a prefix in any server the bot is in.",
+            f"{user.mention} can now use Zyro commands without a prefix in any server the bot is in.",
         ))
 
     @np_group.command(name="remove", help='Take global no-prefix access from a user.')

@@ -48,7 +48,8 @@ async def _url_is_public(url: str) -> bool:
 
 
 class Customization(commands.Cog):
-    category = "Customization"
+    category = "Config"
+    submodule = "Customization"
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot

@@ -327,7 +327,7 @@ class SecurityHub(commands.Cog):
             await security_cmds.chunked(ctx, f"{e('info')} Recommended next steps", [f"- {line}" for line in plan["recommendations"]])
         await ctx.send(
             content="Your settings before setup. Run `security import` with this file attached to put your earlier custom values back.",
-            file=discord.File(io.BytesIO(before.encode()), filename=f"soward-security-before-{ctx.guild.id}.json"),
+            file=discord.File(io.BytesIO(before.encode()), filename=f"zyro-security-before-{ctx.guild.id}.json"),
         )
 
     @security_group.command(name="preset", aliases=["presets"], help="Apply a protection preset: relaxed, balanced, strict or paranoid. Run without a name to compare them.")

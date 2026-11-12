@@ -13,7 +13,7 @@ A partner opens a private ticket from a button panel. In the ticket they:
 2. Send **their** ad in the ticket. It must contain a server invite that never expires.
 3. Send a screenshot that shows your ad posted in their server.
 
-Soward reads the screenshot and checks that most of your ad's text and your invite are visible. When it passes, the partner's ad is posted in your partner channel and the ticket closes by itself.
+Zyro reads the screenshot and checks that most of your ad's text and your invite are visible. When it passes, the partner's ad is posted in your partner channel and the ticket closes by itself.
 
 ## Setting it up
 

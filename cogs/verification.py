@@ -166,7 +166,7 @@ async def _complete_verification(guild: discord.Guild, member: discord.Member) -
         role = guild.get_role(int(verified_role_id))
         if role and not role.managed and role < guild.me.top_role:
             try:
-                await member.add_roles(role, reason="Soward: verification passed")
+                await member.add_roles(role, reason="Zyro: verification passed")
             except discord.HTTPException:
                 pass
 
@@ -175,7 +175,7 @@ async def _complete_verification(guild: discord.Guild, member: discord.Member) -
         role = guild.get_role(int(gate_role_id))
         if role and role in member.roles:
             try:
-                await member.remove_roles(role, reason="Soward: verification passed")
+                await member.remove_roles(role, reason="Zyro: verification passed")
             except discord.HTTPException:
                 pass
     return True
@@ -584,7 +584,7 @@ class Verification(commands.Cog):
             role = member.guild.get_role(int(gate_role_id))
             if role:
                 try:
-                    await member.add_roles(role, reason="Soward: pending verification")
+                    await member.add_roles(role, reason="Zyro: pending verification")
                 except discord.HTTPException:
                     pass
 
@@ -698,9 +698,9 @@ class Verification(commands.Cog):
         notes = ""
         if level == "web":
             if not config.DASHBOARD_URL:
-                notes += "\n\n**Not ready:** the bot has no dashboard URL (SOWARD_DASHBOARD_URL), so members cannot open the page."
+                notes += "\n\n**Not ready:** the bot has no dashboard URL (ZYRO_DASHBOARD_URL), so members cannot open the page."
             if not web_verify.provider_ready():
-                notes += "\n\n**No VPN detection:** no IP intelligence provider is configured (SOWARD_IPINTEL_PROVIDER), so only alt matching will work."
+                notes += "\n\n**No VPN detection:** no IP intelligence provider is configured (ZYRO_IPINTEL_PROVIDER), so only alt matching will work."
         await ctx.send(view=success_layout(
             f"{e('check')} Verification type set to `{level}`",
             descriptions.get(level, "") + notes,

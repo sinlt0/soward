@@ -99,7 +99,7 @@ Aliases: `!warnladder`, `!warnsteps`.
 
 ## Discord's built-in AutoMod
 
-`!automod native sync` creates AutoMod rules inside Discord from your banned words, mention limit and spam setting. They keep working when the bot is offline and show in Server Settings. `!automod native status` lists them and `!automod native off` removes them. Re-run `sync` after you change the banned words. The bot only touches rules whose name starts with "Soward ·". Discord limits how many rules and keywords a server can have, and `sync` reports anything it could not create. Your exempt roles (up to 20) and channels (up to 50) are copied across.
+`!automod native sync` creates AutoMod rules inside Discord from your banned words, mention limit and spam setting. They keep working when the bot is offline and show in Server Settings. `!automod native status` lists them and `!automod native off` removes them. Re-run `sync` after you change the banned words. The bot only touches rules whose name starts with "Zyro ·". Discord limits how many rules and keywords a server can have, and `sync` reports anything it could not create. Your exempt roles (up to 20) and channels (up to 50) are copied across.
 
 ## Setup
 

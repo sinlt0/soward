@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import logging.handlers
 import os
 import sys
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -12,8 +14,10 @@ import discord
 from discord.ext import commands
 
 import config
-from utils import blacklist, db, emoji_manager, loader, prefix as prefix_utils
+from utils import blacklist, db, dev_state, emoji_manager, loader, platform_spoof, prefix as prefix_utils
 import secrets
+
+platform_spoof.install()
 
 from utils import dashboard_proc, ipc_server
 
@@ -23,9 +27,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[logging.StreamHandler(sys.stdout)],
+    handlers=[logging.StreamHandler(sys.stdout), logging.handlers.RotatingFileHandler("bot.log", maxBytes=2_000_000, backupCount=2, encoding="utf-8")],
 )
-log = logging.getLogger("soward.main")
+log = logging.getLogger("zyro.main")
 
 from utils import console_capture
 console_capture.install()
@@ -42,8 +46,9 @@ def _print_banner():
 """
     print(banner)
 
-class SowardBot(commands.Bot):
+class ZyroBot(commands.Bot):
     def __init__(self):
+        self.start_time = time.time()
         intents = discord.Intents.all()
         super().__init__(
             command_prefix=prefix_utils.get_prefix,
@@ -59,6 +64,15 @@ class SowardBot(commands.Bot):
             await db.init(self.loop)
         except Exception:
             log.error("Database initialization failed — continuing on SQLite only.", exc_info=True)
+        try:
+            from utils import platform_spoof, presence_rotation
+            platform_spoof.select((await presence_rotation.load())["platform"])
+        except Exception:
+            log.warning("Could not load the saved platform.", exc_info=True)
+        try:
+            await dev_state.load()
+        except Exception:
+            log.error("Could not load maintenance state.", exc_info=True)
 
         log.info("Loading EmojiManager...")
         try:
@@ -127,6 +141,13 @@ class SowardBot(commands.Bot):
         log.info("MongoDB primary available: %s", db.is_mongo_available())
         log.info("=" * 50)
 
+        try:
+            from utils import presence_rotation
+            await presence_rotation.load()
+            await presence_rotation.apply(self)
+        except Exception:
+            log.warning("Could not apply the saved presence.", exc_info=True)
+
         from utils import loggers
         webhook_status = {
             "commands": bool(config.DEV_LOG_COMMANDS_WEBHOOK_URL),
@@ -172,6 +193,12 @@ class SowardBot(commands.Bot):
             return
         if message.guild and await blacklist.is_guild_blacklisted(message.guild.id):
             return
+        if dev_state.blocks(message.author):
+            ctx = await self.get_context(message)
+            if ctx.valid and dev_state.notice_due(message.author.id):
+                from utils.components import error_layout
+                await message.channel.send(view=error_layout("Maintenance", dev_state.notice_text()))
+            return
         await self.process_commands(message)
 
     async def on_guild_join(self, guild: discord.Guild):
@@ -183,10 +210,10 @@ async def main():
     _print_banner()
 
     if not config.BOT_TOKEN:
-        log.critical("SOWARD_TOKEN environment variable is not set. Cannot start.")
+        log.critical("ZYRO_TOKEN environment variable is not set. Cannot start.")
         sys.exit(1)
 
-    bot = SowardBot()
+    bot = ZyroBot()
 
     async with bot:
         secret = secrets.token_urlsafe(32)
@@ -197,7 +224,7 @@ async def main():
                 ipc_runner = await ipc_server.start_ipc(bot, secret)
                 dashboard = dashboard_proc.DashboardProcess(
                     secret, config.DASHBOARD_PORT, ipc_server.socket_path(), ipc_server.uses_unix_socket(),
-                    int(os.getenv("SOWARD_IPC_PORT", config.DASHBOARD_IPC_FALLBACK_PORT)),
+                    int(os.getenv("ZYRO_IPC_PORT", config.DASHBOARD_IPC_FALLBACK_PORT)),
                 )
                 await dashboard.start()
             except OSError as ex:

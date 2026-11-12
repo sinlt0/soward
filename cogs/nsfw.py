@@ -10,7 +10,7 @@ from utils.checks import has_guild_permission
 from utils.components import ConfirmLayout, error_layout, info_layout, success_layout
 from utils.events_bus import LOG_EVENT, bus
 
-log = logging.getLogger("soward.nsfw")
+log = logging.getLogger("zyro.nsfw")
 
 ChannelArg = typing.Union[discord.TextChannel, discord.ForumChannel]
 RESET_WORDS = {"reset", "clear", "remove", "none", "off", "disable"}
@@ -18,7 +18,7 @@ _API_DELAY = 0.35
 
 
 def _reason(ctx: commands.Context, action: str) -> str:
-    return f"[Soward NSFW] {action} - requested by {ctx.author} ({ctx.author.id})"
+    return f"[Zyro NSFW] {action} - requested by {ctx.author} ({ctx.author.id})"
 
 
 def _fmt_error(exc: Exception) -> str:

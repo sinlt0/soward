@@ -25,7 +25,7 @@ ABYSS = (
 
 CLANS = (
     "A clan is a family bigger than blood. The **Young Master** (the clan head) carries the banner, **Elders** guard the hall and every **Member** carries the name. "
-    "A fallen clan has lost its mountain, but not its banner. Raise the banner again, build the hall with coin and oath, and the world will remember it."
+    "A fallen clan has lost its mountain, but not its banner. Raise the banner again, build the hall with spirit stone and oath, and the world will remember it."
 )
 
 RIFTS = (

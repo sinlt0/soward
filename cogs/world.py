@@ -6,9 +6,9 @@ from typing import Awaitable, Callable, Optional
 import discord
 from discord.ext import commands
 
-from cogs.cultivation import NO_PINGS, bar, fight_layout, item_name
+from cogs.cultivation import NO_PINGS, bar, fight_layout, item_name, weapon_note, herb_lines
 from cogs.economy import duration
-from rpg import bestiary, chapters, engine as cult, gear, quest, rifts, settings, titles, wanderers, wild
+from rpg import stones, bestiary, chapters, commissions, engine as cult, gear, pouch as pouch_rpg, quest, rifts, settings, titles, wanderers, wild
 from utils import coins, db, emoji_manager
 from utils.colors import NEUTRAL
 from utils.components import error_layout, footer_block, info_layout, success_layout
@@ -57,12 +57,13 @@ def loot_text(parts: dict) -> list[str]:
     e = emoji_manager.get
     lines = []
     if parts.get("coins"):
-        lines.append(f"+**{coins.fmt(parts['coins'])}** coins")
+        lines.append(f"+**{stones.fmt(parts['coins'])}**")
     if parts.get("qi"):
         lines.append(f"+**{coins.fmt(parts['qi'])}** qi")
     if parts.get("material"):
         key, count = parts["material"]
         lines.append(f"+{count} **{gear.MATERIALS[key]['name']}** ({gear.MATERIALS[key]['zh']})")
+    lines.extend(herb_lines(parts))
     if parts.get("gear"):
         lines.append(f"{e('esword')} It dropped a **{gear.name(parts['gear'])}**!")
     if parts.get("shard"):
@@ -75,10 +76,10 @@ def wild_result(state: dict, outcome: dict):
     m = state["m"]
     parts = outcome["parts"]
     if outcome["result"] == "win":
-        return success_layout(f"{e('esword')} {m['name']} falls", "\n".join([f"The resentment fades from **{m['name']}** and it crumbles to dust."] + loot_text(parts)))
+        return success_layout(f"{e('esword')} {m['name']} falls", "\n".join([f"The resentment fades from **{m['name']}** and it crumbles to dust."] + loot_text(parts)) + weapon_note(parts))
     if outcome["result"] == "lose":
         lost = f"\nYou lose **{coins.fmt(parts.get('qi_lost', 0))}** qi." if parts.get("qi_lost") else ""
-        return error_layout("You are driven off", f"**{m['name']}** is too strong this time.{lost}")
+        return error_layout("You are driven off", f"**{m['name']}** is too strong this time.{lost}{weapon_note(parts)}")
     return info_layout(f"{e('esword')} You slip away", f"You escape from **{m['name']}**.")
 
 
@@ -94,14 +95,14 @@ def npc_card(npc: dict) -> str:
 def reward_text(rewards: dict) -> list[str]:
     lines = []
     if "friend" in rewards:
-        lines.append(f"They now call you a friend and press **{coins.fmt(rewards['friend']['coins'])}** coins and a Qi Pill into your hands.")
+        lines.append(f"They now call you a friend and press **{stones.fmt(rewards['friend']['coins'])}** and a Qi Pill into your hands.")
     if "confidant" in rewards:
         lines.append(f"They trust you enough to share a secret: *{rewards['confidant']['secret']}*\n+{coins.fmt(rewards['confidant']['qi'])} qi")
     if "companion" in rewards:
         if rewards["companion"].get("bond"):
             lines.append("They become your **Dao companion**. Your qi grows 1% faster from now on.")
         else:
-            lines.append(f"They become your Dao companion and gift you **{coins.fmt(rewards['companion']['coins'])}** coins.")
+            lines.append(f"They become your Dao companion and gift you **{stones.fmt(rewards['companion']['coins'])}**.")
     return lines
 
 
@@ -156,33 +157,71 @@ class World(commands.Cog):
         header = f"{npc_card(guide)}\n\n*\"{wanderers.line('guide')}\"*\n\n" if guide else ""
         await ctx.send(view=info_layout(f"{e('ecult')} Your journey ({done}/{len(steps)})", header + "\n".join(lines) + "\n\n-# Talk to your guide with `world talk`. Meet more people with `world explore`.\nFollow the main story with `world chapter`."))
 
-    @world.command(name="bounty", aliases=["bounties", "quests", "daily"], help="Today's bounties. Finish them to claim coins, qi and a bonus chest.")
-    async def bounty(self, ctx: commands.Context):
+    @world.command(name="gather", aliases=["forage", "harvest"], help="Gather herbs or hunt for materials. Usage: world gather [herbs|hunt]")
+    async def gather(self, ctx: commands.Context, mode: Optional[str] = None):
         e = emoji_manager.get
         if await self.need_character(ctx) is None:
             return
+        mode = (mode or "herbs").lower()
+        mode = {"herb": "herbs", "plants": "herbs", "forage": "herbs", "hunt": "hunt", "ore": "hunt", "beasts": "hunt"}.get(mode, mode)
+        if mode not in ("herbs", "hunt"):
+            return await ctx.send(view=error_layout("Gather what?", f"Use `{ctx.clean_prefix}world gather herbs` for herbs and spirit fiber, or `{ctx.clean_prefix}world gather hunt` for materials and hides."))
+        result = await pouch_rpg.gather(ctx.author.id, mode)
+        if not result["ok"]:
+            reasons = {
+                "hurt": ("You are injured", f"You recover in **{duration(result.get('wait', 0))}**."),
+                "limit": ("Nothing left to gather", f"You can gather **{settings.GATHER_DAILY}** times a day."),
+            }
+            title, body = reasons.get(result["reason"], ("Cannot gather", "That did not work."))
+            return await ctx.send(view=error_layout(title, body))
+        lines = []
+        for key, qty in result["found"].items():
+            info = gear.MATERIALS[key]
+            kept = result["stored"].get(key, 0)
+            lines.append(f"+{qty} **{info['name']}** ({info['zh']})" + ("" if kept == qty else f" · only {kept} fit"))
+        if result["overflow"]:
+            lines.append(f"-# Your pouch was full, so the rest sold for {stones.fmt(result['overflow'])}. Upgrade with `{ctx.clean_prefix}pouch upgrade`.")
+        lines.append(f"-# {result['left']} gathers left today.")
+        title = "Herb patch" if mode == "herbs" else "Hunt"
+        await ctx.send(view=success_layout(f"{e('ecult')} {title}", "\n".join(lines)))
+
+    @world.command(name="bounty", aliases=["bounties", "quests", "daily", "contracts", "weekly"], help="Daily bounties and weekly contracts. Finish them to claim spirit stones, qi, materials and chests with Realm Keys.")
+    async def bounty(self, ctx: commands.Context):
+        e = emoji_manager.get
+        character = await self.need_character(ctx)
+        if character is None:
+            return
         claimed = await cult.claim_bounties(ctx.author.id)
         board = claimed["board"] if claimed.get("board") else await cult.bounties(ctx.author.id)
-        lines = []
+        weekly_claim = await commissions.claim(ctx.author.id, character["realm"])
+        weekly = await commissions.rows(ctx.author.id)
+        rewards = board["rewards"]
+        material = gear.MATERIALS[rewards["material"]]["name"]
+        lines = ["**Daily bounties**"]
         for item in board["items"]:
             mark = "[x]" if item["claimed"] else "[ ]"
             lines.append(f"{mark} {item['text']} ({item['done']}/{item['goal']})")
-        rewards = board["rewards"]
-        lines.append(f"\n**Each bounty:** {coins.fmt(rewards['coins'])} coins and some qi.")
-        lines.append(f"**All three:** a chest with {coins.fmt(rewards['bonus_coins'])} coins and {rewards['material_qty']} {gear.MATERIALS[rewards['material']]['name']}.")
+        lines.append(f"-# Each pays {stones.fmt(rewards['coins'])} and some qi. All three give a chest: {stones.fmt(rewards['bonus_coins'])}, {rewards['material_qty']} {material} and a Realm Key.")
+        lines.append("\n**Weekly contracts**")
+        for row in weekly:
+            mark = "[x]" if row["claimed"] else "[ ]"
+            lines.append(f"{mark} {commissions.label(row)} · {stones.fmt(commissions.worth(row, character['realm']))}")
+        lines.append(f"-# Contracts change every Monday and each also pays 4 materials and 2 herbs. All three give a chest: {stones.fmt(int(commissions.average(character['realm']) * commissions.CHEST / 10))}, 3 Rift Shards and 2 Realm Keys.")
+        bits = []
         if claimed["ok"]:
-            bits = [f"{coins.fmt(claimed['coins'])} coins", f"{claimed['qi']} qi"]
-            if claimed["chest"]:
-                bits.append(f"the chest ({coins.fmt(rewards['bonus_coins'])} coins and {rewards['material_qty']} {gear.MATERIALS[rewards['material']]['name']})")
-            lines.append(f"\n**Claimed:** " + ", ".join(bits) + ".")
-            return await ctx.send(view=success_layout(f"{e('ecult')} Bounties", "\n".join(lines)))
-        lines.append("\n-# Bounties reset every day. Finish them, then use `world bounty` again to claim.")
-        await ctx.send(view=info_layout(f"{e('ecult')} Bounties", "\n".join(lines)))
+            bits += [stones.fmt(claimed["coins"]), f"{claimed['qi']} qi"] + (["the daily chest"] if claimed["chest"] else [])
+        if weekly_claim["claimed"] or weekly_claim.get("bonus"):
+            bits += [stones.fmt(weekly_claim["coins"] + weekly_claim["bonus"])] + [f"{qty} {item_name(key)}" for key, qty in weekly_claim["items"].items()]
+        if bits:
+            lines.append("\n**Claimed:** " + ", ".join(bits) + ".")
+            return await ctx.send(view=success_layout(f"{e('ecult')} Bounties and contracts", "\n".join(lines)))
+        lines.append("\n-# Finished ones are claimed when you open this again. Realm Keys open secret realms with `realm`.")
+        await ctx.send(view=info_layout(f"{e('ecult')} Bounties and contracts", "\n".join(lines)))
 
     def reward_lines(self, given: dict) -> list:
         lines = []
         if given.get("coins"):
-            lines.append(f"+**{coins.fmt(given['coins'])}** coins")
+            lines.append(f"+**{stones.fmt(given['coins'])}**")
         for key, qty in (given.get("items") or {}).items():
             lines.append(f"+{qty} **{item_name(key)}**")
         return lines
@@ -322,19 +361,21 @@ class World(commands.Cog):
             if not result["ok"]:
                 reasons = {
                     "materials": ("Not enough materials", f"You need **{result.get('need', settings.BREW_MATERIALS)} {gear.MATERIALS[result.get('material', 'beast_core')]['name']}**. Win fights to collect them."),
-                    "coins": ("Not enough coins", f"Brewing costs **{coins.fmt(result.get('cost', 0))}** coins."),
+                    "herbs": ("Not enough herbs", f"You need **{result.get('need', gear.BREW_HERBS)} {gear.MATERIALS[result.get('herb', 'ember_root')]['name']}**. Find herbs with `cultivate gather`."),
+                    "coins": ("Not enough spirit stones", f"Brewing costs **{stones.fmt(result.get('cost', 0))}**."),
                 }
                 title, body = reasons.get(result["reason"], ("Cannot brew", "That did not work."))
                 return await ctx.send(view=error_layout(title, body))
             info = settings.BREWS[key]
-            return await ctx.send(view=success_layout(f"{e('epill')} Brewed", f"You brewed **{result['qty']} {info['name']}** ({info['zh']}) for {coins.fmt(result['cost'])} coins.\nDrink it with `world brew drink {key.replace('_pill', '')}`."))
+            return await ctx.send(view=success_layout(f"{e('epill')} Brewed", f"You brewed **{result['qty']} {info['name']}** ({info['zh']}) for {stones.fmt(result['cost'])}.\nDrink it with `world brew drink {key.replace('_pill', '')}`."))
         grade = gear.GRADES[min(character["realm"], len(gear.GRADES) - 1)]
         lines = []
         for key, info in settings.BREWS.items():
-            lines.append(f"**{info['name']}** ({info['zh']})\n-# {info['info']}")
+            herb = gear.MATERIALS[gear.herb_for(key, character["realm"])]
+            lines.append(f"**{info['name']}** ({info['zh']}) · needs {gear.BREW_HERBS} {herb['name']}\n-# {info['info']}")
         active = [settings.BREWS[k]["name"] for k in sorted(character.get("_buffs") or ())]
         cost = int(settings.BREW_COINS * (1 + character["realm"]))
-        lines.append(f"\n**Recipe:** {settings.BREW_MATERIALS} {gear.MATERIALS[grade['material']]['name']} + about {coins.fmt(cost)} coins for one pill. Alchemy cultivators brew two at a time and pay less.")
+        lines.append(f"\n**Recipe:** {settings.BREW_MATERIALS} {gear.MATERIALS[grade['material']]['name']} + {gear.BREW_HERBS} herbs + about {stones.fmt(cost)} for one pill. Alchemy cultivators brew two at a time and pay less.")
         if active:
             lines.append(f"**Working now:** {', '.join(active)}")
         lines.append("-# `world brew <pill>` to brew, `world brew drink <pill>` to drink. Pills last until midnight UTC.")
@@ -359,14 +400,15 @@ class World(commands.Cog):
             if not result["ok"]:
                 return await ctx.send(view=error_layout("Not earned yet", f"{titles.TITLES[key]['about']}"))
             info = titles.TITLES[key]
-            return await ctx.send(view=success_layout(f"{e('ecult')} Title set", f"You are now known as **{info['name']}** ({info['zh']})."))
+            return await ctx.send(view=success_layout(f"{e('ecult')} Title set", f"You are now known as **{titles.label(key, character.get('transcend') or 0)}** ({info['zh']}).\n-# Bonus while worn: {titles.bonus_text(key, character.get('transcend') or 0) or 'none'}."))
         earned = await cult.title_rows(ctx.author.id)
         lines = []
         for key, info in titles.TITLES.items():
             mark = "[x]" if key in earned else "[ ]"
             tag = " (new)" if key in fresh else ""
             current = " · wearing" if character.get("title") == key else ""
-            lines.append(f"{mark} **{info['name']}** ({info['zh']}){tag}{current}\n-# {info['about']}")
+            bonus = titles.bonus_text(key, character.get("transcend") or 0)
+            lines.append(f"{mark} **{titles.label(key, character.get('transcend') or 0)}** ({info['zh']}){tag}{current}\n-# {info['about']}" + (f" Bonus: {bonus}." if bonus else ""))
         await ctx.send(view=info_layout(f"{e('ecult')} Titles ({len(earned)}/{len(titles.TITLES)})", "\n".join(lines) + "\n\n-# Wear one with `world titles set <name>`. It shows on your `cultivate status`."))
 
     @world.command(name="raids", aliases=["raidlog", "history"], help="Your recent raids and who raided you.")
@@ -389,16 +431,16 @@ class World(commands.Cog):
             item = gear.name(row["item"]) if gear.parse(row["item"] or "") else (gear.MATERIALS[row["item"]]["name"] if row["item"] in gear.MATERIALS else "")
             if mine:
                 text = f"You raided **{name}** and {'won' if won else 'lost'}"
-                text += f", taking {coins.fmt(money)} coins" if won and money else (f", losing {coins.fmt(money)} coins" if money else "")
+                text += f", taking {stones.fmt(money)}" if won and money else (f", losing {stones.fmt(money)}" if money else "")
                 if item:
                     text += f" ({'got' if won else 'dropped'} {item})"
             else:
                 text = f"**{name}** raided you and {'won' if won else 'lost'}"
-                text += f", taking {coins.fmt(money)} coins" if won and money else (f", losing {coins.fmt(money)} coins" if money else "")
+                text += f", taking {stones.fmt(money)}" if won and money else (f", losing {stones.fmt(money)}" if money else "")
                 if item:
                     text += f" ({'dropped' if not won else 'took'} {item})"
             lines.append(f"{text} {when}")
-        await ctx.send(view=info_layout(f"{e('esword')} Raid log", "\n".join(lines) + "\n\n-# Keep coins safe with `cultivate safe`."), allowed_mentions=NO_PINGS)
+        await ctx.send(view=info_layout(f"{e('esword')} Raid log", "\n".join(lines) + "\n\n-# Keep spirit stones safe with `cultivate safe`."), allowed_mentions=NO_PINGS)
 
     @world.command(name="people", aliases=["npcs", "companions", "journey"], help="The travelers and friends you have met.")
     async def people(self, ctx: commands.Context):
@@ -474,17 +516,17 @@ class World(commands.Cog):
         if not result["ok"]:
             reasons = {
                 "done": "You already did this today.",
-                "coins": f"That costs **{coins.fmt(result.get('cost', 0))}** coins.",
+                "coins": f"That costs **{stones.fmt(result.get('cost', 0))}**.",
                 "nothing": "You have no materials to sell.",
             }
             return await interaction.response.edit_message(view=error_layout("Not now", reasons.get(result["reason"], "That did not work.")))
         kind = result["kind"]
         if kind == "alchemist":
-            body = f"You buy a **Qi Pill** for **{coins.fmt(result['cost'])}** coins, 30% below the usual price."
+            body = f"You buy a **Qi Pill** for **{stones.fmt(result['cost'])}**, 30% below the usual price."
         elif kind == "swordsman":
             body = f"They correct your stance and you gather **{coins.fmt(result['qi'])}** qi."
         elif kind == "survivor":
-            body = f"You share a meal for **{coins.fmt(result['cost'])}** coins. They tell you: *{result['secret']}*"
+            body = f"You share a meal for **{stones.fmt(result['cost'])}**. They tell you: *{result['secret']}*"
             body += "".join("\n" + line for line in reward_text(result.get("rewards", {})))
         elif kind == "scout":
             if result.get("rift"):
@@ -493,7 +535,7 @@ class World(commands.Cog):
                 body = "You already carry a rift, so they sell you a **Rift Shard** instead."
         else:
             sold = ", ".join(f"{count} {gear.MATERIALS[key]['name']}" for key, count in result["sold"].items())
-            body = f"They take your {sold} and pay **{coins.fmt(result['coins'])}** coins."
+            body = f"They take your {sold} and pay **{stones.fmt(result['coins'])}**."
         await interaction.response.edit_message(view=success_layout(f"{e('ecult')} {npc['name']}", body))
 
     def spar_done(self, user_id: int, npc: dict):
@@ -586,10 +628,11 @@ class World(commands.Cog):
             result = await wild.treasure(user_id, careful, trap)
             if result.get("trap"):
                 return await interaction.response.edit_message(view=error_layout("A trap!", f"Old wards flare as you tear the lid off. You lose **{coins.fmt(result['loss'])}** qi."))
-            lines = [f"+**{coins.fmt(result['coins'])}** coins"]
+            lines = [f"+**{stones.fmt(result['coins'])}**"]
             if result.get("material"):
                 key, count = result["material"]
                 lines.append(f"+{count} **{gear.MATERIALS[key]['name']}**")
+            lines.extend(herb_lines(result))
             await interaction.response.edit_message(view=success_layout(f"{e('ecult')} Treasure", "\n".join(lines)))
         return callback
 
@@ -601,7 +644,7 @@ class World(commands.Cog):
             if outcome == "qi":
                 body = f"The place gives you something quiet and warm. +**{coins.fmt(result['qi'])}** qi."
             elif outcome == "coins":
-                body = f"You find something worth selling. +**{coins.fmt(result['coins'])}** coins."
+                body = f"You find something worth selling. +**{stones.fmt(result['coins'])}**."
             elif outcome == "loss":
                 body = f"It was a mistake. The world takes **{coins.fmt(result['loss'])}** qi from you."
                 return await interaction.response.edit_message(view=error_layout("A mistake", body))
@@ -663,7 +706,7 @@ class World(commands.Cog):
         room = run["rooms"][index]
         header = f"Room {index + 1}/{len(run['rooms'])} in the {run['world']}"
         loot = run["loot"]
-        status = f"\n\n-# Loot so far: {coins.fmt(loot['coins'])} coins, {sum(loot['materials'].values())} materials"
+        status = f"\n\n-# Loot so far: {stones.fmt(loot['coins'])}, {sum(loot['materials'].values())} materials"
         retreat = ("Retreat with loot", discord.ButtonStyle.secondary, self.run_end(run, user_id, "retreat"))
         if room == "beast":
             body = "A shape drags itself out of the rubble: an abyssal beast, still wearing scraps of a cultivator's robe."
@@ -711,8 +754,8 @@ class World(commands.Cog):
         elif summary["outcome"] == "retreat":
             lines.append(f"You leave the **{run['world']}** while you still can.")
         else:
-            lines.append(f"The **{run['world']}** throws you out. You keep only half your coins.")
-        lines.append(f"+**{coins.fmt(summary['coins'])}** coins")
+            lines.append(f"The **{run['world']}** throws you out. You keep only half your spirit stones.")
+        lines.append(f"+**{stones.fmt(summary['coins'])}**")
         if summary.get("qi"):
             lines.append(f"+{coins.fmt(summary['qi'])} qi")
         for key, count in (summary.get("materials") or {}).items():
@@ -743,18 +786,18 @@ class World(commands.Cog):
         if result.get("sneaked"):
             return "You slip past without a sound."
         if result.get("trap") is not None and "trap" in result:
-            return f"A ward flares and burns **{coins.fmt(result['trap'])}** coins of your loot to ash."
+            return f"A ward flares and burns **{stones.fmt(result['trap'])}** of your loot to ash."
         if result.get("fell") is not None and "fell" in result:
-            return f"You choose wrong and a floor gives way. You lose **{coins.fmt(result['fell'])}** coins of loot."
+            return f"You choose wrong and a floor gives way. You lose **{stones.fmt(result['fell'])}** of loot."
         if result.get("safe"):
-            return f"You choose well. +{coins.fmt(result.get('coins', 0))} coins."
+            return f"You choose well. +{stones.fmt(result.get('coins', 0))}."
         if result.get("npc"):
-            return f"You talk with **{result['npc']['name']}** ({result['npc']['zh']}), who will remember you. +{coins.fmt(result.get('coins', 0))} coins."
+            return f"You talk with **{result['npc']['name']}** ({result['npc']['zh']}), who will remember you. +{stones.fmt(result.get('coins', 0))}."
         if result.get("npc") is None and result.get("action") == "talk":
-            return f"They share a little and wander off. +{coins.fmt(result.get('coins', 0))} coins."
+            return f"They share a little and wander off. +{stones.fmt(result.get('coins', 0))}."
         if result.get("qi"):
             return f"You rest and gather +{coins.fmt(result['qi'])} qi (paid when you leave)."
-        return f"+{coins.fmt(result.get('coins', 0))} coins."
+        return f"+{stones.fmt(result.get('coins', 0))}."
 
     def run_fight(self, run: dict, user_id: int, guardian: bool):
         async def callback(interaction: discord.Interaction):
@@ -929,7 +972,7 @@ class World(commands.Cog):
             await interaction.response.edit_message(view=info_layout(f"{e('esword')} Strike", f"You wound **{boss['name']}** for **{coins.fmt(units)}** damage."))
             try:
                 if data["dead"]:
-                    lines = [f"<@{uid}> +{coins.fmt(entry['coins'])} coins · {entry['material'][1]} {gear.MATERIALS[entry['material'][0]]['name']}" + (f" · {gear.name(entry['gear'])}" if entry.get("gear") else "") + (" · Rift Shard" if entry.get("shard") else "") for uid, entry in payouts.items()]
+                    lines = [f"<@{uid}> +{stones.fmt(entry['coins'])} · {entry['material'][1]} {gear.MATERIALS[entry['material'][0]]['name']}" + (f" · {gear.name(entry['gear'])}" if entry.get("gear") else "") + (" · Rift Shard" if entry.get("shard") else "") for uid, entry in payouts.items()]
                     await message.edit(view=success_layout(f"{e('esword')} {boss['name']} is slain!", "\n".join(lines) or "It falls."), allowed_mentions=NO_PINGS)
                 else:
                     await message.edit(view=view_for(), allowed_mentions=NO_PINGS)

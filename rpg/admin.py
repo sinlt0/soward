@@ -110,21 +110,29 @@ async def max_account(user_id: int, path: Optional[str] = None, way: Optional[st
     realm = len(settings.REALMS) - 1
     stage = len(settings.REALMS[realm]["stages"]) - 1
     best = len(gear.GRADES) - 1
+    await db.raw_execute("UPDATE cult_weapons SET equipped=0 WHERE owner_id=? AND equipped=1", (user_id,))
+    blade = f"w:{await engine.create_weapon(user_id, best, len(gear.WEAPON_QUALITIES) - 1, 1)}"
     await db.raw_execute(
         "UPDATE cult_characters SET way=?, path=?, realm=?, stage=?, injured_until=0, bonds=?, last_tick=?,"
         " weapon=?, armor=?, charm=?, weapon_r=?, armor_r=?, charm_r=?, weapon_e=?, armor_e=?, charm_e=? WHERE user_id=?",
         (way, path, realm, stage, settings.BOND_MAX, time.time(),
-         gear.key("weapon", best), gear.key("armor", best), gear.key("charm", best),
+         blade, gear.key("armor", best), gear.key("charm", best),
          gear.REFINE_MAX, gear.REFINE_MAX, gear.REFINE_MAX, "sharpness", "fortitude", "prosperity", user_id))
     character = await engine.get(user_id)
     character["qi"] = engine.need(character)
     await engine.save(character)
+    for kind in gear.POUCHES:
+        await db.raw_execute(
+            "INSERT INTO cult_pouches (user_id, kind, tier) VALUES (?, ?, ?) ON CONFLICT(user_id, kind) DO UPDATE SET tier=excluded.tier",
+            (user_id, kind, len(gear.POUCH_TIERS)))
     for key in gear.MATERIALS:
         await top_up(user_id, key, MAX_MATERIALS)
     for key in list(settings.ITEMS) + list(settings.BREWS):
         await top_up(user_id, key, MAX_PILLS)
     for key in gear.RELICS:
         await top_up(user_id, key, 1)
+    for kind in gear.WEAPONS:
+        await top_up(user_id, gear.key(kind, best), 1)
     await quest.set_chapter(user_id, chapters.TOTAL)
     now = time.time()
     for key in titles.TITLES:

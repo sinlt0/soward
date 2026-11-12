@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dash.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">{% endblock %}
+{% block title %}{% block admin_title %}Admin{% endblock %} · {{ bot_name }} Admin{% endblock %}
+{% block content %}
+<div class="dashbar">
+  <div class="wrap dashbar__inner">
+    <div class="dashbar__icon"{% if bot_avatar %} style="background-image:url('{{ bot_avatar }}')"{% endif %}></div>
+    <div><h1>{% block admin_heading %}Admin{% endblock %}</h1><div class="dashbar__meta">Owner and developer tools</div></div>
+    <div class="dashbar__links">{% block admin_links %}{% endblock %}</div>
+  </div>
+</div>
+<div class="wrap dlayout">
+  <aside class="dside">
+    <div class="dside__body" style="display:grid">
+      <nav class="dside__main" aria-label="Admin" style="border:0;padding:0">
+        {% for key, label, endpoint in pages %}<a href="{{ url_for(endpoint) }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+      </nav>
+    </div>
+  </aside>
+  <div class="dmain" id="admin">
+    {% block admin_body %}{% endblock %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/admin.js') }}" defer></script>{% endblock %}

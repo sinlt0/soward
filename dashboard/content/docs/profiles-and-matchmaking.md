@@ -7,7 +7,7 @@ group: Fun
 
 ## Profiles
 
-Your profile is global. It is the same in every server the bot is in, and it works in direct messages too. `!profile edit` opens a form for a short bio, interests, what you are looking for, relationship status and pronouns. `!profile [user]` shows a card image with your avatar, title, level, coins, badges, family, clan, bio and pet. `!profile hide` keeps the card private, `!profile show` makes it visible again and `!profile clear` deletes the text. Links are removed from profiles.
+Your profile is global. It is the same in every server the bot is in, and it works in direct messages too. `!profile edit` opens a form for a short bio, interests, what you are looking for, relationship status and pronouns. `!profile [user]` shows a card image with your avatar, title, cultivation, coins, badges, family, clan, bio and pet. If you have started cultivating, the card shows your realm and stage instead of a level, your path, way and race, how many cultivation titles you have earned, and the title you are wearing under your name. Otherwise it says you are not cultivating yet. `!profile hide` keeps the card private, `!profile show` makes it visible again and `!profile clear` deletes the text. Links are removed from profiles.
 
 | Command | What it does |
 | --- | --- |
@@ -39,7 +39,7 @@ Your active pet shows on your profile card. See [Coins](/docs/economy) for how t
 
 ## Speed dating
 
-Members press **Join queue** on the panel (or use `!match join`). Soward pairs two people who share interests and have not been matched in the last 7 days. They get a **private voice room for two** for a few minutes with buttons to say **Interested**, **Not for me**, add 5 minutes or **Report**. Only if both pressed Interested do they hear about it, by direct message. Reporting ends the date, blocks the pair and sends a report to your staff.
+Members press **Join queue** on the panel (or use `!match join`). Zyro pairs two people who share interests and have not been matched in the last 7 days. They get a **private voice room for two** for a few minutes with buttons to say **Interested**, **Not for me**, add 5 minutes or **Report**. Only if both pressed Interested do they hear about it, by direct message. Reporting ends the date, blocks the pair and sends a report to your staff.
 
 ```
 !match category #Speed Dates
@@ -62,7 +62,7 @@ Members need a visible profile with at least one interest. Reports need the repo
 
 ## Events
 
-`!event create Movie night | tomorrow 8pm | Bring snacks` posts an event with **Going**, **Maybe** and **Can't go** buttons. Times follow the server timezone (`!event timezone Asia/Dhaka`). Soward reminds everyone an hour before and when it starts.
+`!event create Movie night | tomorrow 8pm | Bring snacks` posts an event with **Going**, **Maybe** and **Can't go** buttons. Times follow the server timezone (`!event timezone Asia/Dhaka`). Zyro reminds everyone an hour before and when it starts.
 
 | Command | What it does |
 | --- | --- |

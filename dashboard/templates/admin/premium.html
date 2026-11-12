@@ -1,0 +1,61 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Premium{% endblock %}
+{% block admin_heading %}Premium{% endblock %}
+{% block admin_body %}
+<div class="stats">
+  <div class="stat"><div class="stat__value">{{ d.active }}</div><div class="stat__label">Active servers</div></div>
+  <div class="stat"><div class="stat__value">{{ d.lifetime }}</div><div class="stat__label">Lifetime</div></div>
+  <div class="stat"><div class="stat__value">{{ d.expiring }}</div><div class="stat__label">Ending within 7 days</div></div>
+  <div class="stat"><div class="stat__value">{{ d.expired }}</div><div class="stat__label">Expired</div></div>
+</div>
+<section class="panel">
+  <div class="panel__head"><h2>Grant Premium</h2><p>Give Premium to any server by ID, whether or not Zyro is in it.</p></div>
+  <form class="adminform" id="grant-form" data-admin="guild/0/premium" data-reload data-body='{"action":"grant"}' data-id-field="gid">
+    <div class="formgrid">
+      <div class="stack"><label class="lbl" for="gr-id">Server ID</label><input id="gr-id" class="input" name="gid" inputmode="numeric" pattern="[0-9]{5,25}" required placeholder="123456789012345678"></div>
+      <div class="stack"><label class="lbl" for="gr-days">Time</label><input id="gr-days" class="input" name="days" list="presets" value="1m" placeholder="30 or 1m, 3mo, 1y"></div>
+      <label class="check check--box"><input type="checkbox" name="lifetime"> Lifetime</label>
+    </div>
+    <datalist id="presets">{% for v in d.presets %}<option value="{{ v }}">{% endfor %}</datalist>
+    <div><button class="btn btn--primary" type="submit">Grant Premium</button></div>
+  </form>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Premium servers</h2><p>Every server that has or had Premium.</p></div>
+  {% if d.guilds %}
+  <div class="tablewrap"><table class="table">
+    <thead><tr><th>Server</th><th>Members</th><th>Status</th><th>Expires</th><th></th></tr></thead>
+    <tbody>{% for g in d.guilds %}
+    <tr>
+      <td data-label="Server"><div class="srvcell"><span class="srvcell__icon"{% if g.icon %} style="background-image:url('{{ g.icon }}')"{% endif %}>{{ g.name[:1] | upper if not g.icon }}</span><span><a href="{{ url_for('admin_server', gid=g.id) }}"><strong>{{ g.name }}</strong></a><br><code>{{ g.id }}</code></span></div></td>
+      <td data-label="Members">{{ "{:,}".format(g.members) if g.present else "not in server" }}</td>
+      <td data-label="Status">{% if not g.active %}<span class="badge badge--bad">Expired</span>{% elif g.lifetime %}<span class="badge badge--premium">Lifetime</span>{% else %}<span class="badge badge--premium">Active</span>{% endif %}{% if g.banned %} <span class="badge badge--bad">Banned</span>{% endif %}</td>
+      <td data-label="Expires">{% if g.lifetime %}never{% else %}{{ g.expires | stamp }}<br><small>{{ g.expires | until }}</small>{% endif %}</td>
+      <td class="rowtools"><a class="btn btn--ghost btn--sm" href="{{ url_for('admin_server', gid=g.id) }}">Manage</a><button class="btn btn--danger btn--sm" type="button" data-admin="guild/{{ g.id }}/premium" data-body='{"action":"revoke"}' data-confirm="Revoke Premium from this server?" data-reload>Revoke</button></td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<div class="empty empty--inset"><strong>No Premium servers yet</strong></div>{% endif %}
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Premium keys</h2><p>Keys are redeemed with the premium claim command in a server.</p></div>
+  <form class="adminform" data-admin="premium/keys" data-result="keys-result">
+    <div class="formgrid">
+      <div class="stack"><label class="lbl" for="k-days">Duration</label><input id="k-days" class="input" name="days" list="presets" value="1m" placeholder="30 or 1m, 3mo, 1y"></div>
+      <div class="stack"><label class="lbl" for="k-count">How many</label><input id="k-count" class="input" type="number" name="count" value="1" min="1" max="25"></div>
+      <label class="check check--box"><input type="checkbox" name="lifetime"> Lifetime</label>
+    </div>
+    <div class="actions"><button class="btn btn--primary" type="submit">Generate keys</button></div>
+    <pre id="keys-result" class="resultbox" hidden></pre>
+  </form>
+  {% if d["keys"] %}
+  <div class="tablewrap"><table class="table">
+    <thead><tr><th>Key</th><th>Duration</th><th>State</th><th>Created</th><th></th></tr></thead>
+    <tbody>{% for k in d["keys"] %}
+    <tr><td data-label="Key"><code>{{ k.key }}</code></td><td data-label="Duration">{{ k.label }}</td>
+      <td data-label="State">{% if k.used %}Used{% if k.used_by %} by <code>{{ k.used_by }}</code>{% endif %}{% else %}<span class="badge badge--ok">Available</span>{% endif %}</td>
+      <td data-label="Created">{{ k.created_at | ago }}</td>
+      <td class="rowtools">{% if not k.used %}<button class="btn btn--ghost btn--sm" type="button" data-copy="{{ k.key }}">Copy</button><button class="btn btn--danger btn--sm" type="button" data-admin="premium/keys/delete" data-body='{"key":"{{ k.key }}"}' data-confirm="Delete this key?" data-reload>Delete</button>{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+</section>
+{% endblock %}

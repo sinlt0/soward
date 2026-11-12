@@ -70,7 +70,7 @@ The member is optional. Without one, the GIF is just about you.
 | `!pout [member]` | Pout. | Nothing |
 | `!shrug [member]` | Shrug. | Nothing |
 | `!dodge [member]` | Dodge an attack. | Nothing |
-| `!hide [member]` | Hide, or hide from someone. | Nothing |
+| `!lurk [member]` | Hide, or hide from someone. Alias: `!hidefrom`. | Nothing |
 | `!scared [member]` | Show that you are scared. | Nothing |
 | `!smug [member]` | Look smug. | Nothing |
 | `!cringe [member]` | Cringe. | Nothing |

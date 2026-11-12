@@ -6,7 +6,7 @@ from discord.ext import commands
 from utils import db, loggers
 import config
 
-log = logging.getLogger("soward.events.guild")
+log = logging.getLogger("zyro.events.guild")
 
 def setup(bot: commands.Bot) -> None:
     @bot.listen("on_guild_join")

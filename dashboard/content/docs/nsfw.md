@@ -7,12 +7,12 @@ group: Security
 
 ## How NSFW channels work
 
-Instead of a one-click age gate, Soward hides your NSFW channels from everyone except one role. You pick the **NSFW role**, then **register** each NSFW channel. When a channel is registered and a role is set, the bot:
+Instead of a one-click age gate, Zyro hides your NSFW channels from everyone except one role. You pick the **NSFW role**, then **register** each NSFW channel. When a channel is registered and a role is set, the bot:
 
 - denies **View Channel** to `@everyone`,
 - allows View Channel for the NSFW role (and for the bot itself, so it can keep managing the channel).
 
-Soward does not use Discord's own age-restricted setting. A channel counts as an NSFW channel for the bot when it is registered here, a role is set, and the channel is locked to that role. Commands with adult content, such as the `nsfw` option in the [anime](/docs/anime) commands and the `r` rating in [truth or dare](/docs/games-and-quotes), check this.
+Zyro does not use Discord's own age-restricted setting. A channel counts as an NSFW channel for the bot when it is registered here, a role is set, and the channel is locked to that role. Commands with adult content, such as the `nsfw` option in the [anime](/docs/anime) commands and the `r` rating in [truth or dare](/docs/games-and-quotes), check this.
 
 Before changing anything the bot saves what the channel looked like. Removing the channel, or clearing the role, restores those original permissions.
 

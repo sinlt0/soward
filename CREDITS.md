@@ -2,14 +2,14 @@
 
 ## Author & Lead Developer
 
-**Sinlt (辛特)** — original author of Soward: architecture, bot core,
+**Sinlt (辛特)** — original author of Zyro: architecture, bot core,
 security stack, and web status page.
 
 - GitHub: https://github.com/sinlt0
 
-## Soward Team
+## Zyro Team
 
-Soward is developed under the **Soward Team** name, with contributions from
+Zyro is developed under the **Zyro Team** name, with contributions from
 the team's co-creator(s) alongside Sinlt, and from everyone listed in the
 [contributors graph](../../graphs/contributors).
 
@@ -39,6 +39,6 @@ See `requirements.txt` for the full dependency list and each project's license.
 ## Attribution Notice
 
 If you fork or build upon this project, see `NOTICE` and `LICENSE`. In short:
-you're welcome to build on Soward, but the license and this credits file must
-stay intact, and your fork should describe itself as **"built upon Soward by
+you're welcome to build on Zyro, but the license and this credits file must
+stay intact, and your fork should describe itself as **"built upon Zyro by
 Sinlt"** rather than claiming the original work as your own.

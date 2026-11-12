@@ -7,7 +7,7 @@ group: Moderation
 
 ## Reporting a message
 
-Members can **right-click a message, choose Apps, then Report message**, or reply to a message with `!report <reason>`. Soward saves the message and the messages around it, so staff still see what happened if it is deleted. The reported member is never told who reported them.
+Members can **right-click a message, choose Apps, then Report message**, or reply to a message with `!report <reason>`. Zyro saves the message and the messages around it, so staff still see what happened if it is deleted. The reported member is never told who reported them.
 
 Reports go to your report channel with buttons: **Warn**, **Timeout 1h**, **Ban**, **Dismiss**, **Delete message** and **Discuss in thread**. When several different members report the same person within 24 hours, the report is marked as repeated and the role is pinged.
 

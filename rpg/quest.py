@@ -1,11 +1,13 @@
 import json
+import logging
 import time
 from typing import Optional
 
-from rpg import bestiary, chapters, combat
+from rpg import bestiary, chapters, combat, commissions, schema
 from utils import coins, db
 
-BUMPS = {"cult_fight": "fight", "cult_explore": "explore", "cult_rift": "rift", "cult_spar": "spar"}
+log = logging.getLogger("zyro.quest")
+BUMPS = {"cult_fight": "fight", "cult_explore": "explore", "cult_rift": "rift", "cult_spar": "spar", "cult_realm": "realm"}
 BOSS_HP = 1.4
 
 
@@ -18,6 +20,7 @@ def decode(text: str) -> dict:
 
 
 async def get_row(user_id: int) -> dict:
+    await schema.ensure()
     row = await db.raw_fetchone("SELECT chapter, progress, flags FROM cult_story WHERE user_id=?", (user_id,))
     if row is None:
         await db.raw_execute("INSERT INTO cult_story (user_id, chapter, progress, flags, updated_at) VALUES (?, 0, '{}', '{}', ?) ON CONFLICT(user_id) DO NOTHING", (user_id, time.time()))
@@ -37,6 +40,14 @@ async def write_progress(user_id: int, row: dict, progress: dict) -> bool:
 
 
 async def bump(user_id: int, key: str, amount: int = 1) -> None:
+    await commissions.bump(user_id, key, amount)
+    try:
+        await bump_row(user_id, key, amount)
+    except Exception:
+        log.warning("Story progress update failed", exc_info=True)
+
+
+async def bump_row(user_id: int, key: str, amount: int) -> None:
     row = await get_row(user_id)
     chapter = current(row)
     if chapter is None:
@@ -99,7 +110,10 @@ def boss_state(character: dict, mods: dict, key: str) -> dict:
 
 
 async def boss_finish(user_id: int, state: dict) -> dict:
+    from rpg import engine
     result = state["done"]
+    if result in ("win", "lose", "draw"):
+        await engine.wear(user_id)
     if result != "win":
         return {"result": result}
     row = await get_row(user_id)

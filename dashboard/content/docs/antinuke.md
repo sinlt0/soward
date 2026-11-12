@@ -217,7 +217,7 @@ Everything else, such as channel and role deletes, stays watched during a raid. 
 
 ### Raid escalation
 
-If any AntiNuke event triggers while raid relief is active, Soward goes all out (`raid_escalate`, on by default):
+If any AntiNuke event triggers while raid relief is active, Zyro goes all out (`raid_escalate`, on by default):
 
 - The relief ends at once.
 - Every whitelist is suspended: granular action rules, module whitelist entries and the AntiNuke trusted list. Only the server owner, Extra Owners and Trusted Admins stay trusted.

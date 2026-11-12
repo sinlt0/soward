@@ -1,0 +1,37 @@
+.badge--bad { color: #ff8a9b; border-color: rgba(239, 90, 111, 0.4); background: rgba(239, 90, 111, 0.1); }
+.badge--ok { color: #7fe3b5; border-color: rgba(62, 207, 142, 0.4); background: rgba(62, 207, 142, 0.1); }
+.adminform { padding: 20px 22px; display: grid; gap: 16px; }
+.adminform--inline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.adminform--inline .input, .adminform--inline .select { width: auto; min-width: 200px; flex: 1; }
+.formgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; align-items: end; }
+.lbl { font-weight: 600; font-size: 14.5px; }
+.hint { color: var(--dim); font-size: 13.5px; }
+.check { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14.5px; }
+.check--box { padding: 9px 12px; border: 1px solid var(--line-2); border-radius: var(--radius-sm); background: var(--panel); }
+.actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.result, .resultbox { font-family: var(--font-mono); font-size: 14px; word-break: break-all; color: var(--text); }
+.resultbox { background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 12px 14px; white-space: pre-wrap; margin: 0; }
+.logbox { margin: 0; padding: 16px 22px; max-height: 480px; overflow: auto; font: 12.5px/1.55 var(--font-mono); background: var(--panel); white-space: pre-wrap; word-break: break-word; border-top: 1px solid var(--line); }
+.idrow { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.idrow .stack { flex: 1; min-width: 220px; }
+.idrow__avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line-2); background: var(--panel); flex: none; }
+.idrow__banner { width: 240px; height: 96px; border-radius: 12px; background: var(--panel) center/cover; border: 1px solid var(--line-2); flex: none; }
+.srvcell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.srvcell__icon { width: 38px; height: 38px; border-radius: 10px; background: var(--panel-2) center/cover; border: 1px solid var(--line-2); display: grid; place-items: center; font-weight: 700; color: var(--violet); flex: none; }
+.facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.facts > div { background: var(--ink-2); padding: 14px 18px; display: grid; gap: 2px; align-content: start; }
+.facts span { color: var(--faint); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.facts strong { font-size: 16px; }
+.facts small { color: var(--dim); font-size: 13px; }
+.featurebar { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 22px; border-top: 1px solid var(--line); }
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 14px; border-top: 1px solid var(--line); color: var(--dim); }
+.tabletools .select { width: auto; min-width: 150px; }
+.stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 640px) {
+  .idrow__banner { width: 100%; }
+  .adminform--inline .input, .adminform--inline .select { width: 100%; }
+}
+.itemlist { display: grid; gap: 10px; }
+.itemrow { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.itemrow .select { min-width: 0; width: 100%; }
+@media (max-width: 640px) { .itemrow { grid-template-columns: minmax(0, 1fr); } }

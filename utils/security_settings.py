@@ -93,6 +93,7 @@ def _build() -> None:
     _bool("security", "lock", config.SECURITY_LOCK_DEFAULT, "Tier lock", "When on, only the owner, Extra Owners and Trusted Admins can change security settings.", critical=True)
     _channel("security", "log_channel_id", "Security log channel", "Where every security action is logged.")
     _channel("security", "alert_channel_id", "Alert channel", "Where urgent alerts are posted. Falls back to the log channel.")
+    _role("security", "main_role_id", "Main role", "The base role your members have. Lock, unlock, hide, unhide and lockdown change this role instead of @everyone. If unset, the verified role is used, then @everyone.")
     _role("security", "alert_role_id", "Alert role", "Pinged when AntiNuke triggers or a raid starts.")
     _bool("security", "alert_owner", True, "DM the owner", "Direct message the server owner on serious detections.")
     _bool("security", "auto_backup", False, "Automatic backups", "Snapshot roles and channels on a schedule so they can be restored.")
@@ -248,7 +249,7 @@ def _build() -> None:
     _duration("verification", "click_cooldown", config.VERIFICATION_CLICK_COOLDOWN_SECONDS, 1, 300, "Button cooldown", group="Challenge")
     _int("verification", "captcha_length", config.VERIFICATION_CAPTCHA_LENGTH, 4, 8, "Captcha length", group="Challenge")
     _duration("verification", "captcha_lifetime", 180, 30, 3600, "Captcha lifetime", group="Challenge")
-    _bool("verification", "web_block_vpn", True, "Web: act on VPNs and proxies", "Needs an IP intelligence provider set on the bot (SOWARD_IPINTEL_PROVIDER).", group="Web verification")
+    _bool("verification", "web_block_vpn", True, "Web: act on VPNs and proxies", "Needs an IP intelligence provider set on the bot (ZYRO_IPINTEL_PROVIDER).", group="Web verification")
     _bool("verification", "web_block_hosting", False, "Web: act on hosting networks", "Data-centre addresses are rarely real members, but some members use them.", group="Web verification")
     _choice("verification", "web_vpn_action", "deny", ("deny", "manual", "flag"), "Web: VPN action", "deny refuses, manual sends to staff, flag allows and logs.", group="Web verification")
     _choice("verification", "web_unknown_action", "allow", ("allow", "manual", "deny"), "Web: when the IP check fails", "What to do if the provider is missing or unreachable.", group="Web verification")
@@ -394,7 +395,7 @@ async def export_json(guild_id: int) -> str:
 
 def validate_import(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict) or not isinstance(payload.get("settings"), dict):
-        raise ValueError("That file is not a Soward security export.")
+        raise ValueError("That file is not a Zyro security export.")
     clean = {}
     for path, value in payload["settings"].items():
         setting = _REGISTRY.get(path)

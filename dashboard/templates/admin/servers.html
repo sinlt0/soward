@@ -1,0 +1,41 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Servers{% endblock %}
+{% block admin_heading %}Servers{% endblock %}
+{% block admin_body %}
+<div class="stats">
+  <div class="stat"><div class="stat__value">{{ "{:,}".format(d.all_guilds) }}</div><div class="stat__label">Servers</div></div>
+  <div class="stat"><div class="stat__value">{{ "{:,}".format(d.all_members) }}</div><div class="stat__label">Members</div></div>
+  <div class="stat"><div class="stat__value">{{ d.premium }}</div><div class="stat__label">Premium</div></div>
+  <div class="stat"><div class="stat__value">{{ d.total }}</div><div class="stat__label">Matching</div></div>
+</div>
+<section class="panel">
+  <form class="tabletools" method="get" action="{{ url_for('admin_servers') }}">
+    <input class="input tabletools__search" type="search" name="q" value="{{ d.q }}" placeholder="Search name, server ID or owner ID" aria-label="Search servers">
+    <select class="select" name="filter" aria-label="Filter">{% for v, l in (("all","All"),("premium","Premium"),("free","Free"),("banned","Banned")) %}<option value="{{ v }}"{% if d.filter == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <select class="select" name="sort" aria-label="Sort">{% for v, l in (("members","Most members"),("name","Name"),("newest","Newest join"),("oldest","Oldest join")) %}<option value="{{ v }}"{% if d.sort == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <button class="btn btn--primary btn--sm" type="submit">Apply</button>
+  </form>
+  {% if d.guilds %}
+  <div class="tablewrap"><table class="table">
+    <thead><tr><th>Server</th><th>Members</th><th>Owner</th><th>Joined</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for g in d.guilds %}
+    <tr>
+      <td data-label="Server"><div class="srvcell"><span class="srvcell__icon"{% if g.icon %} style="background-image:url('{{ g.icon }}')"{% endif %}>{% if not g.icon %}{{ g.name[:1] | upper }}{% endif %}</span><span><a href="{{ url_for('admin_server', gid=g.id) }}"><strong>{{ g.name }}</strong></a><br><code>{{ g.id }}</code></span></div></td>
+      <td data-label="Members">{{ "{:,}".format(g.members) }}</td>
+      <td data-label="Owner"><code>{{ g.owner_id }}</code></td>
+      <td data-label="Joined">{{ g.joined | ago if g.joined else "unknown" }}</td>
+      <td data-label="Status">{% if g.premium %}<span class="badge badge--premium">Premium · {{ g.expires | until }}</span>{% endif %}{% if g.banned %} <span class="badge badge--bad">Banned</span>{% endif %}{% if not g.premium and not g.banned %}<span class="badge">Free</span>{% endif %}</td>
+      <td class="rowtools"><a class="btn btn--ghost btn--sm" href="{{ url_for('admin_server', gid=g.id) }}">Manage</a><a class="btn btn--ghost btn--sm" href="{{ url_for('server_page', gid=g.id) }}">Dashboard</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="pager">
+    {% if d.page > 1 %}<a class="btn btn--ghost btn--sm" href="{{ url_for('admin_servers', **dict(args, page=d.page - 1)) }}">Previous</a>{% endif %}
+    <span>Page {{ d.page }} of {{ d.pages }}</span>
+    {% if d.page < d.pages %}<a class="btn btn--ghost btn--sm" href="{{ url_for('admin_servers', **dict(args, page=d.page + 1)) }}">Next</a>{% endif %}
+  </div>
+  {% else %}<div class="empty empty--inset"><strong>No servers match</strong>Try a different search or filter.</div>{% endif %}
+</section>
+{% endblock %}

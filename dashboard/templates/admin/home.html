@@ -1,0 +1,31 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Overview{% endblock %}
+{% block admin_heading %}Overview{% endblock %}
+{% block admin_body %}
+<div class="stats">
+  <div class="stat"><div class="stat__value">{{ "{:,}".format(d.guilds) }}</div><div class="stat__label">Servers</div></div>
+  <div class="stat"><div class="stat__value">{{ "{:,}".format(d.members) }}</div><div class="stat__label">Members</div></div>
+  <div class="stat"><div class="stat__value">{{ d.premium_guilds }}</div><div class="stat__label">Premium servers{% if d.expiring_soon %} · {{ d.expiring_soon }} ending soon{% endif %}</div></div>
+  <div class="stat"><div class="stat__value">{{ d.latency_ms }}<small> ms</small></div><div class="stat__label">Latency</div></div>
+  <div class="stat"><div class="stat__value">{{ d.uptime | uptime }}</div><div class="stat__label">Uptime</div></div>
+  <div class="stat"><div class="stat__value">{{ d.commands }}</div><div class="stat__label">Commands · {{ d.cogs }} cogs</div></div>
+  <div class="stat"><div class="stat__value">{{ d.banned_guilds }} / {{ d.banned_users }}</div><div class="stat__label">Banned servers / users</div></div>
+  <div class="stat"><div class="stat__value">{{ d.unused_keys }}</div><div class="stat__label">Unused premium keys</div></div>
+</div>
+<section class="panel">
+  <div class="panel__head"><h2>Status</h2></div>
+  <div class="setting"><div><div class="setting__label">Maintenance</div><div class="setting__help">{% if d.maintenance.on %}On since {{ d.maintenance.since | ago }}{% if d.maintenance.reason %}: {{ d.maintenance.reason }}{% endif %}{% else %}Off{% endif %}</div></div><div class="setting__control"><a class="btn btn--ghost btn--sm" href="{{ url_for('admin_system') }}">Manage</a></div></div>
+  <div class="setting"><div><div class="setting__label">Web dashboard</div><div class="setting__help">{{ "On for every server" if d.dashboard_enabled else "Off for every server" }}</div></div></div>
+  <div class="setting"><div><div class="setting__label">Runtime</div><div class="setting__help">Python {{ d.python }} · discord.py {{ d.discord_py }}{% if d.memory_mb %} · {{ d.memory_mb }} MB peak memory{% endif %}</div></div></div>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Team</h2><p>Owners and developers with access to this panel.</p></div>
+  <ul class="audit">{% for m in staff %}<li><span class="audit__who">{{ m.role }}</span><span class="audit__what">{{ m.name or "Not in cache" }} <code>{{ m.id }}</code></span><span class="audit__when"><a href="{{ url_for('admin_user', uid=m.id) }}">View</a></span></li>{% endfor %}</ul>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Recent admin actions</h2><p>Everything done from this panel is recorded.</p></div>
+  {% if d.audit %}
+  <ul class="audit">{% for e in d.audit %}<li><span class="audit__who">{{ e.user }}</span><span class="audit__what">{{ e.summary }}{% if e.guild_id != "0" %} <a href="{{ url_for('admin_server', gid=e.guild_id) }}"><code>{{ e.guild_id }}</code></a>{% endif %}</span><span class="audit__when">{{ e.at | ago }}</span></li>{% endfor %}</ul>
+  {% else %}<div class="empty empty--inset">Nothing yet.</div>{% endif %}
+</section>
+{% endblock %}

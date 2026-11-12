@@ -7,11 +7,11 @@ from utils import emoji_manager, ipc_server
 from utils.checks import has_guild_permission, is_owner
 from utils.components import info_layout, success_layout
 
-log = logging.getLogger("soward.dashboard")
+log = logging.getLogger("zyro.dashboard")
 
 
 def _link() -> str:
-    return config.DASHBOARD_URL or "Set `SOWARD_DASHBOARD_URL` to show the link."
+    return config.DASHBOARD_URL or "Set `ZYRO_DASHBOARD_URL` to show the link."
 
 
 class Dashboard(commands.Cog):

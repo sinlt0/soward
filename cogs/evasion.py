@@ -40,7 +40,8 @@ def link_layout(link: dict, banned: Optional[dict]) -> discord.ui.LayoutView:
 
 
 class Evasion(commands.Cog):
-    category = "Security"
+    category = "Config"
+    submodule = "Security"
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot

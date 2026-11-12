@@ -43,8 +43,8 @@ CHAPTERS = (
         {"coins": 1000, "items": {"qi_pill": 3}},
         "Yao counts her jars twice, then a third time. *\"Do not tell anyone I was worried.\"*",
         choice={"flag": "herbs", "prompt": "You found her last field of herbs. Yao names a price.", "options": (
-            ("pay", "Pay her full price", "Yao stares at the coins, then at you. *\"Fool. A generous fool.\"* She presses two Healing Pills into your hand anyway.", {"items": {"healing_pill": 2}}),
-            ("haggle", "Haggle her down", "Yao laughs until she coughs. *\"Finally, a customer worth cheating.\"* You keep a few coins from the deal.", {"coins": 400}),
+            ("pay", "Pay her full price", "Yao stares at the spirit stones, then at you. *\"Fool. A generous fool.\"* She presses two Healing Pills into your hand anyway.", {"items": {"healing_pill": 2}}),
+            ("haggle", "Haggle her down", "Yao laughs until she coughs. *\"Finally, a customer worth cheating.\"* You keep a few spirit stones from the deal.", {"coins": 400}),
         )},
     ),
     chapter(
@@ -77,7 +77,7 @@ CHAPTERS = (
         {"coins": 4000},
         "Zhu writes your name in a small black ledger. *\"Interesting. Not a threat yet. Merely interesting.\"*",
         choice={"flag": "rival", "prompt": "Shen Wuyou stands before you, furious, with the whole auction watching.", "options": (
-            ("befriend", "Offer him your hand", "Shen stares at your hand as if it were a trick. Then he takes it, very stiffly. *\"This changes nothing,\"* he says, and gives you a purse of coins to prove it.", {"coins": 600}),
+            ("befriend", "Offer him your hand", "Shen stares at your hand as if it were a trick. Then he takes it, very stiffly. *\"This changes nothing,\"* he says, and gives you a purse of spirit stones to prove it.", {"coins": 600}),
             ("humble", "Beat him in front of the crowd", "You humble him, and the room cheers. Shen walks out without a word, but a Spirit Iron falls from his sleeve as he goes.", {"items": {"spirit_iron": 3}}),
         )},
     ),
@@ -119,7 +119,7 @@ CHAPTERS = (
         {"coins": 10000},
         "By dawn the tide has drawn back, leaving a coastline of broken stone and a Refuge that is no longer empty.",
         choice={"flag": "tide", "prompt": "The tide is still rising. The villagers cannot all fit through the gate in time.", "options": (
-            ("evacuate", "Lead the villagers out through the cave", "You take the long way, through the old water cave. Every one of them lives. The coins pressed into your hands come from gratitude, not payment.", {"coins": 2000}),
+            ("evacuate", "Lead the villagers out through the cave", "You take the long way, through the old water cave. Every one of them lives. The spirit stones pressed into your hands come from gratitude, not payment.", {"coins": 2000}),
             ("hold", "Hold the line at the gate", "You hold the gate until the tide breaks. The villagers hand up everything they carry: pills, mostly, and a great deal of tea.", {"items": {"qi_pill": 4}}),
         )},
         echo=(("serpent", "seal", "In the cave below, the sealed serpent stirs once, and the tide turns aside around it."), ("serpent", "scale", "You wear the serpent's scales as the tide crests, and the grey seems to slide off them.")),

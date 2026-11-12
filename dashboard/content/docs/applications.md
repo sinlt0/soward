@@ -82,7 +82,7 @@ Use `!application roles <form> <list> <add|remove|clear> [roles]`.
 | `accept_add` and `accept_remove` | Given or removed when an application is accepted. |
 | `deny_add` and `deny_remove` | Given or removed when an application is denied. |
 
-Soward's top role must be above the roles it gives or removes.
+Zyro's top role must be above the roles it gives or removes.
 
 ## Reviewing
 

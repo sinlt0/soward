@@ -124,9 +124,9 @@ async def sync_member(guild: discord.Guild, member: discord.Member, cfg: Optiona
     remove = [r for r in (guild.get_role(i) for i in (managed - desired) & current) if _manageable(guild, r)]
     try:
         if add:
-            await member.add_roles(*add, reason="Soward booster tier")
+            await member.add_roles(*add, reason="Zyro booster tier")
         if remove:
-            await member.remove_roles(*remove, reason="Soward booster tier")
+            await member.remove_roles(*remove, reason="Zyro booster tier")
     except discord.HTTPException:
         pass
     if member.premium_since is None:
@@ -250,13 +250,13 @@ async def create_custom(guild: discord.Guild, member: discord.Member, cfg: dict,
     permissions = safe_permissions(perm_names(perms)) if cfg["allow_perms"] else discord.Permissions.none()
     role = await guild.create_role(
         name=name, colour=discord.Colour(color), hoist=hoist, permissions=permissions, mentionable=False,
-        reason=f"Soward custom booster role for {member}",
+        reason=f"Zyro custom booster role for {member}",
     )
     try:
-        await role.edit(position=await target_position(guild, cfg), reason="Soward custom booster role position")
+        await role.edit(position=await target_position(guild, cfg), reason="Zyro custom booster role position")
     except discord.HTTPException:
         pass
-    await member.add_roles(role, reason="Soward custom booster role")
+    await member.add_roles(role, reason="Zyro custom booster role")
     await _store(guild.id, member.id, role.id, name=name, color=color, hoist=int(hoist), perms=permissions.value, last_edit=time.time())
     return role
 
@@ -298,7 +298,7 @@ async def edit_custom(guild: discord.Guild, member: discord.Member, cfg: dict, r
         kwargs["display_icon"] = icon if icon is not None else None
     if not kwargs:
         raise BoosterError("Nothing to change.")
-    await role.edit(reason=f"Soward custom booster role edited by {member}", **kwargs)
+    await role.edit(reason=f"Zyro custom booster role edited by {member}", **kwargs)
     fields["last_edit"] = time.time()
     await _store(guild.id, member.id, role.id, **fields)
 
@@ -309,7 +309,7 @@ async def delete_custom(guild: discord.Guild, user_id: int, keep_settings: bool)
         return
     if role is not None:
         try:
-            await role.delete(reason="Soward custom booster role removed")
+            await role.delete(reason="Zyro custom booster role removed")
         except discord.HTTPException:
             pass
     if keep_settings:
@@ -339,7 +339,7 @@ async def reposition_all(guild: discord.Guild, cfg: dict) -> int:
         if role is None or role >= guild.me.top_role:
             continue
         try:
-            await role.edit(position=position, reason="Soward custom booster role position")
+            await role.edit(position=position, reason="Zyro custom booster role position")
             moved += 1
         except discord.HTTPException:
             continue

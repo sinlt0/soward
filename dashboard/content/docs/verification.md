@@ -150,7 +150,7 @@ Web verification only works where the dashboard is available to members. These c
 
 - **"No verification type set"**: run `!verification type button`, `captcha`, `manual` or `web` first.
 - **Members get "Web verification is not set up"**: the dashboard is not available on this bot.
-- **Members see the whole server**: the gate role must deny access to your channels, or your channels must require the verified role. Soward only hands out the roles, you control what they can see.
+- **Members see the whole server**: the gate role must deny access to your channels, or your channels must require the verified role. Zyro only hands out the roles, you control what they can see.
 - **Roles are not given**: the bot's top role must be above the verified role and gate role.
 - **The captcha image does not show**: make sure the bot can attach files in that channel.
 - **A member says the button does nothing in manual mode**: that is expected. Their request is logged and staff must run `!approve`.

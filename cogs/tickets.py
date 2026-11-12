@@ -17,7 +17,7 @@ from utils.colors import ERROR, NEUTRAL, SUCCESS
 from utils.components import ConfirmLayout, error_layout, footer_block, info_layout, success_layout
 from utils.events_bus import LOG_EVENT, bus
 
-log = logging.getLogger("soward.tickets")
+log = logging.getLogger("zyro.tickets")
 
 _TOUCH_INTERVAL = 60.0
 _CLOSE_DELAY = 5
@@ -211,7 +211,7 @@ async def close_ticket(
         try:
             await channel.send(view=_layout(f"{e('lock')} Closing", f"This ticket will be deleted in {_CLOSE_DELAY} seconds.", color=ERROR))
             await asyncio.sleep(_CLOSE_DELAY)
-            await channel.delete(reason=f"[Soward Tickets] Ticket #{ticket['number']:04d} closed")
+            await channel.delete(reason=f"[Zyro Tickets] Ticket #{ticket['number']:04d} closed")
         except discord.HTTPException:
             log.warning("Could not delete ticket channel %s", ticket["channel_id"], exc_info=True)
     if cog is not None:
@@ -271,7 +271,7 @@ async def open_ticket(interaction: discord.Interaction, panel_id: str, subject: 
                 category=category,
                 overwrites=tickets.build_overwrites(guild, member, staff_roles),
                 topic=f"Ticket #{number:04d} - opened by {member} ({member.id})",
-                reason=f"[Soward Tickets] Ticket opened by {member} ({member.id})",
+                reason=f"[Zyro Tickets] Ticket opened by {member} ({member.id})",
             )
         except discord.HTTPException as exc:
             hint = "I need **Manage Channels** and **Manage Roles**." if isinstance(exc, discord.Forbidden) else "The category may be full."
@@ -473,7 +473,8 @@ async def _do_claim(bot, guild, channel, ticket, member, interaction=None) -> No
 
 
 class Tickets(commands.Cog):
-    category = "Tickets"
+    category = "Config"
+    submodule = "Tickets"
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -644,7 +645,7 @@ class Tickets(commands.Cog):
         await ctx.channel.set_permissions(
             member,
             overwrite=discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, attach_files=True),
-            reason=f"[Soward Tickets] Added by {ctx.author}",
+            reason=f"[Zyro Tickets] Added by {ctx.author}",
         )
         await ctx.send(view=success_layout(f"{e('check')} Member added", f"{member.mention} can now see this ticket."))
         await _announce(self.bot, ctx.guild, ctx.author.id, f"Added {member.mention} to ticket #{found[0]['number']:04d}")
@@ -659,7 +660,7 @@ class Tickets(commands.Cog):
         ticket = found[0]
         if member.id == ticket["owner_id"]:
             return await ctx.send(view=error_layout("Can't remove the owner", "The ticket owner can't be removed. Close the ticket instead."))
-        await ctx.channel.set_permissions(member, overwrite=None, reason=f"[Soward Tickets] Removed by {ctx.author}")
+        await ctx.channel.set_permissions(member, overwrite=None, reason=f"[Zyro Tickets] Removed by {ctx.author}")
         await ctx.send(view=success_layout(f"{e('check')} Member removed", f"{member.mention} no longer has access."))
         await _announce(self.bot, ctx.guild, ctx.author.id, f"Removed {member.mention} from ticket #{ticket['number']:04d}")
 
@@ -674,7 +675,7 @@ class Tickets(commands.Cog):
         if not slug:
             return await ctx.send(view=error_layout("Invalid name", "Use letters, numbers, dashes or underscores."))
         try:
-            await ctx.channel.edit(name=slug, reason=f"[Soward Tickets] Renamed by {ctx.author}")
+            await ctx.channel.edit(name=slug, reason=f"[Zyro Tickets] Renamed by {ctx.author}")
         except discord.HTTPException as exc:
             return await ctx.send(view=error_layout("Could not rename", str(exc)[:200]))
         await ctx.send(view=success_layout(f"{e('check')} Renamed", f"This ticket is now `{slug}`."))
@@ -841,7 +842,7 @@ class Tickets(commands.Cog):
         premium = await tickets.is_premium(ctx.guild.id)
         text = f"This server can have up to **{limit}** {noun}."
         if not premium:
-            text += f" Soward Premium raises this to **{tickets.premium_limit(key)}**."
+            text += f" Zyro Premium raises this to **{tickets.premium_limit(key)}**."
         await ctx.send(view=error_layout(title, text))
 
     @panel.command(name="create", help="Create a ticket panel.")
@@ -989,10 +990,10 @@ class Tickets(commands.Cog):
                             view_channel=True, send_messages=True, read_message_history=True,
                             attach_files=True, embed_links=True, manage_messages=True,
                         ),
-                        reason="[Soward Tickets] Staff role added to panel",
+                        reason="[Zyro Tickets] Staff role added to panel",
                     )
                 else:
-                    await channel.set_permissions(role, overwrite=None, reason="[Soward Tickets] Staff role removed from panel")
+                    await channel.set_permissions(role, overwrite=None, reason="[Zyro Tickets] Staff role removed from panel")
             except discord.HTTPException:
                 log.warning("Could not sync staff role %s on channel %s", role.id, channel.id, exc_info=True)
 
@@ -1232,7 +1233,7 @@ class Tickets(commands.Cog):
                 if len(category.channels) >= 50:
                     problems.append(f"**{name}**: category {category.name} is full (50 channels), add another with `ticket panel category add`")
                 if me is not None and not category.permissions_for(me).manage_channels:
-                    problems.append(f"**{name}**: Soward cannot manage channels in {category.name}")
+                    problems.append(f"**{name}**: Zyro cannot manage channels in {category.name}")
             transcript_id = panel["transcript_channel_id"]
             if transcript_id:
                 channel = ctx.guild.get_channel(transcript_id)
@@ -1243,7 +1244,7 @@ class Tickets(commands.Cog):
                 else:
                     transcripts_seen.setdefault(transcript_id, []).append(name)
                     if me is not None and not channel.permissions_for(me).send_messages:
-                        problems.append(f"**{name}**: Soward cannot send in {channel.mention}")
+                        problems.append(f"**{name}**: Zyro cannot send in {channel.mention}")
             elif not log_id:
                 problems.append(f"**{name}**: no transcript channel and no server ticket log, transcripts are not saved anywhere")
             else:

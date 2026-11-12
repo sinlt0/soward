@@ -13,7 +13,7 @@ from utils import coins as coin_store, crypto_pay as store, emoji_manager, hdwal
 from utils.checks import is_privileged
 from utils.components import error_layout, info_layout, success_layout
 
-log = logging.getLogger("soward.crypto")
+log = logging.getLogger("zyro.crypto")
 NO_MENTIONS = discord.AllowedMentions.none()
 TEST_KEY = "zpub6rFR7y4Q2AijBEqTUquhVz398htDFrtymD9xYYfG1m4wAcvPhXNfE3EfH1r1ADqtfSdVCToUG868RvUUkgDKf31mGDtKsAYz2oz2AGutZYs"
 GOLD = 0xF7931A
@@ -163,7 +163,7 @@ class BuyView(discord.ui.LayoutView):
             self.add_item(container)
             return
         if self.plan is None:
-            lines = [f"## Soward Premium", f"You are buying premium for {target}. Pay with Bitcoin or Litecoin, no account or KYC. Premium turns on automatically once the payment confirms.", "", "**Choose a plan**"]
+            lines = [f"## Zyro Premium", f"You are buying premium for {target}. Pay with Bitcoin or Litecoin, no account or KYC. Premium turns on automatically once the payment confirms.", "", "**Choose a plan**"]
             container.add_item(discord.ui.TextDisplay("\n".join(lines)))
             row = discord.ui.ActionRow()
             for key, plan in config.CRYPTO_PLANS.items():
@@ -175,7 +175,7 @@ class BuyView(discord.ui.LayoutView):
             container.add_item(row)
         else:
             plan = store.plan_for(self.plan)
-            container.add_item(discord.ui.TextDisplay(f"## Soward Premium\n**{plan['label']}** for {money(plan['usd'])} for {target}.\n\n**Choose a coin**"))
+            container.add_item(discord.ui.TextDisplay(f"## Zyro Premium\n**{plan['label']}** for {money(plan['usd'])} for {target}.\n\n**Choose a coin**"))
             row = discord.ui.ActionRow()
             for coin in self.coins:
                 button = discord.ui.Button(label=config.CRYPTO_COINS[coin], style=discord.ButtonStyle.success)
@@ -225,7 +225,7 @@ class CryptoPay(commands.Cog):
         self.gate = asyncio.Semaphore(4)
 
     async def cog_load(self):
-        self.session = aiohttp.ClientSession(headers={"User-Agent": "SowardBot/1.0"})
+        self.session = aiohttp.ClientSession(headers={"User-Agent": "ZyroBot/1.0"})
         self.watch.start()
 
     async def cog_unload(self):

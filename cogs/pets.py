@@ -24,7 +24,8 @@ def find(catalog: dict, text: str) -> Optional[str]:
 
 
 class Pets(commands.Cog):
-    category = "Profile"
+    category = "Utility"
+    submodule = "User Utilities"
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot

@@ -1,11 +1,11 @@
 <div align="center">
 
-# Soward
+# Zyro
 
 A modular, prefix-based Discord bot with a built-in security stack, moderation,
 music, leveling, giveaways, custom commands and more.
 
-Built by **Sinlt (辛特)** and the **Soward Team**.
+Built by **Sinlt (辛特)** and the **Zyro Team**.
 
 [![CI](https://github.com/sinlt0/soward/actions/workflows/ci.yml/badge.svg)](https://github.com/sinlt0/soward/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
@@ -54,7 +54,7 @@ python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env               # set SOWARD_TOKEN
+cp .env.example .env               # set ZYRO_TOKEN
 # edit devs.json and replace the IDs with your own Discord user ID(s)
 
 python main.py
@@ -79,23 +79,23 @@ Manage Roles, Manage Channels, Ban/Kick Members and Moderate Members.
 
 | Variable | Required | Description |
 |---|---|---|
-| `SOWARD_TOKEN` | Yes | Discord bot token |
-| `SOWARD_MONGO_URI` / `SOWARD_MONGO_DB` | No | MongoDB mirror (default `mongodb://localhost:27017` / `soward`) |
-| `SOWARD_LAVALINK_HOST` / `_PORT` / `_PASSWORD` / `_SECURE` | No | Lavalink v4 node for music |
-| `SOWARD_LAVALINK_NODES` | No | JSON list of nodes, overrides the four above |
-| `SOWARD_SPOTIFY_CLIENT_ID` / `_SECRET` | No | Enables Spotify search |
-| `SOWARD_YOUTUBE_API_KEY`, `SOWARD_TWITCH_CLIENT_ID` / `_SECRET` | No | Alerts cog |
-| `SOWARD_WEBSUB`, `SOWARD_WEBSUB_CALLBACK`, `SOWARD_WEBSUB_SECRET` | No | Instant YouTube push. Callback defaults to `SOWARD_DASHBOARD_URL` + `/websub/youtube` (must be public https); secret defaults to the IPC secret |
-| `SOWARD_CLIENT_ID` / `SOWARD_CLIENT_SECRET` | For dashboard sign-in | Discord OAuth2 credentials |
-| `SOWARD_DASHBOARD_URL` | For dashboard sign-in | Public site URL, no trailing slash |
-| `SOWARD_SESSION_SECRET` | Recommended | Signs dashboard session cookies |
-| `SOWARD_IPINTEL_PROVIDER` / `SOWARD_IPINTEL_KEY` | For VPN detection | `proxycheck` or `ipqs` with that service's API key. Used by the `web` verification type |
-| `SOWARD_IP_SALT` | Recommended with `web` verification | Secret mixed into the stored address hashes |
-| `SOWARD_BEHIND_PROXY` | If hosted behind a proxy | Set to `1` so the real visitor address is read from `X-Forwarded-For` |
-| `SOWARD_TURNSTILE_SITE_KEY` / `SOWARD_TURNSTILE_SECRET` | No | Adds a Cloudflare Turnstile widget to the verification page |
-| `SOWARD_SUPPORT_URL` | No | Support server link shown on the site |
-| `SOWARD_DEV_LOG_*_WEBHOOK`, `SOWARD_DEV_STATS_WEBHOOK` | No | Developer-only logging webhooks |
-| `SOWARD_BLOCKCYPHER_TOKEN` | No | Optional free BlockCypher token that raises the Litecoin explorer rate limit |
+| `ZYRO_TOKEN` | Yes | Discord bot token |
+| `ZYRO_MONGO_URI` / `ZYRO_MONGO_DB` | No | MongoDB mirror (default `mongodb://localhost:27017` / `zyro`) |
+| `ZYRO_LAVALINK_HOST` / `_PORT` / `_PASSWORD` / `_SECURE` | No | Lavalink v4 node for music |
+| `ZYRO_LAVALINK_NODES` | No | JSON list of nodes, overrides the four above |
+| `ZYRO_SPOTIFY_CLIENT_ID` / `_SECRET` | No | Enables Spotify search |
+| `ZYRO_YOUTUBE_API_KEY`, `ZYRO_TWITCH_CLIENT_ID` / `_SECRET` | No | Alerts cog |
+| `ZYRO_WEBSUB`, `ZYRO_WEBSUB_CALLBACK`, `ZYRO_WEBSUB_SECRET` | No | Instant YouTube push. Callback defaults to `ZYRO_DASHBOARD_URL` + `/websub/youtube` (must be public https); secret defaults to the IPC secret |
+| `ZYRO_CLIENT_ID` / `ZYRO_CLIENT_SECRET` | For dashboard sign-in | Discord OAuth2 credentials |
+| `ZYRO_DASHBOARD_URL` | For dashboard sign-in | Public site URL, no trailing slash |
+| `ZYRO_SESSION_SECRET` | Recommended | Signs dashboard session cookies |
+| `ZYRO_IPINTEL_PROVIDER` / `ZYRO_IPINTEL_KEY` | For VPN detection | `proxycheck` or `ipqs` with that service's API key. Used by the `web` verification type |
+| `ZYRO_IP_SALT` | Recommended with `web` verification | Secret mixed into the stored address hashes |
+| `ZYRO_BEHIND_PROXY` | If hosted behind a proxy | Set to `1` so the real visitor address is read from `X-Forwarded-For` |
+| `ZYRO_TURNSTILE_SITE_KEY` / `ZYRO_TURNSTILE_SECRET` | No | Adds a Cloudflare Turnstile widget to the verification page |
+| `ZYRO_SUPPORT_URL` | No | Support server link shown on the site |
+| `ZYRO_DEV_LOG_*_WEBHOOK`, `ZYRO_DEV_STATS_WEBHOOK` | No | Developer-only logging webhooks |
+| `ZYRO_BLOCKCYPHER_TOKEN` | No | Optional free BlockCypher token that raises the Litecoin explorer rate limit |
 
 See [`.env.example`](./.env.example) for the full template.
 
@@ -123,7 +123,7 @@ unaffected.
 
 ## Music Activity
 
-Soward Music is a Discord Activity: a music app that runs inside Discord for
+Zyro Music is a Discord Activity: a music app that runs inside Discord for
 servers, voice channels and DMs. It is served by the dashboard (a section of
 the Flask site under `/activity/`) and needs the dashboard to be running and
 reachable over HTTPS. It does not need Lavalink. Audio is searched and streamed
@@ -136,7 +136,7 @@ Developer Portal setup, on the same application as the bot:
 2. **OAuth2 > Redirects**: add the placeholder `https://127.0.0.1`.
 3. **Activities > Settings**: turn on **Enable Activities** and tick the supported platforms (desktop, mobile and web). This creates the default Launch entry point command.
 4. **Activities > URL Mappings**: add one mapping, prefix `/` and target `your-dashboard-host/activity` (no protocol, no trailing slash). Requests from the Activity then reach the dashboard's `/activity/` routes.
-5. Make sure `SOWARD_CLIENT_ID`, `SOWARD_CLIENT_SECRET` and `SOWARD_DASHBOARD_URL` are set. The Activity reuses them. Set `SOWARD_ACTIVITY=0` to turn the feature off.
+5. Make sure `ZYRO_CLIENT_ID`, `ZYRO_CLIENT_SECRET` and `ZYRO_DASHBOARD_URL` are set. The Activity reuses them. Set `ZYRO_ACTIVITY=0` to turn the feature off.
 
 If songs will not play, open the Activity as the owner, go to Settings and press
 **Run music diagnostics**. It reports the `yt-dlp` version, whether search works and
@@ -144,8 +144,8 @@ the exact error when preparing a song fails. YouTube often blocks cloud server
 addresses and asks to "sign in to confirm you're not a bot". The Activity first
 retries with other YouTube player clients. If that is not enough, give it cookies
 from a throwaway YouTube account: export them as a Netscape `cookies.txt`, then set
-`SOWARD_YTDLP_COOKIES_B64` to the base64 of that file (or `SOWARD_YTDLP_COOKIES` to
-a file path, such as a Render secret file). Also set `SOWARD_YTDLP_JS_RUNTIME` to
+`ZYRO_YTDLP_COOKIES_B64` to the base64 of that file (or `ZYRO_YTDLP_COOKIES` to
+a file path, such as a Render secret file). Also set `ZYRO_YTDLP_JS_RUNTIME` to
 `node` or `deno`. The export must include `__Secure-1PSIDTS` and `__Secure-3PSIDTS`. Export from a
 private window right after signing in, then close it without logging out, because
 YouTube rotates cookies that stay open in a tab. Use a spare account, because YouTube
@@ -183,7 +183,7 @@ activities = {
 ```
 
 Turning an app off also blocks its server routes and its `!musicapp` or `!gamesapp`
-command. `SOWARD_ACTIVITY=0` still turns every app off.
+command. `ZYRO_ACTIVITY=0` still turns every app off.
 
 ### Coins, family and clans
 
@@ -194,13 +194,13 @@ the other limits are constants near the top of the economy section of `config.py
 
 `!vote` links to the bot's discordbotlist.com page. When someone votes, the site posts to
 `<dashboard url>/vote/discordbotlist` and the voter gets global no-prefix for
-`SOWARD_VOTE_NP_HOURS` hours (default 12), a thank-you DM and a vote streak. On the bot's
+`ZYRO_VOTE_NP_HOURS` hours (default 12), a thank-you DM and a vote streak. On the bot's
 discordbotlist.com edit page, set **Upvote Webhook** to that URL and **Webhook Secret** to a
-long random string, then put the same string in `SOWARD_VOTE_DBL_SECRET`. The **Test webhook**
+long random string, then put the same string in `ZYRO_VOTE_DBL_SECRET`. The **Test webhook**
 button on the site sends from your browser and cannot reach a private dashboard, so check
 with a real vote.
 
-Set `SOWARD_DBL_TOKEN` to the token from the page's **Generate token** link and the bot posts its
+Set `ZYRO_DBL_TOKEN` to the token from the page's **Generate token** link and the bot posts its
 server and user counts to discordbotlist.com every 30 minutes.
 
 ### Cultivation
@@ -214,14 +214,14 @@ server and user counts to discordbotlist.com every 30 minutes.
 ### Translation
 
 `!translate` works with no setup through the free MyMemory service (about 5,000 characters per day
-per IP). Two optional settings raise that: `SOWARD_TRANSLATE_EMAIL` (any email, free, lifts MyMemory
-to about 50,000 characters per day) and `SOWARD_DEEPL_KEY` (a DeepL API Free key, 500,000 characters
+per IP). Two optional settings raise that: `ZYRO_TRANSLATE_EMAIL` (any email, free, lifts MyMemory
+to about 50,000 characters per day) and `ZYRO_DEEPL_KEY` (a DeepL API Free key, 500,000 characters
 per month). Languages DeepL does not support still fall back to MyMemory.
 
 ### Covering hosting
 
 `!support` creates a pay-what-you-want Bitcoin or Litecoin invoice with the same wallet
-as premium purchases. Set `SOWARD_SUPPORT_GUILD` and `SOWARD_SUPPORTER_ROLE` to also give
+as premium purchases. Set `ZYRO_SUPPORT_GUILD` and `ZYRO_SUPPORTER_ROLE` to also give
 tippers a role in your support server. The dashboard has a `/supporters` page that lists
 people who opted in with `!support public on`.
 
@@ -300,13 +300,13 @@ to match it. More addon toggles can be added as new dicts after `dash`.
 
 `python main.py` starts the bot and, beside it, the Flask site on `$PORT`
 (default `8080`). The two processes talk over a Unix socket at
-`data/soward-ipc.sock` (a loopback port is used on Windows), protected by a
+`data/zyro-ipc.sock` (a loopback port is used on Windows), protected by a
 secret generated on every boot.
 
 1. In the Discord Developer Portal open your application, go to **OAuth2** and
-   add `<SOWARD_DASHBOARD_URL>/callback` as a redirect.
-2. Set `SOWARD_CLIENT_ID`, `SOWARD_CLIENT_SECRET`, `SOWARD_DASHBOARD_URL` and
-   `SOWARD_SESSION_SECRET`.
+   add `<ZYRO_DASHBOARD_URL>/callback` as a redirect.
+2. Set `ZYRO_CLIENT_ID`, `ZYRO_CLIENT_SECRET`, `ZYRO_DASHBOARD_URL` and
+   `ZYRO_SESSION_SECRET`.
 3. Open the site, sign in and pick a server.
 
 Anyone with Manage Server (or Administrator) in a server where the bot is
@@ -354,10 +354,10 @@ described in [SECURITY.md](./SECURITY.md).
 
 ## License and attribution
 
-Soward is licensed under the **Apache License 2.0** ([LICENSE](./LICENSE),
+Zyro is licensed under the **Apache License 2.0** ([LICENSE](./LICENSE),
 [NOTICE](./NOTICE)). You may fork, self-host and build on it, but you must keep
 `LICENSE` and `NOTICE` intact and credit the original project, for example:
 
-> Built upon [Soward](https://github.com/sinlt0/soward) by Sinlt
+> Built upon [Zyro](https://github.com/sinlt0/soward) by Sinlt
 
 See [CREDITS.md](./CREDITS.md) for the full list of credits.

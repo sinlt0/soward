@@ -402,7 +402,7 @@ async def snapshot(guild: discord.Guild) -> dict:
 
 def validate(data: Any) -> dict:
     if not isinstance(data, dict) or data.get("version") != 1:
-        raise ValueError("This template uses a format Soward does not understand.")
+        raise ValueError("This template uses a format Zyro does not understand.")
     roles = data.get("roles") or []
     categories = data.get("categories") or []
     if not isinstance(roles, list) or not isinstance(categories, list):
@@ -545,7 +545,7 @@ async def _apply_roles(guild: discord.Guild, specs: list, foreign: bool, rmap: d
                 wanted = _role_perms(spec, foreign, me)
                 if found.permissions != wanted:
                     try:
-                        await _timed(found.edit(permissions=wanted, reason="Soward server template update"), report)
+                        await _timed(found.edit(permissions=wanted, reason="Zyro server template update"), report)
                         report.counts["roles_updated"] += 1
                         await asyncio.sleep(0.3)
                     except (discord.HTTPException, asyncio.TimeoutError) as exc:
@@ -558,7 +558,7 @@ async def _apply_roles(guild: discord.Guild, specs: list, foreign: bool, rmap: d
         try:
             role = await _timed(guild.create_role(
                 name=spec["name"][:100], colour=discord.Colour(int(spec.get("color", 0) or 0)), hoist=bool(spec.get("hoist")),
-                mentionable=bool(spec.get("mentionable")), permissions=perms, reason="Soward server template",
+                mentionable=bool(spec.get("mentionable")), permissions=perms, reason="Zyro server template",
             ), report)
         except (discord.HTTPException, asyncio.TimeoutError) as exc:
             report.fail(f"Role **{spec['name']}**: {_err(exc)}")
@@ -583,9 +583,9 @@ async def _apply_roles(guild: discord.Guild, specs: list, foreign: bool, rmap: d
         return
     positions = {role: top - 1 - index for index, role in enumerate(ordered) if top - 1 - index >= 1}
     if len(positions) < len(ordered):
-        report.fail("Soward's role is too low to order every role. Move it to the top in Server Settings and apply roles again")
+        report.fail("Zyro's role is too low to order every role. Move it to the top in Server Settings and apply roles again")
     try:
-        await asyncio.wait_for(guild.edit_role_positions(positions=positions, reason="Soward server template"), CALL_TIMEOUT)
+        await asyncio.wait_for(guild.edit_role_positions(positions=positions, reason="Zyro server template"), CALL_TIMEOUT)
     except (discord.HTTPException, asyncio.TimeoutError):
         report.fail("Roles were created but could not be moved into order. Drag them into place in Server Settings")
 
@@ -613,7 +613,7 @@ async def _sync_overwrites(guild: discord.Guild, target, wanted: dict, rmap: dic
     if len(final) == len(current) and all(subject in current and _same_overwrite(current[subject], overwrite) for subject, overwrite in final.items()):
         return
     try:
-        await _timed(target.edit(overwrites=final, reason="Soward server template update"), report)
+        await _timed(target.edit(overwrites=final, reason="Zyro server template update"), report)
         report.counts["channels_updated"] += 1
         await asyncio.sleep(0.35)
     except (discord.HTTPException, asyncio.TimeoutError) as exc:
@@ -632,7 +632,7 @@ async def _apply_channels(guild: discord.Guild, categories: list, rmap: dict, cm
             if category is None:
                 try:
                     category = await _timed(guild.create_category(
-                        cat["name"][:100], overwrites=_build_overwrites(guild, cat_ow, rmap), reason="Soward server template",
+                        cat["name"][:100], overwrites=_build_overwrites(guild, cat_ow, rmap), reason="Zyro server template",
                     ), report)
                     existing_categories[cat["name"].lower()] = category
                     await asyncio.sleep(0.3)
@@ -676,7 +676,7 @@ async def _apply_channels(guild: discord.Guild, categories: list, rmap: dict, cm
             overwrites = _build_overwrites(guild, spec, rmap)
             topic = (ch.get("topic") or None)
             slow = int(ch.get("slowmode") or 0)
-            reason = "Soward server template"
+            reason = "Zyro server template"
             created = None
             try:
                 if kind in ("text", "announcement"):
@@ -837,7 +837,7 @@ async def _apply_nsfw(guild: discord.Guild, data: dict, rmap: dict, cmap: dict, 
             if channel is None or cid in ids:
                 continue
             try:
-                await nsfw_util.lock_channel(channel, role, snapshots, "Soward server template")
+                await nsfw_util.lock_channel(channel, role, snapshots, "Zyro server template")
             except discord.HTTPException as exc:
                 report.fail(f"NSFW lock on <#{cid}>: {str(exc)[:80]}")
                 continue
@@ -1374,7 +1374,7 @@ async def clean(guild: discord.Guild, report: Report, parts: set, skip_channel_i
         gone: set[int] = set()
         for channel in channels:
             try:
-                await channel.delete(reason="Soward server template clean")
+                await channel.delete(reason="Zyro server template clean")
                 gone.add(channel.id)
                 report.counts["deleted_channels"] += 1
             except discord.HTTPException as exc:
@@ -1384,7 +1384,7 @@ async def clean(guild: discord.Guild, report: Report, parts: set, skip_channel_i
             if any(c.id not in gone for c in category.channels):
                 continue
             try:
-                await category.delete(reason="Soward server template clean")
+                await category.delete(reason="Zyro server template clean")
                 report.counts["deleted_channels"] += 1
             except discord.HTTPException as exc:
                 report.fail(f"Could not delete {category.name}: {str(exc)[:60]}")
@@ -1392,7 +1392,7 @@ async def clean(guild: discord.Guild, report: Report, parts: set, skip_channel_i
     if "roles" in parts:
         for role in roles:
             try:
-                await role.delete(reason="Soward server template clean")
+                await role.delete(reason="Zyro server template clean")
                 report.counts["deleted_roles"] += 1
             except discord.HTTPException as exc:
                 report.fail(f"Could not delete role {role.name}: {str(exc)[:60]}")
@@ -1461,7 +1461,7 @@ async def full_clean(guild: discord.Guild, report: Report, skip_channel_id: int 
         if not member.bot or member.id == guild.me.id:
             continue
         try:
-            await member.kick(reason="Soward full template clean")
+            await member.kick(reason="Zyro full template clean")
             report.counts["kicked_bots"] += 1
         except discord.HTTPException as exc:
             report.fail(f"Could not kick {member.name}: {str(exc)[:60]}")
@@ -1474,7 +1474,7 @@ async def full_clean(guild: discord.Guild, report: Report, skip_channel_id: int 
         if channel.id in keep:
             continue
         try:
-            await channel.delete(reason="Soward full template clean")
+            await channel.delete(reason="Zyro full template clean")
             gone_channels.add(channel.id)
             report.counts["deleted_channels"] += 1
         except discord.HTTPException as exc:
@@ -1486,7 +1486,7 @@ async def full_clean(guild: discord.Guild, report: Report, skip_channel_id: int 
         if role.is_default() or role.managed or role.position >= top:
             continue
         try:
-            await role.delete(reason="Soward full template clean")
+            await role.delete(reason="Zyro full template clean")
             gone_roles.add(role.id)
             report.counts["deleted_roles"] += 1
         except discord.HTTPException as exc:
@@ -1502,7 +1502,7 @@ async def _apply_everyone(guild: discord.Guild, flags: dict, foreign: bool, repo
     names = _valid_perm_names(flags.get("everyone_perms") or [])
     try:
         await asyncio.wait_for(
-            guild.default_role.edit(permissions=discord.Permissions(**{n: True for n in names}), reason="Soward server template"), CALL_TIMEOUT,
+            guild.default_role.edit(permissions=discord.Permissions(**{n: True for n in names}), reason="Zyro server template"), CALL_TIMEOUT,
         )
         report.ok("Turned off every @everyone permission, so members need the member role to talk")
     except (discord.HTTPException, asyncio.TimeoutError) as exc:
@@ -1518,7 +1518,7 @@ async def _ensure_quarantine(guild: discord.Guild, report: Report, preferred_id:
     created = False
     if role is None:
         try:
-            role = await guild.create_role(name="Quarantined", permissions=discord.Permissions.none(), colour=discord.Colour(0x607D8B), reason="Soward server template")
+            role = await guild.create_role(name="Quarantined", permissions=discord.Permissions.none(), colour=discord.Colour(0x607D8B), reason="Zyro server template")
         except discord.HTTPException as exc:
             report.fail(f"Quarantine role: {str(exc)[:80]}")
             return
@@ -1529,7 +1529,7 @@ async def _ensure_quarantine(guild: discord.Guild, report: Report, preferred_id:
             pass
     if role.permissions.value:
         try:
-            await role.edit(permissions=discord.Permissions.none(), reason="Soward server template")
+            await role.edit(permissions=discord.Permissions.none(), reason="Zyro server template")
         except discord.HTTPException:
             pass
     await guild_settings.set(guild.id, "antinuke_quarantine_role_id", role.id)
@@ -1704,7 +1704,7 @@ def plan_lines(result: dict) -> list[str]:
         "Role permissions that would change",
         [f"{name}: " + ", ".join(([f"+{p.replace('_', ' ')}" for p in added[:4]] + [f"-{p.replace('_', ' ')}" for p in removed[:4]])) + ("…" if len(added) + len(removed) > 8 else "") for name, added, removed in result["roles_changed"]],
     )
-    block("Roles above Soward that could not be updated", result["roles_blocked"], 8)
+    block("Roles above Zyro that could not be updated", result["roles_blocked"], 8)
     block("Categories that would be created", result["categories_new"])
     block("Channels that would be created", result["channels_new"], 20)
     block("Channels or categories whose permissions would change", result["channels_changed"], 20)

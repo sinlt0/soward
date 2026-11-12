@@ -36,7 +36,8 @@ def parse_bet(text: str, wallet: int) -> Optional[int]:
 
 
 class Economy(commands.Cog):
-    category = "Economy"
+    category = "Engagement"
+    submodule = "Economy"
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot

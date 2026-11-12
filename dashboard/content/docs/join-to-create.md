@@ -7,7 +7,7 @@ group: Community
 
 ## How it works
 
-Members join a **hub** voice channel. Soward creates a private voice channel for them, moves them into it, and deletes it when everyone has left. Each channel has a control panel in its text chat so the owner can lock, rename and manage it.
+Members join a **hub** voice channel. Zyro creates a private voice channel for them, moves them into it, and deletes it when everyone has left. Each channel has a control panel in its text chat so the owner can lock, rename and manage it.
 
 ## Set up
 
@@ -15,7 +15,7 @@ Members join a **hub** voice channel. Soward creates a private voice channel for
 !jtc setup
 ```
 
-This creates a **Temporary Voice** category and a **Join to Create** hub. Soward needs Manage Channels and Move Members. You can also use any voice channel you already have:
+This creates a **Temporary Voice** category and a **Join to Create** hub. Zyro needs Manage Channels and Move Members. You can also use any voice channel you already have:
 
 ```
 !jtc add #Create-a-room [category]
@@ -54,11 +54,11 @@ The owner uses the buttons in the channel's chat, or `!voice` commands.
 
 Commands: `!voice lock`, `unlock`, `hide`, `unhide`, `rename <name>`, `limit <n>`, `permit`, `block`, `unblock`, `kick`, `transfer <member>`, `claim`, `delete`, `panel`.
 
-Soward remembers each member's name, limit and lock choice and applies them to their next channel. If the owner leaves while others stay, ownership moves to someone still inside. Members with Manage Channels can use the controls in any temporary channel.
+Zyro remembers each member's name, limit and lock choice and applies them to their next channel. If the owner leaves while others stay, ownership moves to someone still inside. Members with Manage Channels can use the controls in any temporary channel.
 
 ## Voice interface
 
-Soward can keep one shared **voice-interface** text channel with a Components V2 panel. It has four dropdown menus, with plain text options and no emojis:
+Zyro can keep one shared **voice-interface** text channel with a Components V2 panel. It has four dropdown menus, with plain text options and no emojis:
 
 - **Channel settings:** Lock, Unlock, Hide, Unhide, Rename, Reset to defaults, Claim and Delete.
 - **Member management:** Permit, Block, Unblock, Kick, Mute, Unmute and Transfer ownership. Mute stops a member speaking in your channel only.
@@ -67,7 +67,7 @@ Soward can keep one shared **voice-interface** text channel with a Components V2
 
 The menus act on the temporary channel you are currently in, and only its owner (or someone with Manage Channels) can use them. Rename and Set user limit open a small form, and member actions open a member picker.
 
-When someone creates a temporary channel and no interface exists, Soward creates the channel in the hub's category and posts the panel. If one already exists it is reused, and the small panel inside each voice channel is skipped. When no temporary channel is active any more, the interface channel is deleted, and it is created again when the next one is made.
+When someone creates a temporary channel and no interface exists, Zyro creates the channel in the hub's category and posts the panel. If one already exists it is reused, and the small panel inside each voice channel is skipped. When no temporary channel is active any more, the interface channel is deleted, and it is created again when the next one is made.
 
 | Command | What it does | Needs |
 | --- | --- | --- |
@@ -81,4 +81,4 @@ When someone creates a temporary channel and no interface exists, Soward creates
 - Empty channels are deleted right away, and a cleanup runs every few minutes in case an event was missed.
 - A member who already has a channel from the same hub is moved back into it instead of getting a second one.
 - Joining repeatedly is rate limited, and a server can hold up to 150 temporary channels at once.
-- Soward needs View Channel, Connect, Manage Channels and Move Members in the hub's category.
+- Zyro needs View Channel, Connect, Manage Channels and Move Members in the hub's category.

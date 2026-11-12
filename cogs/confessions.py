@@ -176,7 +176,7 @@ class Confessions(commands.Cog):
         current = await guild_settings.get(ctx.guild.id, "confess_threads", True)
         value = (not current) if toggle is None else toggle
         await guild_settings.set(ctx.guild.id, "confess_threads", value)
-        await ctx.send(view=success_layout(f"{e('check')} Confession threads", f"Every confession now {'gets its own public thread for replies' if value else 'is posted without a thread'}. Soward needs Create Public Threads and Send Messages in Threads in the confession channel."))
+        await ctx.send(view=success_layout(f"{e('check')} Confession threads", f"Every confession now {'gets its own public thread for replies' if value else 'is posted without a thread'}. Zyro needs Create Public Threads and Send Messages in Threads in the confession channel."))
 
     async def _row(self, ctx: commands.Context, number: int):
         row = await db.raw_fetchone("SELECT * FROM confessions WHERE guild_id=? AND number=?", (ctx.guild.id, number))

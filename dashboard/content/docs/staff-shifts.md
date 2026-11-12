@@ -7,9 +7,9 @@ group: Moderation
 
 ## How it works
 
-Staff run `!shift start` when they begin moderating and `!shift end` when they finish. When someone starts, Soward shows what is waiting (open reports, pending appeals, open tickets and pending applications) and the **last handover notes** left by someone else. When they end, Soward posts a **handover** in your handover channel: how long they were on, what they did during the shift (actions, warns, tickets, applications, appeals and reports), what is still open and their notes.
+Staff run `!shift start` when they begin moderating and `!shift end` when they finish. When someone starts, Zyro shows what is waiting (open reports, pending appeals, open tickets and pending applications) and the **last handover notes** left by someone else. When they end, Zyro posts a **handover** in your handover channel: how long they were on, what they did during the shift (actions, warns, tickets, applications, appeals and reports), what is still open and their notes.
 
-Shifts are for human staff. Soward ends any shift that runs longer than 12 hours by itself and posts the handover as ended automatically.
+Shifts are for human staff. Zyro ends any shift that runs longer than 12 hours by itself and posts the handover as ended automatically.
 
 ## Quick start
 
@@ -19,7 +19,7 @@ Shifts are for human staff. Soward ends any shift that runs longer than 12 hours
 !shift on
 ```
 
-The on-duty role is optional. It is given on `!shift start` and removed on `!shift end`, so you can use it as the ping role for reports, appeals and tickets (`!report role`, `!appeal role`) and only the people on duty get pinged. Soward's role must be above it.
+The on-duty role is optional. It is given on `!shift start` and removed on `!shift end`, so you can use it as the ping role for reports, appeals and tickets (`!report role`, `!appeal role`) and only the people on duty get pinged. Zyro's role must be above it.
 
 ## Commands
 
@@ -42,11 +42,11 @@ Aliases: `!shifts`, `!duty`.
 
 ## Coverage alerts
 
-`!shift coverage 18 23 1` means that between 18:00 and 23:00 (server timezone, set with `!event timezone`) Soward posts an alert in the handover channel if fewer than 1 staff member is on duty. The alert says what is waiting and pings the shift staff role. Hours can be written `18`, `6pm` or `6:00pm`, and a window that crosses midnight such as `22 4` works. Soward alerts at most once every 2 hours.
+`!shift coverage 18 23 1` means that between 18:00 and 23:00 (server timezone, set with `!event timezone`) Zyro posts an alert in the handover channel if fewer than 1 staff member is on duty. The alert says what is waiting and pings the shift staff role. Hours can be written `18`, `6pm` or `6:00pm`, and a window that crosses midnight such as `22 4` works. Zyro alerts at most once every 2 hours.
 
 ## Good to know
 
-- Soward cannot tell whether someone really is at their desk. Shifts are a tool for staff to coordinate, and the hours come only from clock in and clock out.
+- Zyro cannot tell whether someone really is at their desk. Shifts are a tool for staff to coordinate, and the hours come only from clock in and clock out.
 - The activity counts are the same ones as in `!staff stats` (see [Reports and Trust](/docs/reports)), limited to the time of the shift.
 - Notes can be up to 1500 characters per shift. Only the most recent are kept.
 - If the bot cannot manage the on-duty role, the shift still starts and ends normally.

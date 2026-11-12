@@ -3,7 +3,7 @@ import secrets
 import time
 from typing import Optional
 
-from rpg import bestiary, combat, engine, gear, quest, rifts, settings, wanderers
+from rpg import bestiary, combat, engine, gear, pouch, quest, rifts, settings, wanderers
 from utils import clans, coins, db
 
 CROSSROADS = (
@@ -382,9 +382,14 @@ async def treasure(user_id: int, careful: bool, trap: bool, now: Optional[float]
     result: dict = {"coins": amount}
     if rng.random() < (0.4 if careful else 0.7):
         material = gear.GRADES[tier]["material"]
-        count = rng.randint(1, 2)
-        await engine.add_item(user_id, material, count)
-        result["material"] = (material, count)
+        count = await pouch.stash(user_id, material, rng.randint(1, 2), result)
+        if count:
+            result["material"] = (material, count)
+    if rng.randint(1, 100) <= settings.HERB_EXPLORE_CHANCE:
+        herb = rng.choice([k for k, info in gear.HERBS.items() if info["tier"] == min(tier, 3)])
+        count = await pouch.stash(user_id, herb, 1, result)
+        if count:
+            result["herb"] = (herb, count)
     return result
 
 
@@ -407,13 +412,12 @@ async def wild_finish(user_id: int, state: dict, now: Optional[float] = None, rn
         parts["qi"] = engine.add_qi(character, int(engine.hourly(character) * (1.5 if boss else 0.5)))
         if boss or rng.randint(1, 100) <= 25:
             material = gear.GRADES[tier]["material"]
-            count = rng.randint(2, 4) if boss else 1
-            await engine.add_item(user_id, material, count)
-            parts["material"] = (material, count)
+            count = await pouch.stash(user_id, material, rng.randint(2, 4) if boss else 1, parts)
+            if count:
+                parts["material"] = (material, count)
         if boss:
             if rng.randint(1, 100) <= settings.WILD_BOSS_GEAR_CHANCE:
-                drop = gear.drop(rng, tier)
-                await engine.add_item(user_id, drop)
+                drop = await engine.give_gear(user_id, gear.drop(rng, tier), rng)
                 parts["gear"] = drop
             if rng.randint(1, 100) <= settings.WILD_BOSS_SHARD_CHANCE:
                 await engine.add_item(user_id, "rift_shard")
@@ -425,6 +429,8 @@ async def wild_finish(user_id: int, state: dict, now: Optional[float] = None, rn
         character["qi"] -= loss
         parts["qi_lost"] = loss
         await engine.save(character)
+    if result in ("win", "lose", "draw"):
+        await engine.wear_parts(user_id, parts)
     return {"result": result, "parts": parts}
 
 
@@ -469,11 +475,10 @@ async def rift_finish(user_id: int, run: dict, outcome: str, now: Optional[float
         loot["qi"] += int(engine.hourly(character) * 2)
     if outcome != "fail":
         for material, count in loot["materials"].items():
-            await engine.add_item(user_id, material, count)
+            await pouch.stash(user_id, material, count, loot)
         if loot["shards"]:
-            await engine.add_item(user_id, "rift_shard", loot["shards"])
-        for drop in loot["gear"]:
-            await engine.add_item(user_id, drop)
+            await pouch.stash(user_id, "rift_shard", loot["shards"], loot)
+        loot["gear"] = [await engine.give_gear(user_id, drop, rng) for drop in loot["gear"]]
         summary["materials"] = dict(loot["materials"])
         summary["shards"] = loot["shards"]
         summary["gear"] = list(loot["gear"])
@@ -520,12 +525,10 @@ async def world_boss_payout(damages: dict, rng=None) -> dict:
         amount = int((low + high) / 2 * settings.BOSS_COINS_MULT * (0.5 + min(1.5, ratio)))
         await coins.add(user_id, amount)
         material = gear.GRADES[tier]["material"]
-        count = rng.randint(2, 4)
-        await engine.add_item(user_id, material, count)
+        count = await pouch.stash(user_id, material, rng.randint(2, 4))
         entry: dict = {"coins": amount, "damage": damage, "material": (material, count)}
         if rng.randint(1, 100) <= 25:
-            drop = gear.drop(rng, tier)
-            await engine.add_item(user_id, drop)
+            drop = await engine.give_gear(user_id, gear.drop(rng, tier), rng)
             entry["gear"] = drop
         if rng.randint(1, 100) <= 40:
             await engine.add_item(user_id, "rift_shard")

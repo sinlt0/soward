@@ -137,7 +137,7 @@
   var search = document.getElementById("mod-search");
   var chips = document.querySelectorAll("#chips .chip");
   var segs = document.querySelectorAll("#seg button");
-  var pins = store.get("soward-pins-" + gid, []);
+  var pins = store.get("zyro-pins-" + gid, []);
   var apply = null;
   if (search) {
     var active = "";
@@ -200,7 +200,7 @@
         var at = pins.indexOf(k);
         if (at === -1) pins.push(k);
         else pins.splice(at, 1);
-        store.set("soward-pins-" + gid, pins);
+        store.set("zyro-pins-" + gid, pins);
         paintPins();
         window.toast(at === -1 ? "Pinned. Use the Pinned filter to see your favorites." : "Unpinned.");
         apply();

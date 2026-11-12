@@ -122,8 +122,8 @@
   function startDoom(mode, summary) {
     G.view = "doom";
     var back = function () { G.view = "lobby"; updatePresence(); refreshRooms(); draw(); };
-    if (mode === "join") window.SowardDoom.join(G.root, G.ctx, summary, back);
-    else window.SowardDoom.setup(G.root, G.ctx, mode, back);
+    if (mode === "join") window.ZyroDoom.join(G.root, G.ctx, summary, back);
+    else window.ZyroDoom.setup(G.root, G.ctx, mode, back);
   }
 
   function drawLobby() {
@@ -386,11 +386,11 @@
     if (G.root.parentNode) G.root.parentNode.scrollTop = scroll;
   }
 
-  window.SowardGames = {
+  window.ZyroGames = {
     mount: function (root, ctx) {
       G.root = root;
       G.ctx = ctx;
-      if (G.view === "doom" && !(window.SowardDoom && window.SowardDoom.attach(root, ctx))) G.view = "lobby";
+      if (G.view === "doom" && !(window.ZyroDoom && window.ZyroDoom.attach(root, ctx))) G.view = "lobby";
       draw();
       startPolling();
       setTimeout(function () {
@@ -400,7 +400,7 @@
     },
     suspend: function () {
       stopPolling();
-      if (window.SowardDoom) window.SowardDoom.stop();
+      if (window.ZyroDoom) window.ZyroDoom.stop();
       if (G.view === "doom") G.view = "lobby";
       G.root = null;
       if (G.ctx && G.ctx.setPresence) G.ctx.setPresence(null);

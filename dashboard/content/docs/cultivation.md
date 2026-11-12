@@ -78,6 +78,37 @@ When your qi is full, `!cultivate breakthrough` tries to move you up.
 
 A Healing Pill cures injuries.
 
+## Transcend
+
+When you reach the Peak of the highest open realm and no higher realm is open, you can **defy the heavens** with `!cultivate transcend` (or `/heaven transcend`). This is an interactive tribulation, and you can repeat it up to nine times.
+
+Your qi must be full and you must not be injured. The heavens ask a fee of 25 high-grade spirit stones for the first time, then more each time you repeat.
+
+| Transcendence | Waves | Fee (high-grade stones) | Omen is true |
+| --- | --- | --- | --- |
+| I | 4 | 25 | 61% |
+| II | 4 | 50 | 58% |
+| III | 5 | 75 | 55% |
+| IV | 5 | 100 | 52% |
+| V | 6 | 125 | 49% |
+| VI | 6 | 150 | 46% |
+| VII to IX | 7 | 175 to 225 | 45% |
+
+**How the tribulation works.** A generated lightning scene plays in the message, and each wave you choose how to meet the bolt.
+
+- The sky shows an omen of the bolt that is coming, but the omen is only sometimes true.
+- **Dodge** is best against the Splitting Bolt, **Endure** against the Crushing Bolt and **Strike back** against the Piercing Bolt.
+- Choosing right takes a small hit. Choosing wrong takes a heavy one.
+- **Circulate qi** heals 30% of your health, twice per tribulation, but costs you the wave.
+- Heaven-Defying Pills ease the lightning by up to 20%, and strong defense eases it a little more.
+- Survive every wave to transcend. You must choose within a few minutes of each wave or the heavens count you as beaten.
+
+**If you win**, you gain a permanent +6% health, attack and defense and +5% qi gain for every transcendence, and your **Transcendent** title upgrades (Transcendent I, II, III and so on). Wearing it adds bonuses that grow each time: attack, health, defense, qi gain, spirit stones from fights, dodge and critical chance. When a new realm opens, everyone who has transcended moves into it automatically and keeps their transcendence.
+
+**If you lose**, you lose half your qi, you are badly injured for twice as long as a normal failed breakthrough, and the fee is gone.
+
+Do not walk away from a tribulation. If you stop answering, it counts as a loss.
+
 ## Realms
 
 | Realm | Stages | Qi per hour |
@@ -89,6 +120,20 @@ A Healing Pill cures injuries.
 
 More realms will open later. `!cultivate realms` shows the list.
 
+## Spirit stones
+
+In the cultivation world, money is **spirit stones**. They come in three grades:
+
+| Grade | Worth |
+| --- | --- |
+| Low-grade | 1 |
+| Mid-grade | 100 low-grade |
+| High-grade | 100 mid-grade, or 10,000 low-grade |
+
+Your spirit stones are your coin balance. Whatever you earn is converted into coins automatically, and whatever you spend is taken from your coins, so you never exchange anything yourself and the same balance works everywhere in the bot. One low-grade stone is always one coin. Prices and rewards are shown in the grade that reads best, for example 12,050 coins appears as 1 high-grade, 20 mid-grade and 50 low-grade spirit stones.
+
+When you type a price you can write `1500`, `1.5k` or `2m`, or name a grade: `3mid` is 300 and `2high` is 20,000.
+
 ## Pills
 
 | Pill | What it does |
@@ -97,7 +142,7 @@ More realms will open later. `!cultivate realms` shows the list.
 | Heaven-Defying Pill | +15% on your next tribulation, up to +30% |
 | Healing Pill | Cures an injury |
 
-Pills cost coins, and the price of most pills rises with your realm. `!cultivate shop`, `!cultivate buy <pill> [amount]`, `!cultivate use <pill>` and `!cultivate bag` manage them.
+Pills cost spirit stones, and the price of most pills rises with your realm. `!cultivate shop`, `!cultivate buy <pill> [amount]`, `!cultivate use <pill>` and `!cultivate bag` manage them.
 
 ## Combat
 
@@ -108,7 +153,7 @@ Pills cost coins, and the price of most pills rises with your realm. `!cultivate
 - **Technique:** pick one from the menu. Techniques come from your path, way, race and clan, and recharge after a few turns.
 - **Flee:** a 60% chance to get away with no penalty.
 
-Winning pays coins, a little qi, crafting materials and a rare gear drop. Losing costs 3% of your stage's qi. You are never injured and never lose a realm. Fights end in a draw after 30 turns.
+Winning pays spirit stones, a little qi, crafting materials and a rare gear drop. Losing costs 3% of your stage's qi. You are never injured and never lose a realm. Fights end in a draw after 30 turns.
 
 Techniques come from four places, and everything you qualify for shows in the menu:
 
@@ -125,7 +170,7 @@ Your path, race and way also change your combat stats. Some weapons and relics a
 
 ## Gear
 
-Monsters drop materials for their realm: Demon Core, Spirit Iron, Thunder Crystal and Chaos Shard. Five of them plus coins craft a weapon, armor or charm in the matching grade: Yellow (黄), Mystic (玄), Earth (地) and Heaven (天). You can only craft and wear grades up to your realm.
+Monsters drop materials for their realm: Demon Core, Spirit Iron, Thunder Crystal and Chaos Shard. Five of them plus spirit stones craft a weapon, armor or charm in the matching grade: Yellow (黄), Mystic (玄), Earth (地) and Heaven (天). You can only craft and wear grades up to your realm.
 
 | Slot | Boost | Yellow to Heaven |
 | --- | --- | --- |
@@ -133,13 +178,28 @@ Monsters drop materials for their realm: Demon Core, Spirit Iron, Thunder Crysta
 | Spirit Robe | Health and defense | +10%, +20%, +32%, +45% |
 | Jade Charm | Dodge chance | +3, +5, +7, +9 |
 
-### Weapon types
+### Crafted weapons
 
-The weapon slot has eight types. Each one trades a little raw attack for a perk, and every type comes in all four grades.
+Crafted weapons are the common kind. Every one is a separate item with a **quality** and **durability**.
+
+| Quality | Attack | Durability |
+| --- | --- | --- |
+| Crude | x0.85 | x0.7 |
+| Common | x1.00 | x1.0 |
+| Fine | x1.12 | x1.1 |
+| Superb | x1.25 | x1.25 |
+| Flawless | x1.45 | x1.5 |
+
+Base durability is 40, 60, 80 and 100 for Yellow, Mystic, Earth and Heaven grade. Every fight you finish wears your weapon down by one, and at zero it **breaks and is gone**, along with its refinement and enchant. The game warns you when it is nearly worn out. `!cultivate gear repair` restores full durability for spirit stones and one material, but each repair lowers the weapon's maximum durability by 15%, so it cannot last forever.
+
+Craft one with `!cultivate gear craft weapon [grade]`. The quality is rolled when it is made, and weapons found in fights usually roll lower. Crafted weapons show up in `!cultivate bag` with a number, and you wear one with `!cultivate gear equip #12`. They can be sold on the marketplace and auction house with their quality and remaining durability.
+
+### Soul-bound weapons
+
+Your own weapon is rare and hard to forge. These never break and can never be sold, traded or stolen. Each type gives a perk on top of its attack:
 
 | Weapon | Perk |
 | --- | --- |
-| Flying Blade (飞剑) | Balanced attack |
 | Dragon Spear (龙枪) | +8% critical chance |
 | Demon Saber (魔刀) | +12% critical chance |
 | Twin Daggers (双匕) | +10% critical chance and +3% dodge |
@@ -148,11 +208,11 @@ The weapon slot has eight types. Each one trades a little raw attack for a perk,
 | Wind Fan (风扇) | +10% technique power and +3% dodge |
 | Mountain Hammer (山锤) | Heavy attack, -2% dodge |
 
-`!cultivate gear` shows what you wear and what you can craft. `!cultivate gear craft <weapon type|armor|charm> [grade]` forges an item, for example `!cultivate gear craft spear mystic`, and `!cultivate gear equip <name>` wears it, for example `earth dragon spear` or `yellow armor`.
+Forge one with `!cultivate gear forge <type> [grade]`. It costs 15 of the grade's material, 4 Rift Shards and a lot of spirit stones, and it can fail: 40% at Yellow grade, falling to 15% at Heaven grade. A failed forge loses the materials and half the spirit stones. Once in a great while a fight drops a soul-bound weapon too.
 
 ### Relics
 
-Relics are named pieces of gear you earn from the main story, such as the Qingxu Sweeping Blade, Serpent King's Scale Robe, Black Corpse Banner and Pangu's Last Rib. Each one is stronger than normal gear of its realm and carries a perk. You equip them by name, and you can refine and enchant them like any other gear.
+Relics are soul-bound pieces of gear you earn from the main story, such as the Qingxu Sweeping Blade, Serpent King's Scale Robe, Black Corpse Banner and Pangu's Last Rib. Each one is stronger than normal gear of its realm and carries a perk. You equip them by name, you can refine and enchant them like any other gear, and they cannot be sold.
 
 ### Refining
 
@@ -166,11 +226,11 @@ Relics are named pieces of gear you earn from the main story, such as the Qingxu
 | +4 | 4 | 60% |
 | +5 | 5 | 45% |
 
-Materials are the kind your gear's grade uses, and each step also costs coins (a fifth of the grade's crafting price per step number). A failed attempt loses the materials and coins but never lowers the level. Swapping to a different piece resets the level, so refine the gear you plan to keep.
+Materials are the kind your gear's grade uses, and each step also costs spirit stones (a fifth of the grade's crafting price per step number). A failed attempt loses the materials and spirit stones but never lowers the level. Swapping to a different piece resets the level, so refine the gear you plan to keep.
 
 ### Enchanting
 
-`cultivate gear enchant <slot> <enchant>` adds one rune to the gear you are wearing. Each enchant costs 2 Rift Shards, which come from rifts, plus coins that grow with your realm.
+`cultivate gear enchant <slot> <enchant>` adds one rune to the gear you are wearing. Each enchant costs 2 Rift Shards, which come from rifts, plus spirit stones that grow with your realm.
 
 | Enchant | Fits | Effect |
 |---|---|---|
@@ -178,7 +238,7 @@ Materials are the kind your gear's grade uses, and each step also costs coins (a
 | Swiftness | Weapon, charm | +4% dodge |
 | Fortitude | Armor | +12% defense |
 | Vitality | Armor | +12% health |
-| Prosperity | Charm | +10% coins from `cultivate fight` wins |
+| Prosperity | Charm | +10% spirit stones from `cultivate fight` wins |
 
 A slot holds one enchant and a new one replaces it. Swapping the gear itself removes its enchant and refinement.
 
@@ -188,12 +248,12 @@ A slot holds one enchant and a new one replaces it. Swapping the gear itself rem
 
 - Cultivators still in their first realm, or in their first 7 days, are protected, and cannot raid either.
 - You can only raid someone within 2 realms of you.
-- You get 5 raids a day, one per target every 6 hours. A target can be robbed 3 times a day, and they must carry at least 200 coins.
+- You get 5 raids a day, one per target every 6 hours. A target can be robbed 3 times a day, and they must carry at least 200 spirit stones.
 - Partners, family and clan members cannot raid each other.
-- Winning takes 8% of their pouch, up to 3,000 coins. Only the pouch can be robbed: coins in the safe, diamonds and the clan bank are immune.
-- The loser loses a little qi (3% of the stage). A raider who loses also loses 5% of their pouch, up to 1,500 coins, which are burned and not paid to the defender. Each side has a small chance to lose one item from the bag. Nobody ever loses a realm or their character.
+- Winning takes 8% of their pouch, up to 3,000 spirit stones. Only the pouch can be robbed: spirit stones in the safe, diamonds and the clan bank are immune.
+- The loser loses a little qi (3% of the stage). A raider who loses also loses 5% of their pouch, up to 1,500 spirit stones, which are burned and not paid to the defender. Each side has a small chance to lose one item from the bag. Nobody ever loses a realm or their character.
 
-`!cultivate safe` shows your safe, and `!cultivate safe deposit <amount>` or `withdraw <amount>` moves coins. The safe holds 2,000 coins and triples with every realm. `!cultivate raid` with no user shows the rules and whether you are protected.
+`!cultivate safe` shows your safe, and `!cultivate safe deposit <amount>` or `withdraw <amount>` moves spirit stones. The safe holds 2,000 spirit stones and triples with every realm. `!cultivate raid` with no user shows the rules and whether you are protected.
 
 ## Family and lineage
 
@@ -203,11 +263,11 @@ A slot holds one enchant and a new one replaces it. Swapping the gear itself rem
 
 **Bloodline:** when an adopted child awakens or rerolls, they have a 35% chance to inherit their parent's spiritual root if it is rarer than the one they rolled, and a 25% chance to take on their parent's race. Their status shows what they inherited.
 
-**Family treasury:** `!lineage treasury` is a shared coffer that cannot be raided. Your partners, children, parent and siblings can add coins, and only you can withdraw. It holds 10,000 coins plus 5,000 for each relative, up to 100,000. Use `!lineage treasury deposit <amount> [owner]` and `withdraw <amount>`.
+**Family treasury:** `!lineage treasury` is a shared coffer that cannot be raided. Your partners, children, parent and siblings can add spirit stones, and only you can withdraw. It holds 10,000 spirit stones plus 5,000 for each relative, up to 100,000. Use `!lineage treasury deposit <amount> [owner]` and `withdraw <amount>`.
 
 **Inheritance:** `!lineage heir <user>` names a partner, child, parent or sibling as your heir. If you are gone for 60 days, they can claim the treasury with `!lineage inherit <you>`.
 
-**Family dungeon:** `!lineage dungeon` opens a party panel. Your family joins with a button and you press Start with 2 to 4 members. You control the fight, and the party's health and attack combine into one fighter against a dungeon boss that grows with party size. Each member can enter 2 dungeons a day. Everyone who joined gets double coins, extra qi, materials and a better chance at gear. If the party loses, everyone loses a little qi.
+**Family dungeon:** `!lineage dungeon` opens a party panel. Your family joins with a button and you press Start with 2 to 4 members. You control the fight, and the party's health and attack combine into one fighter against a dungeon boss that grows with party size. Each member can enter 2 dungeons a day. Everyone who joined gets double spirit stones, extra qi, materials and a better chance at gear. If the party loses, everyone loses a little qi.
 
 ## Clans, the great families
 
@@ -223,9 +283,9 @@ In this world a clan is a great family, not just a group. Once you join one, you
 
 **Clan techniques:** each Scripture Pavilion level unlocks a technique that every member can use in any fight, whatever their path: Sect Guardian Shield, Clan Blade Formation, Spirit Mending Chant, Heaven-Shaking Seal and Ancestral Wrath. `!sect techniques` lists them.
 
-**Boss raids:** `!sect boss` shows your clan's boss, an abyssal lord that gets tougher as the clan tier rises. Members strike it with `!sect attack` up to 3 times a day, each a 10-turn fight, and damage adds up across the clan. Higher realms deal more. When it falls, everyone who struck it shares coins, materials and a chance at gear, and the clan bank gets a bonus. A boss flees after 7 days, and a new one appears 48 hours after one is slain.
+**Boss raids:** `!sect boss` shows your clan's boss, an abyssal lord that gets tougher as the clan tier rises. Members strike it with `!sect attack` up to 3 times a day, each a 10-turn fight, and damage adds up across the clan. Higher realms deal more. When it falls, everyone who struck it shares spirit stones, materials and a chance at gear, and the clan bank gets a bonus. A boss flees after 7 days, and a new one appears 48 hours after one is slain.
 
-**Clan wars:** clans of tier 2 or higher can fight. The Young Master or an Elder uses `!sect war declare <clan>` and the other side accepts with `!sect war accept`. For 48 hours, each `!cultivate raid` win against a member of the enemy clan scores points for your clan, more against higher realms. If the winner has at least 5 points, they take 5% of the loser's bank, up to 100,000 coins. Clans cannot fight again for 72 hours.
+**Clan wars:** clans of tier 2 or higher can fight. The Young Master or an Elder uses `!sect war declare <clan>` and the other side accepts with `!sect war accept`. For 48 hours, each `!cultivate raid` win against a member of the enemy clan scores points for your clan, more against higher realms. If the winner has at least 5 points, they take 5% of the loser's bank, up to 100,000 spirit stones. Clans cannot fight again for 72 hours.
 
 ## The world
 
@@ -237,34 +297,34 @@ In this world a clan is a great family, not just a group. Once you join one, you
 
 ### The main story
 
-`!world chapter` opens the Qingxu saga, sixteen chapters in four acts. Each chapter opens with a scene and a short list of goals: meditate, win fights, explore, talk to people, resolve events and so on. Everything you already do in the game counts. Some chapters end with a boss fight, and some ask you to make a choice that changes the rewards and echoes through later chapters. When every goal is done, press the button to complete the chapter and take its rewards, which include relics and coins.
+`!world chapter` opens the Qingxu saga, sixteen chapters in four acts. Each chapter opens with a scene and a short list of goals: meditate, win fights, explore, talk to people, resolve events and so on. Everything you already do in the game counts. Some chapters end with a boss fight, and some ask you to make a choice that changes the rewards and echoes through later chapters. When every goal is done, press the button to complete the chapter and take its rewards, which include relics and spirit stones.
 
 Chapters wait for the right realm: Act I is Qi Condensation, Act II is Foundation Establishment, Act III is Core Formation and Act IV is Nascent Soul. A few chapters ask you to break through a realm as their goal. Finishing each act earns a title. `!world chapter log` lists the chapters you have finished and the choices you made.
 
 ### Alchemy
 
-`world brew` lists four battle pills you can brew from fight materials:
+`world brew` lists four battle pills you can brew from fight materials and herbs:
 
 | Pill | Effect until midnight UTC |
 |---|---|
 | Vigor Pill | +20% attack |
 | Iron Skin Pill | +20% health and defense |
 | Windstep Pill | +8% dodge |
-| Fortune Pill | +50% coins from `cultivate fight` wins |
+| Fortune Pill | +50% spirit stones from `cultivate fight` wins |
 
-Brewing one costs 3 of the material for your realm's grade (the same ones used for crafting gear) and some coins that grow with your realm. Alchemy cultivators brew two pills at a time and pay less. Use `world brew <pill>` to brew and `world brew drink <pill>` to take one. A pill of the same kind cannot be taken again while it is still working.
+Brewing one costs 3 of the material for your realm's grade (the same ones used for crafting gear), 2 herbs matching the pill for your realm (see [Herbs and Storage Pouches](/docs/storage-pouches)) and some spirit stones that grow with your realm. Alchemy cultivators brew two pills at a time and pay less. Use `world brew <pill>` to brew and `world brew drink <pill>` to take one. A pill of the same kind cannot be taken again while it is still working.
 
 ### Titles
 
-`world titles` lists twelve titles you earn by playing, such as Foundation Builder, Spirit Smith, Rune Weaver, Roadwalker, Clan Pillar and Rift Walker. They unlock when you check the list or your `cultivate status`. Wear one with `world titles set <name>` and it shows next to your realm on your status. `world titles clear` removes it. Titles are cosmetic.
+`world titles` lists 24 titles you earn by playing, such as Foundation Builder, Spirit Smith, Rune Weaver, Roadwalker, Clan Pillar, Rift Walker, the main story titles, Stone Bearer for holding a high-grade spirit stone, Qiankun Keeper for a Qiankun storage pouch, Soul Blade for forging your own weapon and Masterwork Smith for owning a Flawless weapon. They unlock when you check the list, your `cultivate status` or your profile. Wear one with `world titles set <name>` and it shows next to your realm on your status and under your name on your profile card. `world titles clear` removes it. Every title also gives a small bonus while you wear it, such as extra qi gain, attack, health, dodge or spirit stones from fights, and the list shows each one. Only one title is worn at a time.
 
-### Daily bounties
+### Daily bounties and weekly contracts
 
-`world bounty` shows three bounties that change every day, such as taking on fights, exploring, sparring or entering a rift. Finish them, then run the command again to claim. Each bounty pays coins and a little qi, which grow with your realm. Claiming all three also opens a chest with extra coins and crafting materials.
+`world bounty` shows three bounties that change every day, such as taking on fights, exploring, sparring or entering a rift. Finish them, then run the command again to claim. Each bounty pays spirit stones and a little qi, which grow with your realm. Claiming all three also opens a chest with extra spirit stones, crafting materials and a Realm Key. The same command shows three weekly contracts that are assigned every Monday and pay more, with their own chest. See [Secret Realms](/docs/secret-realms) and the [Calamity Board](/docs/calamity-board).
 
 ### Raid log
 
-`world raids` lists your last raids and the raids against you from the past two weeks, with the coins and items that moved.
+`world raids` lists your last raids and the raids against you from the past two weeks, with the spirit stones and items that moved.
 
 ## Exploring the wilds
 
@@ -279,7 +339,7 @@ Brewing one costs 3 of the material for your realm's grade (the same ones used f
 
 ## Rifts
 
-A rift is a tear to a randomly generated lower world, such as the Withered Lotus World (枯莲界). `!world rift` shows yours and lets you enter. It closes after 24 hours, and you can enter 2 a day. Inside are 5 rooms (beasts, caches, traps, springs and travelers) and a guardian. You decide how to handle each room, and you can retreat with your loot between rooms. Clearing a rift pays coins, materials, qi, a chance at gear and Rift Shards. If you are beaten you keep only half your coins. Three Rift Shards open a new rift with `!world rift open`.
+A rift is a tear to a randomly generated lower world, such as the Withered Lotus World (枯莲界). `!world rift` shows yours and lets you enter. It closes after 24 hours, and you can enter 2 a day. Inside are 5 rooms (beasts, caches, traps, springs and travelers) and a guardian. You decide how to handle each room, and you can retreat with your loot between rooms. Clearing a rift pays spirit stones, materials, qi, a chance at gear and Rift Shards. If you are beaten you keep only half your spirit stones. Three Rift Shards open a new rift with `!world rift open`.
 
 ## Wild spawns
 
@@ -291,7 +351,7 @@ A server admin with Manage Server permission can use `!world spawn on` in a chan
 
 ## Events
 
-`!cultivate event` sends you wandering into a situation with a few choices. Some choices are safe, some cost coins and pay off with luck, and some give qi, pills or tribulation luck. You can face 3 a day.
+`!cultivate event` sends you wandering into a situation with a few choices. Some choices are safe, some cost spirit stones and pay off with luck, and some give qi, pills or tribulation luck. You can face 3 a day.
 
 ## All commands
 

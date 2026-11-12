@@ -7,7 +7,7 @@ group: Moderation
 
 ## How logging works
 
-Soward sorts events into five **categories**. Each category posts to its own channel through a webhook, so logs look separate and the bot does not need to be able to talk in that channel. You can set up all channels in one command, or point each category at a channel you already have.
+Zyro sorts events into five **categories**. Each category posts to its own channel through a webhook, so logs look separate and the bot does not need to be able to talk in that channel. You can set up all channels in one command, or point each category at a channel you already have.
 
 | Category | Default channel | What it covers |
 | --- | --- | --- |
@@ -25,7 +25,7 @@ Messages from bots are not logged. Edited and deleted message text is shortened 
 !logging setup
 ```
 
-This creates a private `soward-logs` category with one channel per log category, and a webhook in each. The category is hidden from `@everyone`. Categories that are already set up are left alone, so it is safe to run again.
+This creates a private `zyro-logs` category with one channel per log category, and a webhook in each. The category is hidden from `@everyone`. Categories that are already set up are left alone, so it is safe to run again.
 
 The bot needs **Manage Channels** and **Manage Webhooks** for this.
 
@@ -43,7 +43,7 @@ All logging commands need Administrator. `!logs` works as a short name for `!log
 | Command | What it does | Needs |
 | --- | --- | --- |
 | `!logging` | Opens the logging overview panel. | Administrator |
-| `!logging setup` | Creates the `soward-logs` category with a channel and webhook for each category. | Administrator, bot needs Manage Channels and Manage Webhooks |
+| `!logging setup` | Creates the `zyro-logs` category with a channel and webhook for each category. | Administrator, bot needs Manage Channels and Manage Webhooks |
 | `!logging channel <category> <channel>` | Sets the channel for one category. Category is `mod`, `security`, `member`, `message` or `server`. | Administrator, bot needs Manage Webhooks |
 | `!logging toggle <event>` | Turns a single event type off, or back on if it is off. | Administrator |
 | `!logging remove <category>` | Stops logging a category and deletes its webhook. | Administrator |
@@ -63,7 +63,7 @@ Run the command again to enable the event. If you type an unknown name, the bot 
 The Logging page on the web dashboard lets you:
 
 - See which channel each category uses, set or change it, or remove it.
-- Run the one-click setup that creates the `soward-logs` category and any missing channels.
+- Run the one-click setup that creates the `zyro-logs` category and any missing channels.
 - Enable or disable each event type.
 
 It does the same thing as the commands above.

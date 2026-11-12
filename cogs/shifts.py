@@ -238,7 +238,7 @@ class Shifts(commands.Cog):
         await store.set_config(ctx.guild.id, "coverage_start", first)
         await store.set_config(ctx.guild.id, "coverage_end", last)
         await store.set_config(ctx.guild.id, "coverage_min", minimum)
-        await ctx.send(view=success_layout(f"{emoji_manager.get('check')} Shifts", f"Between **{first:02d}:00** and **{last:02d}:00** (server timezone, `!event timezone`) Soward alerts the handover channel if fewer than **{minimum}** staff are on duty. At most one alert every 2 hours."))
+        await ctx.send(view=success_layout(f"{emoji_manager.get('check')} Shifts", f"Between **{first:02d}:00** and **{last:02d}:00** (server timezone, `!event timezone`) Zyro alerts the handover channel if fewer than **{minimum}** staff are on duty. At most one alert every 2 hours."))
 
 
 async def setup(bot: commands.Bot):

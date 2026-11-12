@@ -8,7 +8,7 @@ import discord
 from discord.ext import commands, tasks
 
 import config
-from utils import cases, db, emoji_manager, security, warn_ladder
+from utils import cases, db, emoji_manager, guild_settings, main_role, security, warn_ladder
 from utils.checks import has_guild_permission
 from utils.colors import NEUTRAL, SUCCESS
 from utils.components import ConfirmLayout, error_layout, footer_block, info_layout, success_layout
@@ -826,11 +826,12 @@ class Moderation(commands.Cog):
     async def lockdown(self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None, *, reason: str = "No reason provided"):
         e = emoji_manager.get
         channel = channel or ctx.channel
-        overwrite = channel.overwrites_for(ctx.guild.default_role)
+        target = await main_role.get(ctx.guild)
+        overwrite = channel.overwrites_for(target)
         overwrite.send_messages = False
-        await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
+        await channel.set_permissions(target, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
         await ctx.send(view=_mod_layout(f"{e('lock')} Channel Locked", {
-            "Channel": channel.mention, "Moderator": ctx.author.mention, "Reason": reason,
+            "Channel": channel.mention, "Role": await main_role.label(ctx.guild), "Moderator": ctx.author.mention, "Reason": reason,
         }))
         await self._log(ctx.guild, "lockdown", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"{reason} ({channel.name})", case_id="N/A")
 
@@ -858,13 +859,14 @@ class Moderation(commands.Cog):
             return await self._log(ctx.guild, "lockdown", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"Server-wide: {reason}", case_id="N/A")
 
         locked = 0
+        target = await main_role.get(ctx.guild)
         for channel in ctx.guild.text_channels:
-            overwrite = channel.overwrites_for(ctx.guild.default_role)
+            overwrite = channel.overwrites_for(target)
             if overwrite.send_messages is False:
                 continue
             overwrite.send_messages = False
             try:
-                await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
+                await channel.set_permissions(target, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
                 locked += 1
             except discord.HTTPException:
                 pass
@@ -878,11 +880,12 @@ class Moderation(commands.Cog):
     async def unlock(self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None, *, reason: str = "No reason provided"):
         e = emoji_manager.get
         channel = channel or ctx.channel
-        overwrite = channel.overwrites_for(ctx.guild.default_role)
+        target = await main_role.get(ctx.guild)
+        overwrite = channel.overwrites_for(target)
         overwrite.send_messages = None
-        await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
+        await channel.set_permissions(target, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
         await ctx.send(view=_mod_layout(f"{e('unlock')} Channel Unlocked", {
-            "Channel": channel.mention, "Moderator": ctx.author.mention, "Reason": reason,
+            "Channel": channel.mention, "Role": await main_role.label(ctx.guild), "Moderator": ctx.author.mention, "Reason": reason,
         }))
         await self._log(ctx.guild, "unlock", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"{reason} ({channel.name})", case_id="N/A")
 
@@ -897,19 +900,162 @@ class Moderation(commands.Cog):
             await ctx.send(view=success_layout(f"{e('unlock')} Server Unlocked", f"Restored **{restored}** channel(s) to how they were before the lockdown.\n**Reason:** {reason}"))
             return await self._log(ctx.guild, "unlock", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"Server-wide: {reason}", case_id="N/A")
         unlocked = 0
+        target = await main_role.get(ctx.guild)
         for channel in ctx.guild.text_channels:
-            overwrite = channel.overwrites_for(ctx.guild.default_role)
+            overwrite = channel.overwrites_for(target)
             if overwrite.send_messages is not False:
                 continue
             overwrite.send_messages = None
             try:
-                await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
+                await channel.set_permissions(target, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
                 unlocked += 1
             except discord.HTTPException:
                 pass
 
         await ctx.send(view=success_layout(f"{e('unlock')} Server Unlocked", f"Unlocked **{unlocked}** channel(s).\n**Reason:** {reason}"))
         await self._log(ctx.guild, "unlock", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"Server-wide: {reason}", case_id="N/A")
+
+    @commands.command(name="hide", help="Hide a channel from members. Usage: hide [#channel] [reason]")
+    @has_guild_permission("manage_channels")
+    @commands.guild_only()
+    async def hide(self, ctx: commands.Context, channel: Optional[discord.abc.GuildChannel] = None, *, reason: str = "No reason provided"):
+        e = emoji_manager.get
+        channel = channel or ctx.channel
+        target = await main_role.get(ctx.guild)
+        overwrite = channel.overwrites_for(target)
+        overwrite.view_channel = False
+        await channel.set_permissions(target, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
+        await ctx.send(view=_mod_layout(f"{e('channel')} Channel Hidden", {
+            "Channel": channel.mention, "Role": await main_role.label(ctx.guild), "Moderator": ctx.author.mention, "Reason": reason,
+        }))
+        await self._log(ctx.guild, "hide", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"{reason} ({channel.name})", case_id="N/A")
+
+    @commands.command(name="unhide", aliases=["show"], help="Show a hidden channel to members again. Usage: unhide [#channel] [reason]")
+    @has_guild_permission("manage_channels")
+    @commands.guild_only()
+    async def unhide(self, ctx: commands.Context, channel: Optional[discord.abc.GuildChannel] = None, *, reason: str = "No reason provided"):
+        e = emoji_manager.get
+        channel = channel or ctx.channel
+        target = await main_role.get(ctx.guild)
+        overwrite = channel.overwrites_for(target)
+        overwrite.view_channel = None
+        await channel.set_permissions(target, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
+        await ctx.send(view=_mod_layout(f"{e('channel')} Channel Visible", {
+            "Channel": channel.mention, "Role": await main_role.label(ctx.guild), "Moderator": ctx.author.mention, "Reason": reason,
+        }))
+        await self._log(ctx.guild, "unhide", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"{reason} ({channel.name})", case_id="N/A")
+
+    @commands.command(name="hideall", help="Hide every channel from members. `unhideall` brings back exactly the ones this hid.")
+    @has_guild_permission("administrator")
+    @commands.guild_only()
+    async def hideall(self, ctx: commands.Context, *, reason: str = "Hide all channels"):
+        e = emoji_manager.get
+        target = await main_role.get(ctx.guild)
+        confirm = ConfirmLayout(f"{e('channel')} Confirm hide all", f"This hides **every channel** from {await main_role.label(ctx.guild)}.\n**Reason:** {reason}", author_id=ctx.author.id)
+        msg = await ctx.send(view=confirm)
+        await confirm.wait()
+        if not confirm.value:
+            return await msg.edit(view=error_layout("Cancelled", "No channels were hidden."))
+        saved = list(await guild_settings.get(ctx.guild.id, "hideall_saved", []) or [])
+        hidden = 0
+        for channel in ctx.guild.channels:
+            if isinstance(channel, discord.CategoryChannel):
+                continue
+            overwrite = channel.overwrites_for(target)
+            if overwrite.view_channel is False:
+                continue
+            overwrite.view_channel = False
+            try:
+                await channel.set_permissions(target, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
+            except discord.HTTPException:
+                continue
+            saved.append([channel.id, target.id])
+            hidden += 1
+            await asyncio.sleep(0.3)
+        await guild_settings.set(ctx.guild.id, "hideall_saved", saved)
+        await msg.edit(view=success_layout(f"{e('channel')} Channels Hidden", f"Hid **{hidden}** channel(s) from {await main_role.label(ctx.guild)}. Use `unhideall` to bring them back.\n**Reason:** {reason}"))
+        await self._log(ctx.guild, "hide", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"Server-wide: {reason}", case_id="N/A")
+
+    @commands.command(name="unhideall", help="Show again every channel that `hideall` hid.")
+    @has_guild_permission("administrator")
+    @commands.guild_only()
+    async def unhideall(self, ctx: commands.Context, *, reason: str = "Channels shown again"):
+        e = emoji_manager.get
+        saved = list(await guild_settings.get(ctx.guild.id, "hideall_saved", []) or [])
+        if not saved:
+            return await ctx.send(view=error_layout("Nothing to show", "`hideall` has not hidden anything. Use `unhide` for a single channel."))
+        shown = 0
+        for channel_id, role_id in saved:
+            channel = ctx.guild.get_channel(int(channel_id))
+            role = ctx.guild.get_role(int(role_id))
+            if channel is None or role is None:
+                continue
+            overwrite = channel.overwrites_for(role)
+            overwrite.view_channel = None
+            try:
+                if overwrite.is_empty():
+                    await channel.set_permissions(role, overwrite=None, reason=f"{ctx.author} | {reason}")
+                else:
+                    await channel.set_permissions(role, overwrite=overwrite, reason=f"{ctx.author} | {reason}")
+                shown += 1
+            except discord.HTTPException:
+                continue
+            await asyncio.sleep(0.3)
+        await guild_settings.delete(ctx.guild.id, "hideall_saved")
+        await ctx.send(view=success_layout(f"{e('channel')} Channels Shown", f"Showed **{shown}** channel(s) again.\n**Reason:** {reason}"))
+        await self._log(ctx.guild, "unhide", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"Server-wide: {reason}", case_id="N/A")
+
+    @commands.command(name="nuke", help="Delete a text channel and recreate it empty with the same settings. Usage: nuke [#channel]")
+    @has_guild_permission("manage_channels")
+    @commands.guild_only()
+    async def nuke(self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None):
+        e = emoji_manager.get
+        channel = channel or ctx.channel
+        if not isinstance(channel, discord.TextChannel):
+            return await ctx.send(view=error_layout("Text channels only", "Pick a normal text channel."))
+        if channel in (ctx.guild.rules_channel, ctx.guild.public_updates_channel):
+            return await ctx.send(view=error_layout("Cannot nuke", "Discord needs this channel for Community. Change it in server settings first."))
+        confirm = ConfirmLayout(
+            f"{e('purge')} Confirm nuke",
+            f"This deletes {channel.mention} with **all of its messages** and recreates it with the same name, topic, permissions and position.\nSettings that point at the old channel, such as a log channel, must be chosen again.",
+            author_id=ctx.author.id,
+        )
+        msg = await ctx.send(view=confirm)
+        await confirm.wait()
+        if not confirm.value:
+            return await msg.edit(view=error_layout("Cancelled", "The channel was not touched."))
+        reason = f"Nuked by {ctx.author} ({ctx.author.id})"
+        position = channel.position
+        try:
+            fresh = await channel.clone(reason=reason)
+            await fresh.edit(position=position, reason=reason)
+            await channel.delete(reason=reason)
+        except discord.HTTPException as exc:
+            return await ctx.send(view=error_layout("Nuke failed", f"Discord refused: {str(exc)[:200]}"))
+        await fresh.send(view=success_layout(f"{e('purge')} Channel Nuked", f"This channel was nuked by {ctx.author.mention}."), allowed_mentions=discord.AllowedMentions.none())
+        await self._log(ctx.guild, "nuke", user_id=ctx.author.id, moderator_id=ctx.author.id, reason=f"#{fresh.name}", case_id="N/A")
+
+    @commands.command(name="mainrole", help="Set the role that lock, unlock, hide, unhide and lockdown change instead of @everyone. Usage: mainrole [@role|clear]")
+    @has_guild_permission("administrator")
+    @commands.guild_only()
+    async def mainrole(self, ctx: commands.Context, *, role: Optional[str] = None):
+        e = emoji_manager.get
+        from utils import security_settings as sec
+        setting = sec.find("security", "main_role_id")
+        if role is None:
+            current = await sec.get(ctx.guild.id, "security", "main_role_id")
+            effective = await main_role.label(ctx.guild)
+            note = "" if current else " (the verified role is used when one is set, otherwise @everyone)"
+            return await ctx.send(view=info_layout(f"{e('role')} Main role", f"Lock, unlock, hide, unhide and lockdown change {effective}{note}.\nSet it with `mainrole <@role>` or remove it with `mainrole clear`."))
+        if role.lower() in ("clear", "reset", "none", "off"):
+            await sec.reset(ctx.guild.id, setting)
+            return await ctx.send(view=success_layout(f"{e('role')} Main role cleared", "Back to the verified role, or @everyone if none is set."))
+        try:
+            found = await commands.RoleConverter().convert(ctx, role)
+        except commands.BadArgument:
+            return await ctx.send(view=error_layout("Role not found", "Mention the role, or give its name or ID."))
+        await sec.put(ctx.guild.id, setting, found.id)
+        await ctx.send(view=success_layout(f"{e('role')} Main role set", f"Lock, unlock, hide, unhide and lockdown now change {found.mention} instead of @everyone."))
 
     @commands.command(name="slowmode", help="Set the slowmode delay for a channel.")
     @has_guild_permission("manage_channels")

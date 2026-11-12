@@ -1,5 +1,24 @@
 [
   {
+    "version": "3.7",
+    "title": "Zyro Everywhere",
+    "date": "2026-11-12",
+    "items": [
+      "Zyro can now be added to your account as a user app, so /interact, /cultivate, /world, /pouch, /realm, /board, /market, /auction, /eco, /profile and /pet work in any server, DM or group chat",
+      "Commands that need Zyro in the server now say so instead of failing"
+    ]
+  },
+  {
+    "version": "3.6",
+    "title": "Main Role and Channel Tools",
+    "date": "2026-11-11",
+    "items": [
+      "Added a main role in security settings and !mainrole; lock, unlock, hide, unhide, lockdown and scheduled locks now change it instead of @everyone",
+      "Added !hide, !unhide, !hideall, !unhideall and !nuke",
+      "Lockdown remembers which role it changed so it always restores the right one"
+    ]
+  },
+  {
     "version": "3.5",
     "title": "Diamonds and Economy",
     "date": "2026-11-04",
@@ -37,7 +56,27 @@
       "Cultivation: enchant gear with runes from Rift Shards, earn and wear titles with world titles, and clans can now found named branches with clan branch.",
       "Cultivation now has a main story: sixteen chapters in four acts with goals, boss fights, choices that echo later and named relics as rewards. Start with world chapter.",
       "Cultivation combat has 51 techniques: six per path, three per way and one per race, with new effects like multi-hit, life steal, buffs, execute strikes and weakening.",
-      "Cultivation weapons now come in eight types, such as spears, bows, staffs and daggers, with critical chance and technique power."
+      "Cultivation weapons now come in eight types, such as spears, bows, staffs and daggers, with critical chance and technique power.",
+      "Added a player marketplace and an auction house for items and crafted weapons. Sales cost the seller a fee: 5% on the marketplace and 8% at auction.",
+      "Crafted cultivation weapons now have a quality and durability and break at zero, with repairs available. Soul-bound weapons are rare, hard to forge, never break and cannot be traded.",
+      "Fixed cultivation commands failing when the new story table was missing from the database.",
+      "Added herbs for every realm, gathered with !world gather or dropped from fights and exploring, and now needed to brew battle pills",
+      "Added storage pouches for herbs and materials with five upgrade tiers, plus !pouch to view, upgrade and sell. Items that do not fit are sold automatically",
+      "Cultivation money is now shown as spirit stones in low, mid and high grades, converted automatically from and to your coins. Prices can be typed as 3mid or 2high",
+      "Profile cards now show your cultivation realm and stage instead of a level, plus your path, way, race and earned titles",
+      "The title you wear in cultivation now appears under your name on your profile",
+      "Added 7 new cultivation titles for spirit stones, storage pouches and soul-bound or Flawless weapons",
+      "Added Transcend: with no higher realm open, use /heaven transcend or !cultivate transcend to face an interactive lightning tribulation with generated animated scenes. Winning gives a permanent power boost and an upgrading Transcendent title",
+      "Transcended cultivators move into the next realm automatically when it opens",
+      "Every cultivation title now gives a small bonus while you wear it",
+      "Added the calamity board: four procedurally generated bosses every day with random names, elements, ranks and affixes. Fight them with !board hunt <1-4> and use /board in slash commands",
+      "Added elemental weakness: techniques now deal extra damage to bosses weak to their element and less to resistant ones",
+      "Every technique now has its own prebuilt animated scene in fights, shown on the same message so the bot is never rate limited",
+      "Weekly contracts are assigned automatically and now live together with the daily bounties in !world bounty",
+      "Added secret realms: spend a Realm Key to delve elemental multi-floor dungeons with carried-over health, treasure, springs and shrines (!realm, /realm). Hidden realms open on some days",
+      "Realms and calamity bosses drop element essences. Attune with !realm attune to deal 25% more damage with that element for 12 hours",
+      "Realm Keys now drop from Lords and Calamities and from the bounty and contract chests, and bounties gained gathering, realm and calamity goals",
+      "Added the Realm Breaker, Realm Sovereign, Six Elements Walker and Calamity Slayer titles"
     ]
   },
   {
@@ -56,7 +95,7 @@
       "Audit Vault: search, count and export every moderation and server event. Free keeps 7 days, Premium keeps 365 and can export CSV (!vault)",
       "Scheduled actions for Premium: post messages or embeds, lock and unlock channels and give or remove roles at a set time or on a repeat (!schedule)",
       "Premium ticket tools: satisfaction ratings, canned replies and a stored transcript archive (!ticket ratings, canned, archive)",
-      "Deep backups for Premium: automatic full backups of roles, channels and Soward settings with one-command restore (!deepbackup)",
+      "Deep backups for Premium: automatic full backups of roles, channels and Zyro settings with one-command restore (!deepbackup)",
       "No-prefix mode can now be limited to chosen roles and members, like staff only, with a master on/off switch (!premium np server, add, remove, list, enable, disable)",
       "Music App: a full music player that runs inside Discord as an Activity, with search, queue, playlists, liked songs, history and a Listening to status while you play (!musicapp)",
       "Global profiles with a new card image: avatar, badges (supporter, voter, married, parent, clan), family, clan and your pet, in themes you can buy with coins (!profile, !profile theme)",
@@ -66,8 +105,8 @@
       "Global clans: create, invite, promote, a shared bank and levels that raise the member limit (!clan)",
       "New help menu: banner, a count of the commands you can use, and links to the support server and invite; the prefix shows as Np or Mention when that is how you called it",
       "Premium trial: every server can claim one free 3-day trial with !premium trial claim and gets a reminder 24 hours before it ends",
-      "Vote for Soward on discordbotlist.com to get global no-prefix for a while, plus a thank-you message and a vote streak (!vote)",
-      "Support Soward: tip with Bitcoin or Litecoin to help cover hosting, get a supporter role and an optional place on the supporters page (!support)",
+      "Vote for Zyro on discordbotlist.com to get global no-prefix for a while, plus a thank-you message and a vote streak (!vote)",
+      "Support Zyro: tip with Bitcoin or Litecoin to help cover hosting, get a supporter role and an optional place on the supporters page (!support)",
       "Games App: play chess with friends inside the same Activity, with a lobby, rooms, spectators, draw offers, rematches and a Playing Chess status (!gamesapp)",
       "Reminders that follow you everywhere, with repeats and your own timezone (!remind), plus a personal to-do list (!todo)",
       "Games: Tic-Tac-Toe, Connect 4, Rock Paper Scissors, Hangman, Trivia and Typing Race, with win records and leaderboards (!games)",
@@ -109,7 +148,7 @@
     "date": "2026-10-21",
     "items": [
       "Confessions: every confession gets its own public thread (!confess threads). Dating v2 lets members talk in those threads but not post in the channel, and its giveaways channel is now read-only",
-      "Incident post-mortems: when a raid, Beast Mode or AntiNuke incident ends Soward posts who started it, which accounts were actioned, which limits fired and what was undone (!postmortem)",
+      "Incident post-mortems: when a raid, Beast Mode or AntiNuke incident ends Zyro posts who started it, which accounts were actioned, which limits fired and what was undone (!postmortem)",
       "Whitelist entries can expire and track when they were last used; !whitelist audit and a weekly report list unused, stale and expiring entries",
       "Backups: !backup diff shows what changed since a snapshot, restore can repair edited channels, and AntiNuke can repair edited roles and channels after an attack",
       "Join pattern detection flags accounts that join with the same avatar, invite, name pattern or creation time before a raid reaches its limit",
@@ -123,7 +162,7 @@
       "Dating v2 now sets every security setting individually (including per-action limits and punishments and a racial-slurs-only word filter) with a narrow built-in whitelist and stacks level role rewards",
       "AntiNuke now watches member timeouts, so mass timeouts by a compromised moderator can be limited or whitelisted",
       "Added granular whitelist rules: allow single AntiNuke actions per member or role, and allow specific invites, domains or words per member, role, channel or the whole server",
-      "Added birthdays: members save a day and month, Soward announces it, gives a birthday role for the day and lists upcoming birthdays",
+      "Added birthdays: members save a day and month, Zyro announces it, gives a birthday role for the day and lists upcoming birthdays",
       "Added anonymous confessions with a Confess button, numbered posts, an optional staff log, and blocking a sender by confession number without revealing them",
       "Added suggestions with voting buttons and approve, deny, consider and implement reviews",
       "Added the starboard, which copies messages with enough reactions to a channel",
@@ -177,7 +216,7 @@
       "Added command details with usage, aliases and permissions",
       "Added the dashboard command to turn the web dashboard on or off for a server",
       "Added NSFW channels that are limited to a role",
-      "Added the supportaccess command to give the Soward team temporary help, which you can end at any time with revokesupport",
+      "Added the supportaccess command to give the Zyro team temporary help, which you can end at any time with revokesupport",
       "Added supportstatus to see whether support access is on",
       "Added help lookup by command name, for example help ban",
       "Added a variables list for every message template",
@@ -253,7 +292,7 @@
     "title": "New message design and lockdown",
     "date": "2026-04-14",
     "items": [
-      "Soward now uses Discord's Components V2 for most messages instead of embeds, giving cleaner cards that read better on phones",
+      "Zyro now uses Discord's Components V2 for most messages instead of embeds, giving cleaner cards that read better on phones",
       "Help, info, success and error replies now share one consistent look",
       "Confirmation prompts now use buttons in the same card layout",
       "Added server lockdown to lock every channel at once during an emergency, with channels you can skip and an automatic unlock time",
@@ -338,10 +377,10 @@
       "Added custom command cooldowns, restrictions and automatic message deletion",
       "Added custom command groups to keep large collections organized",
       "Added import and export of custom commands between servers",
-      "Added Soward Premium with redeemable keys and the claim command",
+      "Added Zyro Premium with redeemable keys and the claim command",
       "Added higher ticket and embed limits for Premium servers",
       "Added no-prefix mode for Premium users",
-      "Added Bot identity so Premium servers can give Soward its own name, avatar, banner and bio"
+      "Added Bot identity so Premium servers can give Zyro its own name, avatar, banner and bio"
     ]
   },
   {
@@ -477,7 +516,7 @@
     "title": "Launch",
     "date": "2025-02-08",
     "items": [
-      "Soward launches with a customizable prefix for every server, set with the prefix command",
+      "Zyro launches with a customizable prefix for every server, set with the prefix command",
       "Added a help menu that groups every command by category and shows details for each one",
       "Added ping, uptime and about commands to check that the bot is healthy",
       "Added userinfo and serverinfo for quick details about members and servers",

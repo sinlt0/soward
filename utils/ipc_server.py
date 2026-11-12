@@ -12,9 +12,10 @@ from discord.ext import commands
 
 import config
 from utils import activity_store, db, dashboard_modules as dm, guild_settings, prefix as prefix_utils, supporters
+from utils import ipc_admin, ipc_admin_tools
 from utils.dash import ActionContext
 
-log = logging.getLogger("soward.ipc")
+log = logging.getLogger("zyro.ipc")
 
 _start_time = time.time()
 _global_key = ("dashboard", "global_enabled")
@@ -57,7 +58,7 @@ def _err(message: str, status: int) -> web.Response:
 @web.middleware
 async def _auth(request: web.Request, handler):
     secret = request.app["secret"]
-    given = request.headers.get("X-Soward-Secret", "")
+    given = request.headers.get("X-Zyro-Secret", "")
     if not secret or not hmac.compare_digest(given.encode(), secret.encode()):
         return _err("Unauthorized.", 401)
     try:
@@ -76,7 +77,7 @@ def _bot(request: web.Request) -> commands.Bot:
 
 
 def _user_id(request: web.Request) -> int:
-    raw = request.headers.get("X-Soward-User", "")
+    raw = request.headers.get("X-Zyro-User", "")
     if not raw.isdigit():
         raise web.HTTPBadRequest(text="missing user")
     return int(raw)
@@ -338,7 +339,7 @@ async def audit_list(request: web.Request) -> web.Response:
 
 async def _appeal_user(request: web.Request) -> tuple[int, str]:
     uid = _user_id(request)
-    return uid, request.headers.get("X-Soward-Name", str(uid))[:80]
+    return uid, request.headers.get("X-Zyro-Name", str(uid))[:80]
 
 
 async def appeal_info(request: web.Request) -> web.Response:
@@ -485,7 +486,7 @@ async def activity_playlist_action(request: web.Request) -> web.Response:
 
 
 def build_app(bot: commands.Bot, secret: str) -> web.Application:
-    app = web.Application(middlewares=[_auth, _http_errors])
+    app = web.Application(middlewares=[_auth, _http_errors], client_max_size=24 * 1024 * 1024)
     app["bot"] = bot
     app["secret"] = secret
     app.router.add_get("/public/verify/{token}", public_verify_info)
@@ -513,11 +514,13 @@ def build_app(bot: commands.Bot, secret: str) -> web.Application:
     app.router.add_post("/guild/{gid}/module/{key}/toggle", module_toggle)
     app.router.add_post("/guild/{gid}/module/{key}/action", module_action)
     app.router.add_get("/guild/{gid}/audit", audit_list)
+    ipc_admin.register(app)
+    ipc_admin_tools.register(app)
     return app
 
 
 def socket_path() -> str:
-    path = os.getenv("SOWARD_IPC_PATH", config.DASHBOARD_IPC_SOCKET)
+    path = os.getenv("ZYRO_IPC_PATH", config.DASHBOARD_IPC_SOCKET)
     return os.path.abspath(path)
 
 
@@ -538,7 +541,7 @@ async def start_ipc(bot: commands.Bot, secret: str) -> web.AppRunner:
         os.chmod(path, 0o600)
         log.info("Dashboard IPC listening on unix socket %s", path)
     else:
-        port = int(os.getenv("SOWARD_IPC_PORT", config.DASHBOARD_IPC_FALLBACK_PORT))
+        port = int(os.getenv("ZYRO_IPC_PORT", config.DASHBOARD_IPC_FALLBACK_PORT))
         site = web.TCPSite(runner, "127.0.0.1", port)
         await site.start()
         log.info("Dashboard IPC listening on 127.0.0.1:%d (no unix sockets on this platform)", port)

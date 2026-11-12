@@ -9,7 +9,7 @@ from typing import Optional
 
 import config
 
-log = logging.getLogger("soward.dashboard")
+log = logging.getLogger("zyro.dashboard")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -27,11 +27,11 @@ class DashboardProcess:
 
     def _env(self) -> dict:
         env = dict(os.environ)
-        env["SOWARD_IPC_SECRET"] = self.secret
+        env["ZYRO_IPC_SECRET"] = self.secret
         env["PORT"] = str(self.port)
-        env["SOWARD_IPC_PATH"] = self.ipc_path
-        env["SOWARD_IPC_PORT"] = str(self.ipc_port)
-        env["SOWARD_IPC_MODE"] = "unix" if self.uses_unix else "tcp"
+        env["ZYRO_IPC_PATH"] = self.ipc_path
+        env["ZYRO_IPC_PORT"] = str(self.ipc_port)
+        env["ZYRO_IPC_MODE"] = "unix" if self.uses_unix else "tcp"
         env["PYTHONUNBUFFERED"] = "1"
         return env
 

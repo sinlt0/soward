@@ -6,7 +6,7 @@ from pathlib import Path
 
 from discord.ext import commands
 
-log = logging.getLogger("soward.loader")
+log = logging.getLogger("zyro.loader")
 
 def discover_extensions(package_dir: Path, package_name: str) -> list[str]:
     extensions = []

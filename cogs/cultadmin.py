@@ -11,6 +11,7 @@ from utils.components import error_layout, info_layout, success_layout
 
 
 class CultAdmin(commands.Cog):
+    category = "Cultivation"
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 

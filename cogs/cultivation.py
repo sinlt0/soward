@@ -1,3 +1,5 @@
+import asyncio
+import io
 import random
 import time
 from typing import Optional
@@ -6,9 +8,10 @@ import discord
 from discord.ext import commands
 
 from cogs.economy import duration
-from rpg import arts, bestiary, combat, engine as cult, gear, npcs as people, races, sect, settings, story, titles, ways
+from rpg import transcend as heaven, stones, pouch, arts, bestiary, combat, engine as cult, gear, npcs as people, races, sect, settings, story, titles, ways
 from utils import clans, coins, emoji_manager
 from utils.colors import NEUTRAL, SUCCESS
+from utils import anim_lib, tribulation_card, tribulation_ui
 from utils.components import error_layout, footer_block, info_layout, success_layout
 
 NO_PINGS = discord.AllowedMentions.none()
@@ -90,6 +93,8 @@ def fight_layout(state: dict, owner: int, left: int, active: set) -> discord.ui.
     tail = state.get("tag") or (f"party of {len(state['party'])}" if state.get("party") else "clan boss raid" if state.get("clan_boss") else f"{left} fights left today")
     lines.append(f"-# Turn {state['turn']} of {combat.MAX_TURNS} · {tail}")
     container = discord.ui.Container(accent_color=NEUTRAL)
+    if state.get("show_anim"):
+        container.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + state.get("media", "attack.gif"))))
     container.add_item(discord.ui.TextDisplay("\n".join(lines)))
     container.add_item(discord.ui.Separator())
     container.add_item(view.actions)
@@ -101,6 +106,25 @@ def fight_layout(state: dict, owner: int, left: int, active: set) -> discord.ui.
     return view
 
 
+def weapon_note(parts: dict) -> str:
+    note = parts.get("weapon")
+    if not note:
+        return ""
+    if note["broke"]:
+        return f"\n**Your {note['label']} shattered!** Craft or buy another with `cultivate gear craft weapon`."
+    return f"\nYour weapon is wearing out: **{note['durability']}/{note['max']}** durability. Mend it with `cultivate gear repair`."
+
+
+def herb_lines(parts: dict) -> list[str]:
+    lines = []
+    if parts.get("herb"):
+        key, count = parts["herb"]
+        lines.append(f"+{count} **{gear.MATERIALS[key]['name']}** ({gear.MATERIALS[key]['zh']})")
+    if parts.get("overflow"):
+        lines.append(f"-# Your pouches were full, so {parts.get('overflow_items', 0)} extra items sold for {stones.fmt(parts['overflow'])}. Upgrade with `pouch`.")
+    return lines
+
+
 def pvp_result_layout(state: dict, outcome: dict):
     e = emoji_manager.get
     m = state["m"]
@@ -108,23 +132,23 @@ def pvp_result_layout(state: dict, outcome: dict):
     if outcome["result"] == "win":
         lines = [f"You defeated **{m['name']}**."]
         if parts.get("stolen"):
-            lines.append(f"You took **{coins.fmt(parts['stolen'])}** coins from their pouch.")
+            lines.append(f"You took **{stones.fmt(parts['stolen'])}** from their pouch.")
         elif parts.get("capped"):
-            lines.append("They have already been looted enough today, so you take no coins.")
+            lines.append("They have already been looted enough today, so you take no spirit stones.")
         if parts.get("target_qi"):
             lines.append(f"They lose {coins.fmt(parts['target_qi'])} qi.")
         if parts.get("item"):
             lines.append(f"You seize a **{item_name(parts['item'])}** from their bag.")
-        return success_layout(f"{e('esword')} Raid won", "\n".join(lines))
+        return success_layout(f"{e('esword')} Raid won", "\n".join(lines) + weapon_note(parts))
     if outcome["result"] == "lose":
         lines = [f"**{m['name']}** beats you back."]
         if parts.get("coins_lost"):
-            lines.append(f"You lose **{coins.fmt(parts['coins_lost'])}** coins from your pouch.")
+            lines.append(f"You lose **{stones.fmt(parts['coins_lost'])}** from your pouch.")
         if parts.get("qi_lost"):
             lines.append(f"You lose {coins.fmt(parts['qi_lost'])} qi.")
         if parts.get("item_lost"):
             lines.append(f"You also drop a **{item_name(parts['item_lost'])}** while fleeing.")
-        return error_layout("Raid failed", "\n".join(lines))
+        return error_layout("Raid failed", "\n".join(lines) + weapon_note(parts))
     return info_layout(f"{e('esword')} Raid over", f"You back away from **{m['name']}** with nothing gained or lost.")
 
 
@@ -144,13 +168,15 @@ def party_result_layout(state: dict, outcome: dict):
     if outcome["result"] == "win":
         lines = [f"Your family defeated **{m['name']}**!"]
         for uid, parts in outcome["members"].items():
-            bits = [f"+{coins.fmt(parts.get('coins', 0))} coins", f"+{coins.fmt(parts.get('qi', 0))} qi"]
+            bits = [f"+{stones.fmt(parts.get('coins', 0))}", f"+{coins.fmt(parts.get('qi', 0))} qi"]
             if parts.get("material"):
                 key, count = parts["material"]
                 bits.append(f"{count} {gear.MATERIALS[key]['name']}")
+            if parts.get("overflow"):
+                bits.append(f"{stones.fmt(parts['overflow'])} from overflow")
             if parts.get("gear"):
                 bits.append(f"a **{gear.name(parts['gear'])}**")
-            lines.append(f"<@{uid}> " + " · ".join(bits))
+            lines.append(f"<@{uid}> " + " · ".join(bits) + weapon_note(parts).replace("\n", " "))
         return success_layout(f"{e('esword')} Dungeon cleared", "\n".join(lines))
     if outcome["result"] == "lose":
         return error_layout("Dungeon failed", f"**{m['name']}** drives your family out. Everyone loses a little qi.")
@@ -169,7 +195,7 @@ def boss_result_layout(state: dict, outcome: dict):
     if outcome.get("killed"):
         lines.append(f"\n**{m['name']} is slain!**")
         for uid, entry in outcome["payouts"].items():
-            bits = [f"+{coins.fmt(entry['coins'])} coins"]
+            bits = [f"+{stones.fmt(entry['coins'])}"]
             if entry.get("material"):
                 key, count = entry["material"]
                 bits.append(f"{count} {gear.MATERIALS[key]['name']}")
@@ -193,18 +219,19 @@ def result_layout(state: dict, outcome: dict):
     if outcome["result"] == "win":
         lines = [f"You defeated **{m['name']}** in {state['turn']} turns."]
         if parts.get("coins"):
-            lines.append(f"+**{coins.fmt(parts['coins'])}** coins")
+            lines.append(f"+**{stones.fmt(parts['coins'])}**")
         if parts.get("qi"):
             lines.append(f"+**{coins.fmt(parts['qi'])}** qi")
         if parts.get("material"):
             key, count = parts["material"]
             lines.append(f"+{count} **{gear.MATERIALS[key]['name']}** ({gear.MATERIALS[key]['zh']})")
+        lines.extend(herb_lines(parts))
         if parts.get("gear"):
             lines.append(f"{e('esword')} It dropped a **{gear.name(parts['gear'])}**!")
-        return success_layout(f"{e('esword')} Victory", "\n".join(lines))
+        return success_layout(f"{e('esword')} Victory", "\n".join(lines) + weapon_note(parts))
     if outcome["result"] == "lose":
         lost = f"\nYou lose **{coins.fmt(parts.get('qi_lost', 0))}** qi while recovering." if parts.get("qi_lost") else ""
-        return error_layout("Defeated", f"**{m['name']}** beats you down. You limp away.{lost}")
+        return error_layout("Defeated", f"**{m['name']}** beats you down. You limp away.{lost}{weapon_note(parts)}")
     return info_layout(f"{e('esword')} Fight over", f"You leave **{m['name']}** behind.")
 
 
@@ -270,8 +297,14 @@ class FightView(discord.ui.LayoutView):
                 outcome = await cult.dungeon_finish(self.state)
             else:
                 outcome = await (cult.pvp_finish if self.state.get("pvp") else cult.fight_finish)(self.owner, self.state)
-            return await interaction.response.edit_message(view=result_layout(self.state, outcome))
-        await interaction.response.edit_message(view=fight_layout(self.state, self.owner, self.left, self.active))
+            self.state["show_anim"] = False
+            return await interaction.response.edit_message(view=result_layout(self.state, outcome), attachments=[])
+        keys = tuple(key for key in (self.state.get("anim"), self.state.get("foe")) if key)
+        data = await asyncio.to_thread(anim_lib.compose, keys) if keys else b""
+        self.state["show_anim"] = bool(data)
+        self.state["media"] = "attack.gif"
+        attachments = [discord.File(io.BytesIO(data), "attack.gif")] if data else []
+        await interaction.response.edit_message(view=fight_layout(self.state, self.owner, self.left, self.active), attachments=attachments)
 
 
 def awaken_layout(character: dict, rerolls_left: int, owner: int) -> discord.ui.LayoutView:
@@ -390,11 +423,11 @@ class AwakenView(discord.ui.LayoutView):
 def parts_text(parts: dict, e) -> str:
     lines = []
     if parts.get("paid"):
-        lines.append(f"{e('ecoin')} Paid **{coins.fmt(parts['paid'])}** coins")
+        lines.append(f"{e('ecoin')} Paid **{stones.fmt(parts['paid'])}**")
     if parts.get("coins"):
-        lines.append(f"{e('ecoin')} **+{coins.fmt(parts['coins'])}** coins")
+        lines.append(f"{e('ecoin')} **+{stones.fmt(parts['coins'])}**")
     if parts.get("lost"):
-        lines.append(f"{e('ecoin')} Lost **{coins.fmt(parts['lost'])}** coins")
+        lines.append(f"{e('ecoin')} Lost **{stones.fmt(parts['lost'])}**")
     if "qi" in parts:
         lines.append(f"{e('eqi')} **+{coins.fmt(parts['qi'])}** qi" if parts["qi"] else f"{e('eqi')} Your qi is already full, so the qi was wasted")
     if parts.get("item"):
@@ -441,7 +474,7 @@ class EventView(discord.ui.LayoutView):
         result = await cult.resolve_event(self.owner, self.event, index)
         e = emoji_manager.get
         if not result["ok"]:
-            return await interaction.response.edit_message(view=error_layout("Cannot afford it", f"That needs **{coins.fmt(result.get('cost', 0))}** coins."))
+            return await interaction.response.edit_message(view=error_layout("Cannot afford it", f"That needs **{stones.fmt(result.get('cost', 0))}**."))
         extra = parts_text(result["parts"], e)
         await interaction.response.edit_message(view=info_layout(f"{e('ecult')} {self.event['title']}", f"{result['text']}" + (f"\n\n{extra}" if extra else "")))
 
@@ -490,14 +523,14 @@ class Cultivation(commands.Cog):
         major = cult.is_major(character)
         title_line = titles.TITLES.get(character.get("title") or "")
         standing = await clans.standing(target.id) or 'A wanderer with no clan. Join one with `clan` and it becomes your great family.'
-        heading = cult.stage_name(character) + (f" · {title_line['name']} ({title_line['zh']})" if title_line else "")
+        heading = cult.realm_text(character) + (f" · {titles.label(character.get('title') or '', character.get('transcend') or 0)} ({title_line['zh']})" if title_line else "")
         lines = [
             f"**{heading}**\n-# {standing}",
             f"{e('eroot')} {root_text(character)}",
             f"-# {cult.race_info(character)['perk']} {cult.race_info(character)['flaw']}",
             f"**Way:** {way_status(character)}",
             f"**Path:** {cult.path_info(character)['name']} ({cult.path_info(character)['perk']})",
-            f"**Safe:** {coins.fmt(character['safe'])}/{coins.fmt(cult.safe_cap(character))} coins" + (" · protected from raids" if cult.shielded(character, now) else " · open to raids"),
+            f"**Safe:** {stones.fmt(character['safe'])}/{stones.fmt(cult.safe_cap(character))}" + (" · protected from raids" if cult.shielded(character, now) else " · open to raids"),
             f"**Bloodline:** {bloodline_text(character)}",
             f"**Gear:** " + ", ".join(gear.name(character[slot]) if character.get(slot) else f"no {slot}" for slot in gear.SLOTS),
             "",
@@ -513,7 +546,9 @@ class Cultivation(commands.Cog):
                 lines.append(f"\n{e('etribulation') if major else e('eqi')} Your qi is full. Use `cultivate breakthrough`.")
         chance = cult.major_chance(character) if major else cult.minor_chance(character)
         if major and cult.gate_open(character):
-            lines.append(f"**Tribulation:** {chance}% chance · fee {coins.fmt(cult.realm_of(character)['fee'])} coins" + (f" · pills +{character['chance_bonus']}%" if character["chance_bonus"] else ""))
+            lines.append(f"**Tribulation:** {chance}% chance · fee {stones.fmt(cult.realm_of(character)['fee'])}" + (f" · pills +{character['chance_bonus']}%" if character["chance_bonus"] else ""))
+        elif major and heaven.check(character) in (None, "qi"):
+            lines.append(f"**Transcend:** no higher realm is open. Defy the heavens with `cultivate transcend` ({heaven.waves_for(heaven.tier_for(character))} waves · fee {stones.fmt(heaven.fee_for(heaven.tier_for(character)))})")
         elif not major:
             lines.append(f"**Next breakthrough:** {chance}% chance")
         hurt = cult.hurt(character, now)
@@ -540,6 +575,51 @@ class Cultivation(commands.Cog):
         character = result["character"]
         await ctx.send(view=success_layout(f"{e('eqi')} Meditation", f"You focus and draw in **{coins.fmt(result['gain'])}** qi.\n{coins.fmt(character['qi'])}/{coins.fmt(cult.need(character))} {bar(character['qi'], cult.need(character))}"))
 
+    @cultivate.command(name="transcend", aliases=["defy", "heaven"], help="Defy the heavens when no higher realm is open and endure the tribulation of transcendence.")
+    async def transcend(self, ctx: commands.Context):
+        character = await self.need_character(ctx)
+        if character is None:
+            return
+        uid = ctx.author.id
+        if uid in tribulation_ui.ACTIVE:
+            return await ctx.send(view=error_layout("Already in tribulation", "Finish the tribulation you are in first."))
+        settled = cult.settle(character, time.time())
+        await cult.save(character)
+        reason = heaven.check(character)
+        if reason:
+            title, body = tribulation_ui.REASONS[reason]
+            if reason == "qi":
+                body = f"The tribulation will not come until your qi is full. You have **{coins.fmt(character['qi'])}/{coins.fmt(cult.need(character))}**."
+            if reason == "hurt":
+                body = f"You recover in **{duration(cult.hurt(character, time.time()))}**. A Healing Pill cures it."
+            return await ctx.send(view=error_layout(title, body))
+        author = ctx.author
+        avatar = await tribulation_ui.load_avatar(author)
+
+        async def begin(interaction: discord.Interaction):
+            await interaction.response.defer()
+            started = await heaven.start(uid, rng=random)
+            if not started["ok"]:
+                reason = started["reason"]
+                if reason == "fee":
+                    return await interaction.edit_original_response(view=error_layout("Not enough spirit stones", f"The heavens demand **{stones.fmt(started['fee'])}** before they answer."), attachments=[])
+                title, body = tribulation_ui.REASONS.get(reason, ("Cannot transcend", "That did not work."))
+                return await interaction.edit_original_response(view=error_layout(title, body), attachments=[])
+            tribulation_ui.ACTIVE.add(uid)
+            state = started["state"]
+            buffer = await asyncio.to_thread(tribulation_card.render_wave, state, author.display_name, avatar)
+            view = tribulation_ui.TribulationView(state, uid, author.display_name, avatar, finish)
+            await interaction.edit_original_response(view=view, attachments=[tribulation_ui.png_file(buffer)])
+            view.message = await interaction.original_response()
+
+        async def finish(interaction: discord.Interaction, state: dict, name: str, portrait, result):
+            outcome = await heaven.finish(uid, state)
+            await cult.check_titles(uid)
+            buffer = await asyncio.to_thread(tribulation_card.render_final, state, name, portrait, result, outcome.get("title", ""))
+            await interaction.edit_original_response(view=tribulation_ui.result_layout(outcome, state), attachments=[tribulation_ui.png_file(buffer)])
+
+        await ctx.send(view=tribulation_ui.preview_layout(character, uid, begin), allowed_mentions=NO_PINGS)
+
     @cultivate.command(name="breakthrough", aliases=["advance", "tribulation", "bt"], help="Try to break through to the next stage or realm.")
     async def breakthrough(self, ctx: commands.Context):
         e = emoji_manager.get
@@ -554,16 +634,16 @@ class Cultivation(commands.Cog):
             if reason == "qi":
                 return await ctx.send(view=error_layout("Not enough qi", f"You need **{coins.fmt(result['missing'])}** more qi ({coins.fmt(character['qi'])}/{coins.fmt(cult.need(character))})."))
             if reason == "gate":
-                return await ctx.send(view=error_layout("The path is closed", "The realm beyond has not opened yet. Your cultivation is at its current peak."))
-            return await ctx.send(view=error_layout("Cannot afford the tribulation", f"The tribulation needs **{coins.fmt(result['fee'])}** coins."))
+                return await ctx.send(view=error_layout("The path is closed", f"The realm beyond has not opened yet. Your cultivation is at its current peak. You can defy the heavens instead with `{ctx.clean_prefix}cultivate transcend`."))
+            return await ctx.send(view=error_layout("Cannot afford the tribulation", f"The tribulation needs **{stones.fmt(result['fee'])}**."))
         character = result["character"]
         icon = e("etribulation") if result["major"] else e("eqi")
         if result["won"]:
             text = f"**{result['before']}** to **{result['after']}**\n" + ("Lightning tears the sky and you endure it. You step into a new realm!" if result["major"] else "Your qi surges and settles. You advance.")
-            return await ctx.send(view=success_layout(f"{icon} Breakthrough", f"{text}\n-# {result['chance']}% chance" + (f" · {coins.fmt(result['fee'])} coins paid" if result["fee"] else "")))
+            return await ctx.send(view=success_layout(f"{icon} Breakthrough", f"{text}\n-# {result['chance']}% chance" + (f" · {stones.fmt(result['fee'])} paid" if result["fee"] else "")))
         hurt = cult.hurt(character, time.time())
         text = ("The tribulation lightning crushes your attempt." if result["major"] else "Your qi runs wild and the attempt fails.") + f"\nYou lost some qi and are injured for **{duration(hurt)}**."
-        await ctx.send(view=error_layout(f"{icon} Breakthrough failed", f"{text}\n-# {result['chance']}% chance" + (f" · {coins.fmt(result['fee'])} coins lost" if result["fee"] else "")))
+        await ctx.send(view=error_layout(f"{icon} Breakthrough failed", f"{text}\n-# {result['chance']}% chance" + (f" · {stones.fmt(result['fee'])} lost" if result["fee"] else "")))
 
     @cultivate.command(name="shop", aliases=["store", "market"], help="See the pills you can buy.")
     async def shop(self, ctx: commands.Context):
@@ -572,7 +652,7 @@ class Cultivation(commands.Cog):
         character = character if character and character["path"] else None
         lines = []
         for key, item in settings.ITEMS.items():
-            lines.append(f"{e('epill')} **{item['name']}** · `{key}` · {coins.fmt(cult.price(key, character))} coins\n{item['info']}")
+            lines.append(f"{e('epill')} **{item['name']}** · `{key}` · {stones.fmt(cult.price(key, character))}\n{item['info']}")
         lines.append("\n-# Buy with `cultivate buy <pill> [amount]` and use with `cultivate use <pill>`. Prices rise with your realm.")
         await ctx.send(view=info_layout(f"{e('epill')} Pill shop", "\n".join(lines)))
 
@@ -588,8 +668,8 @@ class Cultivation(commands.Cog):
             return await ctx.send(view=error_layout("Invalid amount", "Buy between 1 and 20 at a time."))
         result = await cult.buy(ctx.author.id, key, amount)
         if not result["ok"]:
-            return await ctx.send(view=error_layout("Not enough coins", f"That costs **{coins.fmt(result['cost'])}** coins and you have **{coins.fmt(await coins.balance(ctx.author.id))}**."))
-        await ctx.send(view=success_layout(f"{e('epill')} Bought", f"You bought **{amount}x {settings.ITEMS[key]['name']}** for {e('ecoin')} **{coins.fmt(result['cost'])}** coins."))
+            return await ctx.send(view=error_layout("Not enough spirit stones", f"That costs **{stones.fmt(result['cost'])}** and you have **{stones.fmt(await coins.balance(ctx.author.id))}**."))
+        await ctx.send(view=success_layout(f"{e('epill')} Bought", f"You bought **{amount}x {settings.ITEMS[key]['name']}** for {e('ecoin')} **{stones.fmt(result['cost'])}**."))
 
     @cultivate.command(name="use", aliases=["eat", "consume"], help="Use a pill. Usage: cultivate use <pill>")
     async def use(self, ctx: commands.Context, *, item: str):
@@ -623,10 +703,16 @@ class Cultivation(commands.Cog):
     @cultivate.command(name="bag", aliases=["inventory", "inv", "items"], help="See your pills.")
     async def bag(self, ctx: commands.Context):
         e = emoji_manager.get
+        await cult.convert_legacy(ctx.author.id)
         items = await cult.inventory(ctx.author.id)
-        if not items:
+        crafted = await cult.weapons(ctx.author.id)
+        if not items and not crafted:
             return await ctx.send(view=info_layout(f"{e('epill')} Your bag", "Empty. Buy pills with `cultivate buy`."))
         lines = []
+        for row in crafted[:15]:
+            lines.append(f"**#{row['weapon_id']}** {gear.weapon_line(row)}" + (" · listed for sale" if row["listed"] else ""))
+        if len(crafted) > 15:
+            lines.append(f"-# and {len(crafted) - 15} more weapons")
         for key, qty in items.items():
             if key in settings.ITEMS:
                 lines.append(f"**{settings.ITEMS[key]['name']}** x{qty}")
@@ -635,9 +721,11 @@ class Cultivation(commands.Cog):
             elif key in gear.MATERIALS:
                 lines.append(f"**{gear.MATERIALS[key]['name']}** ({gear.MATERIALS[key]['zh']}) x{qty}")
             elif gear.parse(key):
-                lines.append(f"**{gear.name(key)}** x{qty}")
+                lines.append(f"**{gear.name(key)}** x{qty}" + (" · soul-bound" if gear.soulbound(key) else ""))
         if not lines:
             return await ctx.send(view=info_layout(f"{e('epill')} Your bag", "Empty. Buy pills with `cultivate buy` or win fights with `cultivate fight`."))
+        space = await pouch.usage(ctx.author.id)
+        lines.append(f"\n-# Herb pouch {space['herb']['used']}/{space['herb']['cap']} · Material pouch {space['material']['used']}/{space['material']['cap']} · `pouch` to upgrade")
         await ctx.send(view=info_layout(f"{e('epill')} Your bag", "\n".join(lines)))
 
     @cultivate.command(name="fight", aliases=["battle", "monster", "slay"], help="Fight a monster in turn-based combat. Usage: cultivate fight [monster]")
@@ -661,7 +749,7 @@ class Cultivation(commands.Cog):
         self.active.add(ctx.author.id)
         await ctx.send(view=fight_layout(result["state"], ctx.author.id, result["left"], self.active), allowed_mentions=NO_PINGS)
 
-    @cultivate.command(name="raid", aliases=["rob", "pvp", "attack"], help="Raid another cultivator for coins. Usage: cultivate raid <user>")
+    @cultivate.command(name="raid", aliases=["rob", "pvp", "attack"], help="Raid another cultivator for spirit stones. Usage: cultivate raid <user>")
     async def raid(self, ctx: commands.Context, user: Optional[discord.User] = None):
         e = emoji_manager.get
         character = await self.need_character(ctx)
@@ -675,10 +763,10 @@ class Cultivation(commands.Cog):
                 f"- Cultivators in their first realm or in their first {settings.SHIELD_DAYS} days are protected, and cannot raid.\n"
                 f"- You can only raid cultivators within **{settings.PVP_REALM_GAP}** realms of you.\n"
                 f"- {settings.PVP_DAILY} raids a day, one per target every {settings.PVP_TARGET_COOLDOWN // 3600} hours. A target can be robbed {settings.PVP_ROBBED_DAILY} times a day.\n"
-                f"- A win takes {int(settings.PVP_STEAL_PCT * 100)}% of their pouch, up to {coins.fmt(settings.PVP_STEAL_MAX)} coins. Coins in the safe, diamonds and the clan bank cannot be taken.\n"
+                f"- A win takes {int(settings.PVP_STEAL_PCT * 100)}% of their pouch, up to {stones.fmt(settings.PVP_STEAL_MAX)}. Spirit stones in the safe, diamonds and the clan bank cannot be taken.\n"
                 f"- Loser loses a little qi and a chance to drop one item. Realm and character are never lost.\n"
                 f"- Partners, family and clan members cannot raid each other.\n\n"
-                "-# Use `cultivate raid <user>`. Keep coins safe with `cultivate safe`.")))
+                "-# Use `cultivate raid <user>`. Keep spirit stones safe with `cultivate safe`.")))
         if user.bot:
             return await ctx.send(view=error_layout("Not a cultivator", "Bots do not cultivate."))
         if ctx.author.id in self.active:
@@ -705,7 +793,7 @@ class Cultivation(commands.Cog):
         self.active.add(ctx.author.id)
         await ctx.send(view=fight_layout(result["state"], ctx.author.id, result["left"], self.active), allowed_mentions=NO_PINGS)
 
-    @cultivate.command(name="safe", aliases=["vault", "stash"], help="Keep coins safe from raids. Usage: cultivate safe [deposit|withdraw] [amount]")
+    @cultivate.command(name="safe", aliases=["vault", "stash"], help="Keep spirit stones safe from raids. Usage: cultivate safe [deposit|withdraw] [amount]")
     async def safe(self, ctx: commands.Context, action: Optional[str] = None, amount: Optional[int] = None):
         e = emoji_manager.get
         character = await self.need_character(ctx)
@@ -715,20 +803,20 @@ class Cultivation(commands.Cog):
             result = await cult.safe_move(ctx.author.id, amount, action in ("deposit", "put"))
             if not result["ok"]:
                 reasons = {
-                    "full": ("Safe is full", f"Your safe holds **{coins.fmt(result.get('safe', 0))}/{coins.fmt(result.get('cap', 0))}** coins."),
-                    "coins": ("Not enough coins", "You do not have that many coins in your pouch."),
-                    "safe": ("Not enough in the safe", f"Your safe holds **{coins.fmt(result.get('safe', 0))}** coins."),
+                    "full": ("Safe is full", f"Your safe holds **{stones.fmt(result.get('safe', 0))}/{stones.fmt(result.get('cap', 0))}**."),
+                    "coins": ("Not enough spirit stones", "You do not have that many spirit stones in your pouch."),
+                    "safe": ("Not enough in the safe", f"Your safe holds **{stones.fmt(result.get('safe', 0))}**."),
                     "amount": ("Invalid amount", "Use a positive number."),
                 }
                 title, body = reasons.get(result["reason"], ("Cannot do that", "That did not work."))
                 return await ctx.send(view=error_layout(title, body))
             character = result["character"]
             title = "Deposited" if action in ("deposit", "put") else "Withdrawn"
-            return await ctx.send(view=success_layout(f"{e('eshield')} {title}", f"Your safe holds **{coins.fmt(character['safe'])}/{coins.fmt(cult.safe_cap(character))}** coins."))
+            return await ctx.send(view=success_layout(f"{e('eshield')} {title}", f"Your safe holds **{stones.fmt(character['safe'])}/{stones.fmt(cult.safe_cap(character))}**."))
         pouch = await coins.balance(ctx.author.id)
         await ctx.send(view=info_layout(f"{e('eshield')} Your safe", (
-            f"**Safe:** {coins.fmt(character['safe'])}/{coins.fmt(cult.safe_cap(character))} coins (cannot be raided)\n"
-            f"**Pouch:** {coins.fmt(pouch)} coins\n\n"
+            f"**Safe:** {stones.fmt(character['safe'])}/{stones.fmt(cult.safe_cap(character))} (cannot be raided)\n"
+            f"**Pouch:** {stones.fmt(pouch)}\n\n"
             "-# `cultivate safe deposit <amount>` and `cultivate safe withdraw <amount>`. The safe grows with every realm.")))
 
     @cultivate.command(name="techniques", aliases=["arts", "skills", "tech"], help="Show your combat techniques.")
@@ -766,7 +854,7 @@ class Cultivation(commands.Cog):
         realm = character["realm"] if character and character["path"] else 0
         tier = min(realm, 3)
         lines = [f"**{bestiary.MONSTERS[k]['name']} ({bestiary.MONSTERS[k]['zh']})**\n-# Signature move: {bestiary.MONSTERS[k]['skill']}" for k in bestiary.for_realm(realm)]
-        lines.append(f"\n**Loot:** {settings.FIGHT_COINS[tier][0]}-{settings.FIGHT_COINS[tier][1]} coins, some qi, and {gear.MATERIALS[gear.GRADES[tier]['material']]['name']} ({gear.MATERIALS[gear.GRADES[tier]['material']]['zh']}) for crafting.")
+        lines.append(f"\n**Loot:** {settings.FIGHT_COINS[tier][0]}-{settings.FIGHT_COINS[tier][1]} spirit stones, some qi, and {gear.MATERIALS[gear.GRADES[tier]['material']]['name']} ({gear.MATERIALS[gear.GRADES[tier]['material']]['zh']}) for crafting.")
         lines.append("-# Use `cultivate fight` to meet one at random, or `cultivate fight <name>`.")
         await ctx.send(view=info_layout(f"{e('esword')} Monsters of the {settings.REALMS[tier]['name']} realm", "\n".join(lines)))
 
@@ -783,18 +871,54 @@ class Cultivation(commands.Cog):
             if len(words) > 1:
                 names = [g["name"].lower() for g in gear.GRADES]
                 grade = names.index(words[1]) if words[1] in names else (int(words[1]) - 1 if words[1].isdigit() else -1)
-            if slot not in gear.SLOTS and slot not in gear.WEAPONS:
-                return await ctx.send(view=error_layout("Pick a slot", "Use `cultivate gear craft` with `armor`, `charm` or a weapon (" + ", ".join(f"`{kind}`" for kind in gear.WEAPONS) + "), and an optional grade (yellow, mystic, earth, heaven)."))
+            if slot not in gear.SLOTS:
+                return await ctx.send(view=error_layout("Pick a slot", "Use `cultivate gear craft weapon`, `armor` or `charm`, with an optional grade (yellow, mystic, earth, heaven). Soul-bound weapons are made with `cultivate gear forge`."))
             result = await cult.craft(ctx.author.id, slot, grade)
             if not result["ok"]:
                 reasons = {
                     "grade": ("Grade not available", "You can only craft grades up to your realm."),
                     "materials": ("Not enough materials", f"You need **{gear.CRAFT_MATERIALS} {gear.MATERIALS[result.get('material', 'beast_core')]['name']}**. Win fights to collect them."),
-                    "coins": ("Not enough coins", f"Crafting costs **{coins.fmt(result.get('cost', 0))}** coins."),
+                    "coins": ("Not enough spirit stones", f"Crafting costs **{stones.fmt(result.get('cost', 0))}**."),
                 }
                 title, body = reasons.get(result["reason"], ("Cannot craft", "That did not work."))
                 return await ctx.send(view=error_layout(title, body))
-            return await ctx.send(view=success_layout(f"{e('esword')} Crafted", f"You forged a **{gear.name(result['item'])}** for {coins.fmt(result['cost'])} coins.\nEquip it with `cultivate gear equip {result['item']}`."))
+            return await ctx.send(view=success_layout(f"{e('esword')} Crafted", f"You forged a **{gear.name(result['item'])}** for {stones.fmt(result['cost'])}.\nEquip it with `cultivate gear equip {'#' + result['item'][2:] if result['item'].startswith('w:') else result['item']}`."))
+        if action == "forge":
+            words = rest.lower().split()
+            kind = words[0] if words else ""
+            if kind not in gear.WEAPONS:
+                lines = [f"**{info['name']}** ({info['zh']}) `{key}`: {info['info']}" for key, info in gear.WEAPONS.items()]
+                costs = [f"**{g['name']}:** {gear.FORGE_MATERIALS} {gear.MATERIALS[g['material']]['name']} + {gear.FORGE_SHARDS} Rift Shards + {stones.fmt(gear.forge_cost(i)['coins'])} · {gear.FORGE_CHANCE[i]}% success" for i, g in enumerate(gear.GRADES) if i <= character["realm"]]
+                return await ctx.send(view=info_layout(f"{e('esword')} Soul-bound weapons", "Your own weapon. It never breaks and can never be traded or stolen, but forging it is hard and can fail.\n\n" + "\n".join(lines) + "\n\n" + "\n".join(costs) + f"\n\nA failed forge loses the materials and {100 - gear.FORGE_REFUND}% of the spirit stones.\n-# `cultivate gear forge <type> [grade]`"))
+            grade = min(character["realm"], len(gear.GRADES) - 1)
+            if len(words) > 1:
+                names = [g["name"].lower() for g in gear.GRADES]
+                grade = names.index(words[1]) if words[1] in names else (int(words[1]) - 1 if words[1].isdigit() else -1)
+            result = await cult.forge(ctx.author.id, kind, grade)
+            if not result["ok"]:
+                reasons = {
+                    "grade": ("Grade not available", "You can only forge grades up to your realm."),
+                    "materials": ("Not enough materials", f"You need **{gear.FORGE_MATERIALS} {gear.MATERIALS[result.get('material', 'beast_core')]['name']}**."),
+                    "shards": ("Not enough Rift Shards", f"You need **{gear.FORGE_SHARDS} Rift Shards** from rifts."),
+                    "coins": ("Not enough spirit stones", f"Forging costs **{stones.fmt(result.get('coins', 0))}**."),
+                }
+                title, body = reasons.get(result["reason"], ("Cannot forge", "That did not work."))
+                return await ctx.send(view=error_layout(title, body))
+            if result["success"]:
+                return await ctx.send(view=success_layout(f"{e('esword')} Forged", f"The metal sings. You forged a soul-bound **{gear.name(result['item'])}**.\nEquip it with `cultivate gear equip {result['item']}`."))
+            return await ctx.send(view=error_layout("The forge failed", f"The weapon cracked in the fire. The materials are lost and you got back {stones.fmt(result['refund'])}. Chance was {result['chance']}%."))
+        if action == "repair":
+            result = await cult.repair(ctx.author.id)
+            if not result["ok"]:
+                reasons = {
+                    "nothing": ("Nothing to repair", "Only a crafted weapon you are holding can wear out. Soul-bound weapons never do."),
+                    "full": ("Already sound", "Your weapon is at full durability."),
+                    "materials": ("Not enough materials", f"You need **{result.get('materials', 1)} {gear.MATERIALS[result.get('material', 'beast_core')]['name']}**."),
+                    "coins": ("Not enough spirit stones", f"Repairs cost **{stones.fmt(result.get('coins', 0))}**."),
+                }
+                title, body = reasons.get(result["reason"], ("Cannot repair", "That did not work."))
+                return await ctx.send(view=error_layout(title, body))
+            return await ctx.send(view=success_layout(f"{e('esword')} Repaired", f"Your weapon is restored to **{result['durability']}** durability. Each repair lowers its maximum by {int(gear.REPAIR_LOSS * 100)}%, so it cannot last forever."))
         if action == "refine":
             slot = rest.lower().strip()
             if slot not in gear.SLOTS:
@@ -805,7 +929,7 @@ class Cultivation(commands.Cog):
                     "empty": ("Nothing equipped", f"Equip a {gear.SLOTS[slot]['name']} first."),
                     "max": ("Fully refined", "That gear is already at +5."),
                     "materials": ("Not enough materials", f"You need **{result.get('materials', 1)} {gear.MATERIALS[result.get('material', 'beast_core')]['name']}**."),
-                    "coins": ("Not enough coins", f"Refining costs **{coins.fmt(result.get('coins', 0))}** coins."),
+                    "coins": ("Not enough spirit stones", f"Refining costs **{stones.fmt(result.get('coins', 0))}**."),
                 }
                 title, body = reasons.get(result["reason"], ("Cannot refine", "That did not work."))
                 return await ctx.send(view=error_layout(title, body))
@@ -817,7 +941,7 @@ class Cultivation(commands.Cog):
             words = rest.lower().split()
             if len(words) < 2 or words[0] not in gear.SLOTS or gear.find_enchant(" ".join(words[1:])) is None:
                 options = ", ".join(f"**{info['name']}** ({'/'.join(info['slots'])}, {info['info']})" for info in gear.ENCHANTS.values())
-                return await ctx.send(view=info_layout(f"{e('eshield')} Enchanting", f"Usage: `cultivate gear enchant <slot> <enchant>`.\n\n{options}\n\nEach enchant costs **{gear.ENCHANT_SHARDS} Rift Shards** and coins that grow with your realm. Rift Shards come from rifts. A slot holds one enchant, and a new one replaces the old. Swapping the gear itself removes its enchant."))
+                return await ctx.send(view=info_layout(f"{e('eshield')} Enchanting", f"Usage: `cultivate gear enchant <slot> <enchant>`.\n\n{options}\n\nEach enchant costs **{gear.ENCHANT_SHARDS} Rift Shards** and spirit stones that grow with your realm. Rift Shards come from rifts. A slot holds one enchant, and a new one replaces the old. Swapping the gear itself removes its enchant."))
             slot = words[0]
             key = gear.find_enchant(" ".join(words[1:]))
             result = await cult.enchant(ctx.author.id, slot, key)
@@ -827,16 +951,17 @@ class Cultivation(commands.Cog):
                     "empty": ("Nothing equipped", f"Equip a {gear.SLOTS[slot]['name']} first."),
                     "same": ("Already enchanted", "That enchant is already on this gear."),
                     "materials": ("Not enough Rift Shards", f"You need **{result.get('need', gear.ENCHANT_SHARDS)} Rift Shards**."),
-                    "coins": ("Not enough coins", f"Enchanting costs **{coins.fmt(result.get('cost', 0))}** coins."),
+                    "coins": ("Not enough spirit stones", f"Enchanting costs **{stones.fmt(result.get('cost', 0))}**."),
                 }
                 title, body = reasons.get(result["reason"], ("Cannot enchant", "That did not work."))
                 return await ctx.send(view=error_layout(title, body))
             info = gear.ENCHANTS[key]
             return await ctx.send(view=success_layout(f"{e('esword')} Enchanted", f"Your **{gear.SLOTS[slot]['name']}** now carries **{info['name']}** ({info['zh']}): {info['info']}."))
         if action == "equip":
-            item = gear.find(rest)
+            digits = rest.strip().lstrip("#").lower().removeprefix("w:")
+            item = f"w:{digits}" if digits.isdigit() else gear.find(rest)
             if item is None:
-                return await ctx.send(view=error_layout("Unknown gear", "Try `cultivate gear equip yellow weapon`. See your bag with `cultivate bag`."))
+                return await ctx.send(view=error_layout("Unknown gear", "Try `cultivate gear equip #12` for a crafted weapon from your bag, or a name such as `yellow armor` or `earth dragon spear`."))
             result = await cult.equip(ctx.author.id, item)
             if not result["ok"]:
                 reasons = {
@@ -848,25 +973,27 @@ class Cultivation(commands.Cog):
             note = f"\nYour old gear lost its **+{result['lost_plus']}** refinement." if result.get("lost_plus") else ""
             if result.get("lost_enchant"):
                 note += f"\nIt also lost its **{gear.ENCHANTS[result['lost_enchant']]['name']}** enchant."
-            return await ctx.send(view=success_layout(f"{e('eshield')} Equipped", f"You equip the **{gear.name(item)}**.{note}"))
+            return await ctx.send(view=success_layout(f"{e('eshield')} Equipped", f"You equip the **{gear.name(result['item'])}**.{note}"))
         mods = cult.fight_mods(character)
         lines = []
         for slot, info in gear.SLOTS.items():
             item = character.get(slot)
             plus = int(character.get(f"{slot}_r") or 0)
             charm = gear.ENCHANTS.get(character.get(f"{slot}_e") or "")
-            lines.append(f"**{info['name']}:** {gear.name(item) + (f' +{plus}' if plus else '') if item else 'nothing'}" + (f" · {charm['name']}" if charm and item else "") + f"\n-# boosts {info['info']}")
+            shown = gear.weapon_line(character["_weapon"]) if slot == "weapon" and character.get("_weapon") else (gear.name(item) if item else "")
+            lines.append(f"**{info['name']}:** {shown + (f' +{plus}' if plus else '') if item else 'nothing'}" + (f" · {charm['name']}" if charm and item else "") + f"\n-# boosts {info['info']}")
         lines.append("")
         for grade, info in enumerate(gear.GRADES):
             if grade > character["realm"]:
                 break
-            lines.append(f"**{info['name']} grade ({info['zh']}):** {gear.CRAFT_MATERIALS} {gear.MATERIALS[info['material']]['name']} + {coins.fmt(info['coins'])} coins")
-        lines.append("\n**Weapon types:** " + "; ".join(f"**{info['name']}** ({info['zh']}) `{kind}` {info['info']}" for kind, info in gear.WEAPONS.items()))
+            lines.append(f"**{info['name']} grade ({info['zh']}):** {gear.CRAFT_MATERIALS} {gear.MATERIALS[info['material']]['name']} + {stones.fmt(info['coins'])}")
+        lines.append("\n**Crafted weapons** are common and tradable. They come in five qualities (" + ", ".join(q["name"] for q in gear.WEAPON_QUALITIES) + ") that change attack and durability, and they break at zero durability. `cultivate gear repair` mends one.")
+        lines.append("**Soul-bound weapons** (" + ", ".join(info["name"] for info in gear.WEAPONS.values()) + ") never break and cannot be traded, but are hard to forge: `cultivate gear forge`.")
         stats = combat.player_stats(character, mods)
         lines.append(f"\n**Combat stats:** x{mods['hp']:.2f} health · x{mods['atk']:.2f} attack · x{mods['def']:.2f} defense · {stats['dodge']:.0f}% dodge · {stats['crit']:.0f}% critical · x{stats['tech']:.2f} technique power")
-        lines.append(f"**Refining:** `cultivate gear refine <slot>` upgrades what you wear up to +{gear.REFINE_MAX}. Each step adds {int(gear.REFINE_STEP * 100)}% to that gear's bonus. It costs materials and coins, can fail, and resets if you swap the gear.")
+        lines.append(f"**Refining:** `cultivate gear refine <slot>` upgrades what you wear up to +{gear.REFINE_MAX}. Each step adds {int(gear.REFINE_STEP * 100)}% to that gear's bonus. It costs materials and spirit stones, can fail, and resets if you swap the gear.")
         lines.append("**Enchanting:** `cultivate gear enchant <slot> <enchant>` adds a rune from Rift Shards. Run it without a slot to see them all.")
-        lines.append("-# `cultivate gear craft <slot or weapon> [grade]` and `cultivate gear equip <name>`. Story relics are equipped by their name.")
+        lines.append("-# `cultivate gear craft <slot> [grade]`, `equip <name or #id>`, `repair` and `forge`. Story relics are equipped by their name and are soul-bound.")
         await ctx.send(view=info_layout(f"{e('eshield')} Gear", "\n".join(lines)))
 
     @cultivate.command(name="realms", aliases=["ladder"], help="Show the realms of cultivation.")
@@ -876,7 +1003,7 @@ class Cultivation(commands.Cog):
         lines = []
         for index, info in enumerate(settings.REALMS):
             here = " **(you)**" if mine and mine["path"] and mine["realm"] == index else ""
-            fee = f" · tribulation fee {coins.fmt(info['fee'])} coins" if info["fee"] else ""
+            fee = f" · tribulation fee {stones.fmt(info['fee'])}" if info["fee"] else ""
             lines.append(f"**{index + 1}. {info['name']}**{here}\n{len(info['stages'])} stages · {info['gain']} qi an hour{fee}")
         lines.append("\nComing later: " + ", ".join(settings.FUTURE_REALMS) + ".")
         await ctx.send(view=info_layout(f"{e('ecult')} Realms", "\n".join(lines)))

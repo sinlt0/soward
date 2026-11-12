@@ -7,7 +7,7 @@ group: Security
 
 ## The security tools
 
-Soward has several security tools. Each protects against a different problem, and they work best together. All of them are off until you turn them on.
+Zyro has several security tools. Each protects against a different problem, and they work best together. All of them are off until you turn them on.
 
 | Tool | Protects against | Guide |
 | --- | --- | --- |
@@ -108,7 +108,7 @@ The bot can only manage roles below its own highest role. Move the bot's role ab
 
 ## Ban evasion detection
 
-When someone is banned, Soward remembers their avatar, name, invite and account age. When a new member joins and looks like a banned account (same custom avatar, same or very similar name, same invite, account made after the ban), Soward posts an alert with a score out of 100 and **Ban** and **Not the same person** buttons. It is a signal, not proof, so nothing happens automatically unless you choose to.
+When someone is banned, Zyro remembers their avatar, name, invite and account age. When a new member joins and looks like a banned account (same custom avatar, same or very similar name, same invite, account made after the ban), Zyro posts an alert with a score out of 100 and **Ban** and **Not the same person** buttons. It is a signal, not proof, so nothing happens automatically unless you choose to.
 
 ```
 !evasion channel #security-logs
@@ -128,7 +128,7 @@ When you ban someone who was flagged, the normal ban message with the appeal but
 
 ## Incident post-mortems
 
-When AntiRaid raid mode or AntiNuke's Beast Mode starts, Soward begins tracking an incident. When it ends, it posts a one-page summary to your security alert channel (or log channel): how long it lasted, what started it, which protections were raised, the peak threat score, every account it actioned, which AntiNuke limits fired, what was undone and a short timeline.
+When AntiRaid raid mode or AntiNuke's Beast Mode starts, Zyro begins tracking an incident. When it ends, it posts a one-page summary to your security alert channel (or log channel): how long it lasted, what started it, which protections were raised, the peak threat score, every account it actioned, which AntiNuke limits fired, what was undone and a short timeline.
 
 | Command | What it does | Needs |
 | --- | --- | --- |
@@ -153,3 +153,7 @@ It is meant for planned situations, for example when a boost service joins with 
 While paused, AntiNuke, AntiRaid (including bot-join checks), AutoMod, join verification, the verification timeout kick and ban evasion alerts do not act. Logging, the whitelist, permit tiers and members who are already quarantined are unchanged. Raid mode is ended when you pause.
 
 For safety there is always an end time: the default is 2 hours and the longest is 7 days. Security switches back on by itself when it passes and `!security` shows when. Pausing and resuming are written to the security log.
+
+## Main role
+
+Set a main role with `!mainrole @Members` or in the security settings. Lock, unlock, hide, unhide, server lockdown, scheduled locks and custom command lock actions change this role instead of `@everyone`. If none is set, the verified role is used, then `@everyone`. A lockdown remembers which role it changed, so changing the main role mid-lockdown still restores the right one. Hides and locks already placed on `@everyone` are not moved automatically.

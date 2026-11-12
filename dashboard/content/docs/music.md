@@ -7,7 +7,7 @@ group: Fun
 
 ## How music works
 
-Soward plays music in voice channels. You ask for a song with `!play`, the bot joins your voice channel, and it posts a **Now Playing** card with buttons for pause, skip, shuffle, stop, loop and autoplay. More songs go into a queue.
+Zyro plays music in voice channels. You ask for a song with `!play`, the bot joins your voice channel, and it posts a **Now Playing** card with buttons for pause, skip, shuffle, stop, loop and autoplay. More songs go into a queue.
 
 Playing songs and managing the queue are done with commands only. The web dashboard cannot start songs or edit the queue. It does manage [lofi radio and 24/7 mode](/docs/lofi).
 

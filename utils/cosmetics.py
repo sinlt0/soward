@@ -43,6 +43,8 @@ OUTFITS = {
 STAGES = [(0, "Baby"), (150, "Young"), (600, "Teen"), (1800, "Adult"), (5000, "Legendary")]
 
 BADGE_STYLES = {
+    "owner": ("Owner", (255, 92, 92)),
+    "developer": ("Developer", (0, 212, 255)),
     "supporter": ("Supporter", (255, 200, 60)),
     "voter": ("Voter", (110, 190, 255)),
     "devoted": ("Devoted Voter", (150, 130, 255)),
@@ -113,6 +115,10 @@ async def owned_ids(user_id: int) -> set[str]:
 
 async def badges(user_id: int) -> list[str]:
     found = []
+    if user_id in config.OWNER_IDS:
+        found.append("owner")
+    if user_id in config.DEV_IDS:
+        found.append("developer")
     if await supporters.get(user_id):
         found.append("supporter")
     vote = await votes.get(user_id)

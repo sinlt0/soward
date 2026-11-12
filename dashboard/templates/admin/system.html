@@ -1,0 +1,46 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}System{% endblock %}
+{% block admin_heading %}System{% endblock %}
+{% block admin_body %}
+<section class="panel">
+  <div class="panel__head"><h2>Maintenance</h2><p>Pauses every command for everyone except owners and developers.</p></div>
+  <form class="adminform" data-admin="maintenance" data-reload>
+    <label class="check"><input type="checkbox" name="on"{% if d.maintenance.on %} checked{% endif %}> Maintenance mode is on</label>
+    <div class="stack"><label class="lbl" for="m-reason">Reason shown to users</label><input id="m-reason" class="input" name="reason" maxlength="200" value="{{ d.maintenance.reason }}"></div>
+    <div><button class="btn btn--primary" type="submit">Save</button></div>
+  </form>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Web dashboard</h2><p>Turn the server dashboard on or off for every server. The public site stays up.</p></div>
+  <form class="adminform" data-admin="dashboard" data-reload>
+    <label class="check"><input type="checkbox" name="enabled"{% if d.dashboard_enabled %} checked{% endif %}> Dashboard is on for every server</label>
+    <div><button class="btn btn--primary" type="submit">Save</button></div>
+  </form>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Cogs and commands</h2><p>Reload code after an update without restarting the bot.</p></div>
+  <form class="adminform adminform--inline" data-admin="reload">
+    <select class="select" name="name" aria-label="Cog"><option value="all">All cogs</option>{% for c in cogs %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+    <button class="btn btn--primary btn--sm" type="submit">Reload</button>
+    <button class="btn btn--ghost btn--sm" type="button" data-admin="slashsync">Sync slash commands</button>
+  </form>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Send a message</h2><p>Post as Zyro in any channel it can see. Mentions are disabled.</p></div>
+  <form class="adminform" data-admin="send" data-result="send-result">
+    <div class="stack"><label class="lbl" for="s-ch">Channel ID</label><input id="s-ch" class="input" name="channel_id" inputmode="numeric" required pattern="[0-9]{5,25}"></div>
+    <div class="stack"><label class="lbl" for="s-msg">Message</label><textarea id="s-msg" class="textarea" name="content" maxlength="2000" required></textarea></div>
+    <div class="actions"><button class="btn btn--primary" type="submit">Send</button><span id="send-result" class="result" hidden></span></div>
+  </form>
+</section>
+<section class="panel">
+  <div class="panel__head panel__head--row"><div><h2>Logs</h2><p>The latest lines of the bot log. Tokens are hidden.</p></div><div class="panel__tools"><button class="btn btn--ghost btn--sm" type="button" id="logs-load">Load logs</button></div></div>
+  <pre class="logbox" id="logbox" hidden></pre>
+</section>
+{% if can_edit %}
+<section class="panel">
+  <div class="panel__head"><h2>Restart</h2><p>Restarts the bot process. It is back in a few seconds.</p></div>
+  <div class="adminform"><div><button class="btn btn--danger" type="button" data-admin="restart" data-confirm="Restart the bot now?">Restart bot</button></div></div>
+</section>
+{% endif %}
+{% endblock %}

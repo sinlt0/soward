@@ -7,7 +7,7 @@ group: Moderation
 
 ## How it works
 
-When Soward bans someone (ban, tempban, massban, a report action or an anti-raid ban), it first sends them a direct message with the reason and an **Appeal this ban** button. The button opens a web page on your dashboard. The member must **log in with Discord** before they can see or send anything, and the bot checks that they are really banned before accepting the appeal.
+When Zyro bans someone (ban, tempban, massban, a report action or an anti-raid ban), it first sends them a direct message with the reason and an **Appeal this ban** button. The button opens a web page on your dashboard. The member must **log in with Discord** before they can see or send anything, and the bot checks that they are really banned before accepting the appeal.
 
 Appeals land in your appeal channel with **Accept** and **Deny** buttons. Accepting unbans the member, logs a case and sends them a direct message, with a one-use invite if you set a rejoin channel.
 

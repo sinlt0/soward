@@ -1,0 +1,24 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Commands{% endblock %}
+{% block admin_heading %}Commands{% endblock %}
+{% block admin_body %}
+<section class="panel">
+  <div class="panel__head"><h2>Turn a command off</h2><p>Blocks a command, and everything under it, for everyone except owners and developers. Works for prefix and slash commands. Developer commands and help cannot be turned off.</p></div>
+  <form class="adminform" data-admin="commands/disable" data-reload>
+    <div class="formgrid">
+      <div class="stack"><label class="lbl" for="c-name">Command</label><input id="c-name" class="input" name="name" list="cmdlist" required placeholder="e.g. gamble or premium buy" autocomplete="off"></div>
+      <div class="stack"><label class="lbl" for="c-reason">Reason shown to users</label><input id="c-reason" class="input" name="reason" maxlength="150" placeholder="Being fixed"></div>
+    </div>
+    <datalist id="cmdlist">{% for n in d.commands %}<option value="{{ n }}">{% endfor %}</datalist>
+    <div><button class="btn btn--danger" type="submit">Turn off</button></div>
+  </form>
+</section>
+<section class="panel">
+  <div class="panel__head"><h2>Turned off</h2></div>
+  {% if d.disabled %}
+  <div class="tablewrap"><table class="table"><thead><tr><th>Command</th><th>Reason</th><th></th></tr></thead><tbody>
+    {% for c in d.disabled %}<tr><td data-label="Command"><code>{{ c.name }}</code></td><td data-label="Reason">{{ c.reason or "No reason" }}</td><td class="rowtools"><button class="btn btn--ghost btn--sm" type="button" data-admin="commands/enable" data-body='{"name":"{{ c.name }}"}' data-reload>Turn on</button></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<div class="empty empty--inset">Every command is on.</div>{% endif %}
+</section>
+{% endblock %}

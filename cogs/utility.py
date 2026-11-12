@@ -1,3 +1,4 @@
+import asyncio
 import platform
 import time
 from typing import Optional
@@ -79,7 +80,7 @@ class AboutButtonsRow(discord.ui.ActionRow):
         e = emoji_manager.get
         body = await _build_team_body(self.bot)
         await interaction.response.send_message(
-            view=info_layout(f"{e('soward')} Owners & Developers", body), ephemeral=True
+            view=info_layout(f"{e('zyro')} Owners & Developers", body), ephemeral=True
         )
 
 
@@ -121,7 +122,7 @@ class Utility(commands.Cog):
         )
         await ctx.send(view=info_layout(f"{e('uptime')} Uptime", body))
 
-    @commands.command(name="about", aliases=["credits", "botinfo", "bi"], help="About Soward — version, developer, and live stats.")
+    @commands.command(name="about", aliases=["credits", "botinfo", "bi"], help="About Zyro — version, developer, and live stats.")
     async def about(self, ctx: commands.Context):
         e = emoji_manager.get
 
@@ -167,7 +168,7 @@ class Utility(commands.Cog):
         about_view = discord.ui.LayoutView(timeout=None)
         container = discord.ui.Container(accent_color=NEUTRAL)
         section = discord.ui.Section(accessory=discord.ui.Thumbnail(media=self.bot.user.display_avatar.url))
-        section.add_item(discord.ui.TextDisplay(f"## {e('soward')} About {config.BOT_NAME}\n{body}"))
+        section.add_item(discord.ui.TextDisplay(f"## {e('zyro')} About {config.BOT_NAME}\n{body}"))
         container.add_item(section)
         container.add_item(discord.ui.Separator())
         container.add_item(AboutButtonsRow(self.bot))
@@ -181,7 +182,7 @@ class Utility(commands.Cog):
     async def owners(self, ctx: commands.Context):
         e = emoji_manager.get
         body = await _build_team_body(self.bot)
-        await ctx.send(view=info_layout(f"{e('soward')} Owners & Developers", body))
+        await ctx.send(view=info_layout(f"{e('zyro')} Owners & Developers", body))
 
     @commands.command(name="userinfo", aliases=["whois", "ui"], help="Display information about a member.")
     @commands.guild_only()
@@ -195,6 +196,10 @@ class Utility(commands.Cog):
             roles_text += f" (+{len(roles) - 10} more)"
 
         badges = []
+        if member.id in config.OWNER_IDS:
+            badges.append("🛡️ Bot Owner")
+        if member.id in config.DEV_IDS:
+            badges.append("🛠️ Bot Developer")
         if member.id == ctx.guild.owner_id:
             badges.append("👑 Owner")
         if member.bot:
@@ -221,7 +226,20 @@ class Utility(commands.Cog):
         if ctx.author.guild_permissions.manage_messages:
             from utils import trust as trust_utils
             body += "\n\n" + await trust_utils.line(ctx.guild, member)
-        await ctx.send(view=_layout(f"{e('info')} {member}", body, thumbnail=member.display_avatar.url))
+        card = None
+        profiles = self.bot.get_cog("Profiles")
+        if profiles is not None:
+            from utils import profile_card, profiles as store
+            saved = await store.get(member.id)
+            if not (saved and saved["hidden"] and member.id != ctx.author.id):
+                try:
+                    data = await profiles.card_data(member, ctx.guild)
+                    card = await asyncio.to_thread(profile_card.render_profile, data)
+                except Exception:
+                    card = None
+        if card is None:
+            return await ctx.send(view=_layout(f"{e('info')} {member}", body, thumbnail=member.display_avatar.url))
+        await ctx.send(view=_layout(f"{e('info')} {member}", body, thumbnail=member.display_avatar.url, image="attachment://profile.png"), file=discord.File(card, "profile.png"))
 
     @commands.command(name="serverinfo", aliases=["si", "guildinfo"], help="Display information about this server.")
     @commands.guild_only()
@@ -246,7 +264,7 @@ class Utility(commands.Cog):
             f"**Emojis:** `{len(guild.emojis)}`\n\n"
             f"**Boosts:** `{guild.premium_subscription_count}` (Level `{guild.premium_tier}`)\n"
             f"**Verification Level:** `{guild.verification_level.name}`\n"
-            f"**Soward Prefix:** `{await prefix_utils.get_guild_prefix(guild.id)}`"
+            f"**Zyro Prefix:** `{await prefix_utils.get_guild_prefix(guild.id)}`"
         )
         await ctx.send(view=_layout(f"{e('guild')} {guild.name}", body, thumbnail=guild.icon.url if guild.icon else None))
 

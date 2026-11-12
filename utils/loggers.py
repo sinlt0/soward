@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 import config
 from utils import db
 
-log = logging.getLogger("soward.loggers")
+log = logging.getLogger("zyro.loggers")
 
 LEVEL_COLORS = {
     "ready": 0x3BA55D,
@@ -140,6 +140,8 @@ def _detect_invocation_context(ctx) -> str:
 
 async def log_command(ctx) -> None:
     invocation_context = _detect_invocation_context(ctx)
+    from utils import user_apps
+    guild = user_apps.known_guild(ctx)
 
     def build():
         container = discord.ui.Container(accent_color=LEVEL_COLORS["command"])
@@ -154,11 +156,13 @@ async def log_command(ctx) -> None:
         ))
         container.add_item(discord.ui.Separator())
         container.add_item(discord.ui.TextDisplay(
-            f"**Channel**\n{ctx.channel.mention if ctx.guild else 'Direct Message'} (`{ctx.channel.id}`)"
+            f"**Channel**\n{ctx.channel.mention if guild else 'Direct Message'} (`{ctx.channel.id}`)"
         ))
         container.add_item(discord.ui.Separator())
-        if ctx.guild:
-            container.add_item(discord.ui.TextDisplay(f"**Server**\n{ctx.guild.name} (`{ctx.guild.id}`)"))
+        if guild:
+            container.add_item(discord.ui.TextDisplay(f"**Server**\n{guild.name} (`{guild.id}`)"))
+        elif ctx.guild:
+            container.add_item(discord.ui.TextDisplay(f"**Server**\nUser app (`{ctx.guild.id}`)"))
         else:
             container.add_item(discord.ui.TextDisplay("**Server**\nDirect Message"))
         container.add_item(discord.ui.Separator())
@@ -299,7 +303,7 @@ def _render_stats_image(stats: dict, bot_name: str) -> io.BytesIO:
         f"Commands: {stats['command_count']} · Cogs: {stats['cog_count']} · Gateway: {stats['gateway_latency_ms']}ms",
         font=footer_font, fill=text_dim,
     )
-    draw.text((28, 302), f"Auto-updated every {config.DEV_STATS_UPDATE_INTERVAL // 60} min · Soward stats monitor", font=footer_font, fill=text_dim)
+    draw.text((28, 302), f"Auto-updated every {config.DEV_STATS_UPDATE_INTERVAL // 60} min · Zyro stats monitor", font=footer_font, fill=text_dim)
 
     buf = io.BytesIO()
     card.save(buf, format="PNG")
@@ -339,7 +343,7 @@ class DevStatsUpdater:
     async def update(self) -> tuple[bool, str]:
         webhook = self._webhook()
         if webhook is None:
-            return False, "SOWARD_DEV_STATS_WEBHOOK is missing or not a valid webhook URL."
+            return False, "ZYRO_DEV_STATS_WEBHOOK is missing or not a valid webhook URL."
 
         try:
             stats = await _gather_stats(self.bot)

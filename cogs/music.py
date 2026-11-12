@@ -19,7 +19,7 @@ from utils.checks import has_guild_permission
 from utils.colors import ERROR, NEUTRAL, SUCCESS
 import config
 
-log = logging.getLogger("soward.music")
+log = logging.getLogger("zyro.music")
 
 
 FFMPEG_OPTIONS = {
@@ -95,7 +95,7 @@ def _simple(title: str, body: str, *, color: int = NEUTRAL) -> discord.ui.Layout
     container = discord.ui.Container(accent_color=color)
     container.add_item(discord.ui.TextDisplay(f"## {title}\n{body}"))
     container.add_item(discord.ui.Separator())
-    container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME} · Made by Soward Team"))
+    container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME}  ·  Made By Lexor Development"))
     layout.add_item(container)
     return layout
 
@@ -342,7 +342,7 @@ class NPLayout(discord.ui.LayoutView):
         loop_row = NPLoopRow()
         container.add_item(loop_row)
         container.add_item(discord.ui.Separator())
-        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME} · Made by Soward Team"))
+        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME}  ·  Made By Lexor Development"))
         self.add_item(container)
 
 
@@ -409,7 +409,7 @@ class FilterLayout(discord.ui.LayoutView):
         container.add_item(discord.ui.Separator())
         container.add_item(FilterRow())
         container.add_item(discord.ui.Separator())
-        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME} · Made by Soward Team"))
+        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME}  ·  Made By Lexor Development"))
         self.add_item(container)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -479,7 +479,7 @@ class QueueLayout(discord.ui.LayoutView):
         self.container.add_item(discord.ui.Separator())
         self.container.add_item(QueuePageRow())
         self.container.add_item(discord.ui.Separator())
-        self.container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME} · Made by Soward Team"))
+        self.container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME}  ·  Made By Lexor Development"))
         self.add_item(self.container)
         self._render()
 
@@ -574,7 +574,7 @@ class RadioLayout(discord.ui.LayoutView):
         container.add_item(discord.ui.Separator())
         container.add_item(RadioSelectRow(current_key, all_stations))
         container.add_item(discord.ui.Separator())
-        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME} · Made by Soward Team"))
+        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME}  ·  Made By Lexor Development"))
         self.add_item(container)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -620,7 +620,7 @@ class LofiSetupSelectRow(discord.ui.ActionRow):
             "-# Use `lofi radio` to change · `lofi disable` to stop"
         ))
         container.add_item(discord.ui.Separator())
-        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME} · Made by Soward Team"))
+        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME}  ·  Made By Lexor Development"))
         layout.add_item(container)
         await interaction.edit_original_response(view=layout)
 
@@ -640,7 +640,7 @@ class LofiSetupLayout(discord.ui.LayoutView):
         container.add_item(discord.ui.Separator())
         container.add_item(LofiSetupSelectRow(vc, text_ch_id, author_id))
         container.add_item(discord.ui.Separator())
-        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME} · Made by Soward Team"))
+        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME}  ·  Made By Lexor Development"))
         self.add_item(container)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -677,7 +677,7 @@ class Music(commands.Cog):
             port = n.get("port", 2333)
             password = n.get("password", "youshallnotpass")
             secure = n.get("secure", False)
-            identifier = n.get("identifier", f"SOWARD-{host}:{port}")
+            identifier = n.get("identifier", f"ZYRO-{host}:{port}")
             scheme = "https" if secure else "http"
             nodes.append(wavelink.Node(
                 uri=f"{scheme}://{host}:{port}",
@@ -691,7 +691,7 @@ class Music(commands.Cog):
             connected = await wavelink.Pool.connect(nodes=nodes, client=self.bot, cache_capacity=100)
             log.info("wavelink.Pool.connect returned %d node(s): %s", len(connected), list(connected.keys()))
         except wavelink.AuthorizationFailedException:
-            log.error("Lavalink authorization failed — check SOWARD_LAVALINK_PASSWORD matches your Lavalink application.yml password.")
+            log.error("Lavalink authorization failed — check ZYRO_LAVALINK_PASSWORD matches your Lavalink application.yml password.")
         except wavelink.InvalidClientException:
             log.error("Lavalink connection failed — invalid discord.Client passed to Pool.connect.")
         except wavelink.NodeException as ex:
@@ -880,7 +880,7 @@ class Music(commands.Cog):
         container.add_item(discord.ui.Separator())
         container.add_item(NPLoopRow())
         container.add_item(discord.ui.Separator())
-        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME} · Made by Soward Team"))
+        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME}  ·  Made By Lexor Development"))
         layout.add_item(container)
         return layout
 
@@ -1385,7 +1385,7 @@ class Music(commands.Cog):
         container.add_item(discord.ui.Separator())
         container.add_item(SearchSelectRow())
         container.add_item(discord.ui.Separator())
-        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME} · Made by Soward Team"))
+        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME}  ·  Made By Lexor Development"))
         layout.add_item(container)
         await ctx.send(view=layout)
 
@@ -1523,7 +1523,7 @@ class Music(commands.Cog):
             "**Mention or type the channel name.**\n-# You have 60 seconds to respond."
         ))
         container.add_item(discord.ui.Separator())
-        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME} · Made by Soward Team"))
+        container.add_item(discord.ui.TextDisplay(f"-# {config.BOT_NAME}  ·  Made By Lexor Development"))
         layout.add_item(container)
         prompt = await ctx.send(view=layout)
 

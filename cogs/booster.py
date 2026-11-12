@@ -104,7 +104,7 @@ class Booster(commands.Cog):
 
     async def _role_ok(self, ctx: commands.Context, role: discord.Role) -> bool:
         if role.is_default() or role.managed or role >= ctx.guild.me.top_role:
-            await ctx.send(view=error_layout("Role not usable", "Pick a normal role that is below Soward's top role."))
+            await ctx.send(view=error_layout("Role not usable", "Pick a normal role that is below Zyro's top role."))
             return False
         return True
 
@@ -137,13 +137,13 @@ class Booster(commands.Cog):
     async def b_setup(self, ctx: commands.Context):
         me = ctx.guild.me.guild_permissions
         if not me.manage_roles:
-            return await ctx.send(view=error_layout("Missing permission", "Soward needs Manage Roles."))
+            return await ctx.send(view=error_layout("Missing permission", "Zyro needs Manage Roles."))
         tiers = await bst.list_tiers(ctx.guild.id)
         made = []
         if not tiers:
             for boosts, name, color in config.BOOSTER_PRESET_TIERS:
                 try:
-                    role = await ctx.guild.create_role(name=name, colour=discord.Colour(color), reason="Soward booster setup")
+                    role = await ctx.guild.create_role(name=name, colour=discord.Colour(color), reason="Zyro booster setup")
                 except discord.HTTPException as exc:
                     return await ctx.send(view=error_layout("Could not create roles", str(exc)[:150]))
                 try:
@@ -290,9 +290,9 @@ class Booster(commands.Cog):
         except bst.BoosterError as exc:
             return await ctx.send(view=error_layout("Invalid colour", str(exc)))
         if not ctx.guild.me.guild_permissions.manage_roles:
-            return await ctx.send(view=error_layout("Missing permission", "Soward needs Manage Roles."))
+            return await ctx.send(view=error_layout("Missing permission", "Zyro needs Manage Roles."))
         try:
-            role = await ctx.guild.create_role(name=name[:100], colour=discord.Colour(color), reason="Soward booster tier")
+            role = await ctx.guild.create_role(name=name[:100], colour=discord.Colour(color), reason="Zyro booster tier")
         except discord.HTTPException as exc:
             return await ctx.send(view=error_layout("Could not create the role", str(exc)[:150]))
         await self._save_tier(ctx, number, role)
@@ -364,7 +364,7 @@ class Booster(commands.Cog):
     async def b_backfill(self, ctx: commands.Context):
         channel = ctx.guild.system_channel
         if channel is None or not channel.permissions_for(ctx.guild.me).read_message_history:
-            return await ctx.send(view=error_layout("No system channel", "Discord posts boost messages in the system channel. Set one in Server Settings and give Soward access, or use `booster set`."))
+            return await ctx.send(view=error_layout("No system channel", "Discord posts boost messages in the system channel. Set one in Server Settings and give Zyro access, or use `booster set`."))
         since = {m.id: m.premium_since for m in ctx.guild.premium_subscribers}
         counts: dict[int, int] = {}
         scanned = 0
@@ -442,7 +442,7 @@ class Booster(commands.Cog):
         if mode not in ("above", "below"):
             return await ctx.send(view=error_layout("Invalid", "Use `above` or `below`, then the role to place around."))
         if role is not None and role >= ctx.guild.me.top_role:
-            return await ctx.send(view=error_layout("Role too high", "Soward cannot place roles around a role at or above its own."))
+            return await ctx.send(view=error_layout("Role too high", "Zyro cannot place roles around a role at or above its own."))
         fields = {"position_mode": mode}
         if role is not None:
             fields["position_ref_id"] = role.id
@@ -546,7 +546,7 @@ class Booster(commands.Cog):
             if role is not None:
                 raise bst.BoosterError(f"You already have {role.mention}. Edit it instead.")
             if not ctx.guild.me.guild_permissions.manage_roles:
-                raise bst.BoosterError("Soward is missing Manage Roles.")
+                raise bst.BoosterError("Zyro is missing Manage Roles.")
             color = bst.parse_color(colour) if colour else 0
             if colour and not cfg["allow_color"]:
                 raise bst.BoosterError("Choosing a role colour is turned off on this server.")

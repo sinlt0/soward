@@ -12,7 +12,7 @@ from utils.checks import has_guild_permission
 from utils.colors import ERROR, NEUTRAL, SUCCESS
 from utils.components import error_layout, footer_block, info_layout, success_layout
 
-log = logging.getLogger("soward.autopartner")
+log = logging.getLogger("zyro.autopartner")
 
 NO_PINGS = discord.AllowedMentions.none()
 IMAGE_TYPES = ("image/png", "image/jpeg", "image/jpg", "image/webp")
@@ -109,7 +109,7 @@ class AutoPartner(commands.Cog):
             channel = self.bot.get_channel(ticket["channel_id"])
             if channel is not None:
                 try:
-                    await channel.delete(reason="[Soward Auto Partner] Ticket expired")
+                    await channel.delete(reason="[Zyro Auto Partner] Ticket expired")
                 except discord.HTTPException:
                     pass
 
@@ -173,7 +173,7 @@ class AutoPartner(commands.Cog):
                     category=category if isinstance(category, discord.CategoryChannel) else None,
                     overwrites=self.overwrites(guild, member, cfg),
                     topic=f"Partner ticket #{number:04d} - {member} ({member.id})",
-                    reason=f"[Soward Auto Partner] Ticket opened by {member} ({member.id})",
+                    reason=f"[Zyro Auto Partner] Ticket opened by {member} ({member.id})",
                 )
             except discord.HTTPException as exc:
                 hint = "I need **Manage Channels** and **Manage Roles**." if isinstance(exc, discord.Forbidden) else "The category may be full."
@@ -322,7 +322,7 @@ class AutoPartner(commands.Cog):
     async def delete_later(self, channel: discord.TextChannel) -> None:
         await asyncio.sleep(config.AUTOPARTNER_CLOSE_DELAY)
         try:
-            await channel.delete(reason="[Soward Auto Partner] Ticket finished")
+            await channel.delete(reason="[Zyro Auto Partner] Ticket finished")
         except discord.HTTPException:
             pass
 

@@ -181,7 +181,7 @@ class Milestones(commands.Cog):
         if mode not in store.MODES:
             return await ctx.send(view=error_layout("Invalid mode", "Use `off`, `channel` or `dm`."))
         await store.set_config(ctx.guild.id, "welcomeback", mode)
-        await self._saved(ctx, f"Welcome back is **{mode}**. Soward starts tracking activity from now, so nobody is welcomed back until they have been quiet for the full period after that.")
+        await self._saved(ctx, f"Welcome back is **{mode}**. Zyro starts tracking activity from now, so nobody is welcomed back until they have been quiet for the full period after that.")
 
     @milestones.command(name="away", help="Days of silence before a member counts as returning (7 to 365).")
     @has_guild_permission("manage_guild")

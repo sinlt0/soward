@@ -169,16 +169,27 @@ def render_profile(data: dict) -> io.BytesIO:
     while name_font.getlength(name) > 400 and name_font.size > 22:
         name_font = font(name_font.size - 2, "Bold")
     d.text((222, 70), name, font=name_font, fill=(255, 255, 255, 255))
-    subtitle = data.get("title") or data.get("pronouns") or ""
+    cult = data.get("cultivation")
+    extra = data.get("title") or data.get("pronouns") or ""
+    subtitle = " · ".join(bit for bit in ((cult or {}).get("title", ""), extra) if bit)
     if subtitle:
         d.text((222, 70 + name_font.size + 10), subtitle, font=font(20, "Medium"), fill=accent + (255,))
     stats = []
-    if data.get("level") is not None:
-        stats.append(f"Level {data['level']}")
+    stats.append(cult["realm"] if cult else "Not cultivating yet")
     stats.append(f"{data.get('coins', 0):,} coins")
     if data.get("diamonds"):
         stats.append(f"{data['diamonds']:,} diamonds")
-    d.text((222, 150), "  ·  ".join(stats), font=font(18), fill=(225, 225, 232, 255))
+    line = "  ·  ".join(stats)
+    stat_font = font(18)
+    while stat_font.getlength(line) > 400 and stat_font.size > 12:
+        stat_font = font(stat_font.size - 1)
+    d.text((222, 150), line, font=stat_font, fill=(225, 225, 232, 255))
+    if cult:
+        detail = "  ·  ".join(bit for bit in (f"{cult['path']} Path", cult["way"], cult["race"], f"{cult['titles']} titles") if bit)
+        detail_font = font(15)
+        while detail_font.getlength(detail) > 400 and detail_font.size > 11:
+            detail_font = font(detail_font.size - 1)
+        d.text((222, 182), detail, font=detail_font, fill=accent + (255,))
     x, y = 56, 224
     badge_font = font(16, "Medium")
     shown = data.get("badges", [])

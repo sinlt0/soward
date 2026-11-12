@@ -151,9 +151,9 @@ async def build_plan(guild: discord.Guild, a: dict, force: str = "") -> dict:
         recommendations.append(f"{a['admin_humans']} members get Administrator through roles. Trim it, or make the trusted ones Trusted Admins with `security trusted add`")
     me = guild.me
     if guild.roles and me.top_role.position < max(r.position for r in guild.roles) - 3:
-        recommendations.append("Move Soward's role higher so it can act on more roles")
+        recommendations.append("Move Zyro's role higher so it can act on more roles")
     if a["coverage"] < 0.8:
-        recommendations.append("Soward can only see part of the member list, so the join statistics are approximate")
+        recommendations.append("Zyro can only see part of the member list, so the join statistics are approximate")
 
     perms = _bot_permissions(guild)
     steps: list[str] = []
@@ -186,7 +186,7 @@ def summary(a: dict, plan: dict) -> str:
         f"**Accounts:** {a['young_share']:.0%} new (under 7 days) among this week's joins · {a['admin_humans']} admins · {len(a['admin_bots'])} bots with Administrator\n"
         f"**Risk score:** {plan['risk']}/7 · **Preset:** `{plan['preset']}`\n"
         + ("**Why:** " + "; ".join(plan["reasons"][:4]) + "\n" if plan["reasons"] else "")
-        + "\n**Soward will:**\n"
+        + "\n**Zyro will:**\n"
         + f"- Apply the `{plan['preset']}` preset. Verification settings are left as they are\n"
         + "\n".join(f"- {line}" for line in plan["notes"])
         + ("\n" if plan["notes"] else "")
@@ -207,7 +207,7 @@ async def _lock_channels(guild: discord.Guild, role: discord.Role) -> int:
         if role in channel.overwrites and channel.overwrites_for(role) == overwrite:
             continue
         try:
-            await channel.set_permissions(role, overwrite=overwrite, reason="Soward security setup")
+            await channel.set_permissions(role, overwrite=overwrite, reason="Zyro security setup")
             done += 1
         except discord.HTTPException:
             continue
@@ -246,7 +246,7 @@ async def apply(bot, guild: discord.Guild, actor_id: int, plan: dict) -> tuple[l
     qrole_id = await guild_settings.get(guild.id, "antinuke_quarantine_role_id")
     if any("Quarantined role" in s for s in plan["steps"]) and not (qrole_id and guild.get_role(int(qrole_id))):
         try:
-            role = await guild.create_role(name="Quarantined", permissions=discord.Permissions.none(), reason="Soward security setup")
+            role = await guild.create_role(name="Quarantined", permissions=discord.Permissions.none(), reason="Zyro security setup")
             try:
                 await role.edit(position=max(1, guild.me.top_role.position - 1))
             except discord.HTTPException:

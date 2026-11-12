@@ -7,7 +7,7 @@ group: Fun
 
 ## What this is
 
-Soward can stream a radio station in a voice channel all day, every day. This is called **lofi radio**. It is separate from normal music: nobody has to queue songs, and it restarts itself if the stream drops or the bot restarts.
+Zyro can stream a radio station in a voice channel all day, every day. This is called **lofi radio**. It is separate from normal music: nobody has to queue songs, and it restarts itself if the stream drops or the bot restarts.
 
 **24/7 mode** is different. It keeps the bot sitting in a voice channel after the music queue ends, so it does not leave. It does not play anything by itself.
 

@@ -1,12 +1,13 @@
 import random
+import re
 import time
 from datetime import datetime, timezone
 from typing import Optional
 
-from rpg import quest, arts, bestiary, combat, events, gear, npcs, races, settings, story, titles, ways
+from rpg import pouch, quest, schema, arts, bestiary, combat, events, feats, gear, npcs, races, settings, story, titles, ways
 from utils import clans, coins, db, family
 
-FIELDS = ("path", "realm", "stage", "qi", "last_tick", "last_meditate", "injured_until", "chance_bonus", "pill_day", "pill_count", "rerolls", "breakthroughs")
+FIELDS = ("path", "realm", "stage", "qi", "last_tick", "last_meditate", "injured_until", "chance_bonus", "pill_day", "pill_count", "rerolls", "breakthroughs", "transcend", "trans_realm")
 
 
 def realm_of(character: dict) -> dict:
@@ -27,6 +28,17 @@ def stage_name(character: dict) -> str:
     return f"{info['name']} {info['stages'][character['stage']]}"
 
 
+def realm_text(character: dict) -> str:
+    tier = int(character.get("transcend") or 0)
+    base = stage_name(character)
+    return f"{base} · Transcendent {titles.ROMAN[min(tier, len(titles.ROMAN) - 1)]}" if tier else base
+
+
+def title_bonus(character: dict) -> dict:
+    key = character.get("title") or ""
+    return titles.bonus(key, int(character.get("transcend") or 0)) if key else {}
+
+
 def is_major(character: dict) -> bool:
     return character["stage"] == len(realm_of(character)["stages"]) - 1
 
@@ -38,7 +50,7 @@ def gate_open(character: dict) -> bool:
 def multiplier(character: dict) -> float:
     rarity = settings.ROOTS[character["rarity"]]["mult"]
     quality = next(q["mult"] for q in settings.QUALITIES if q["name"] == character["quality"])
-    return rarity * quality * race_info(character).get("qi", 1.0) * way_info(character).get("qi", 1.0) * (1 + settings.BOND_QI * min(settings.BOND_MAX, int(character.get("bonds", 0))))
+    return rarity * quality * (1 + settings.TRANSCEND_QI * int(character.get("transcend") or 0)) * title_bonus(character).get("qi", 1.0) * race_info(character).get("qi", 1.0) * way_info(character).get("qi", 1.0) * (1 + settings.BOND_QI * min(settings.BOND_MAX, int(character.get("bonds", 0))))
 
 
 def race_info(character: dict) -> dict:
@@ -109,11 +121,71 @@ def sect_level(character: dict, building: str) -> int:
     return int((character.get("_sect") or {}).get(building, 0))
 
 
+LEGACY_WEAPON = re.compile(r"^weapon_[0-3]$")
+
+
+async def create_weapon(user_id: int, grade: int, quality: int, equipped: int = 0) -> int:
+    top = gear.max_durability(grade, quality)
+    cursor = await db.raw_execute(
+        "INSERT INTO cult_weapons (owner_id, grade, quality, durability, max_durability, equipped, listed, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?)",
+        (user_id, grade, quality, top, top, equipped, time.time()))
+    weapon_id = cursor.lastrowid
+    gear.remember(f"w:{weapon_id}", {"grade": grade, "quality": quality})
+    return weapon_id
+
+
+async def weapon_row(weapon_id: int) -> Optional[dict]:
+    row = await db.raw_fetchone("SELECT * FROM cult_weapons WHERE weapon_id=?", (weapon_id,))
+    return dict(row) if row else None
+
+
+async def weapons(user_id: int) -> list:
+    rows = await db.raw_fetch("SELECT * FROM cult_weapons WHERE owner_id=? AND equipped=0 ORDER BY grade DESC, quality DESC, weapon_id", (user_id,))
+    return [dict(row) for row in rows]
+
+
+async def convert_legacy(user_id: int) -> None:
+    rows = await db.raw_fetch("SELECT item, qty FROM cult_items WHERE user_id=? AND qty>0", (user_id,))
+    for row in rows:
+        if not LEGACY_WEAPON.match(row["item"]):
+            continue
+        for _ in range(int(row["qty"])):
+            if not await take_item(user_id, row["item"]):
+                break
+            await create_weapon(user_id, int(row["item"][-1]), 1)
+
+
 async def get(user_id: int) -> Optional[dict]:
+    await schema.ensure()
     row = await db.raw_fetchone("SELECT * FROM cult_characters WHERE user_id=?", (user_id,))
     if not row:
         return None
     character = dict(row)
+    worn = character.get("weapon") or ""
+    if LEGACY_WEAPON.match(worn):
+        weapon_id = await create_weapon(user_id, int(worn[-1]), 1, 1)
+        cursor = await db.raw_execute("UPDATE cult_characters SET weapon=? WHERE user_id=? AND weapon=?", (f"w:{weapon_id}", user_id, worn))
+        if getattr(cursor, "rowcount", 0) > 0:
+            worn = character["weapon"] = f"w:{weapon_id}"
+        else:
+            await db.raw_execute("DELETE FROM cult_weapons WHERE weapon_id=?", (weapon_id,))
+            return await get(user_id)
+    if worn.startswith("w:"):
+        info = await weapon_row(int(worn[2:])) if worn[2:].isdigit() else None
+        if info and info["owner_id"] == user_id and info["equipped"]:
+            character["_weapon"] = info
+            gear.remember(worn, info)
+        else:
+            await db.raw_execute("UPDATE cult_characters SET weapon='', weapon_r=0, weapon_e='' WHERE user_id=?", (user_id,))
+            character["weapon"] = ""
+            character["weapon_r"] = 0
+            character["weapon_e"] = ""
+    while character.get("transcend") and character["realm"] == character["trans_realm"] and character["realm"] + 1 < len(settings.REALMS):
+        character["realm"] += 1
+        character["stage"] = 0
+        character["qi"] = 0
+        character["trans_realm"] = character["realm"]
+        await db.raw_execute("UPDATE cult_characters SET realm=?, stage=0, qi=0, trans_realm=? WHERE user_id=?", (character["realm"], character["trans_realm"], user_id))
     character["_sect"] = await sect_levels(user_id)
     character["_buffs"] = await active_buffs(user_id, time.time())
     return character
@@ -195,7 +267,7 @@ def hurt(character: dict, now: float) -> float:
 
 
 def coin_mult(character: dict) -> float:
-    mult = 1.0
+    mult = title_bonus(character).get("coins", 1.0)
     if "fortune_pill" in (character.get("_buffs") or ()):
         mult *= settings.BREWS["fortune_pill"]["coins"]
     for slot in gear.SLOTS:
@@ -505,12 +577,19 @@ def fight_mods(character: dict) -> dict:
     for source in sources:
         for key, value in source.items():
             mods[key] = mods[key] + value if key in ("dodge", "crit") else mods[key] * value
+    power = 1 + settings.TRANSCEND_POWER * int(character.get("transcend") or 0)
+    for stat in ("hp", "atk", "def"):
+        mods[stat] *= power
+    for stat, value in title_bonus(character).items():
+        if stat in mods:
+            mods[stat] = mods[stat] + value if stat in ("dodge", "crit") else mods[stat] * value
     weapon, armor, charm = (character.get(slot) or "" for slot in ("weapon", "armor", "charm"))
     for worn in (weapon, armor, charm):
         for stat, value in gear.perk(worn).items():
             mods[stat] = mods[stat] + value if stat in ("dodge", "crit") else mods[stat] * value
     plus = {slot: int(character.get(f"{slot}_r") or 0) for slot in gear.SLOTS}
-    mods["atk"] *= 1 + gear.bonus(weapon, plus["weapon"])
+    held = character.get("_weapon")
+    mods["atk"] *= 1 + (gear.weapon_bonus(held["grade"], held["quality"], plus["weapon"]) if held else gear.bonus(weapon, plus["weapon"]))
     mods["hp"] *= 1 + gear.bonus(armor, plus["armor"])
     mods["def"] *= 1 + gear.bonus(armor, plus["armor"])
     mods["dodge"] += gear.bonus(charm, plus["charm"])
@@ -529,6 +608,8 @@ def fight_mods(character: dict) -> dict:
     mods["atk"] *= 1 + 0.03 * sect_level(character, "hall")
     mods["hp"] *= 1 + 0.02 * sect_level(character, "hall")
     mods["sect"] = sect_level(character, "scripture")
+    if character.get("attune") and float(character.get("attune_until") or 0) > time.time():
+        mods["attune"] = character["attune"]
     return mods
 
 
@@ -567,12 +648,16 @@ async def fight_finish(user_id: int, state: dict, now: Optional[float] = None, r
         parts["qi"] = add_qi(character, int(hourly(character) * settings.FIGHT_QI_HOURS))
         if rng.randint(1, 100) <= settings.FIGHT_MATERIAL_CHANCE:
             material = gear.GRADES[tier]["material"]
-            count = rng.randint(1, 2)
-            await add_item(user_id, material, count)
-            parts["material"] = (material, count)
+            count = await pouch.stash(user_id, material, rng.randint(1, 2), parts)
+            if count:
+                parts["material"] = (material, count)
+        if rng.randint(1, 100) <= settings.HERB_FIGHT_CHANCE:
+            herb = rng.choice([k for k, info in gear.HERBS.items() if info["tier"] == min(character["realm"], 3)])
+            count = await pouch.stash(user_id, herb, 1, parts)
+            if count:
+                parts["herb"] = (herb, count)
         if rng.randint(1, 100) <= settings.FIGHT_GEAR_CHANCE:
-            drop = gear.drop(rng, tier)
-            await add_item(user_id, drop)
+            drop = await give_gear(user_id, gear.drop(rng, tier), rng)
             parts["gear"] = drop
         await save(character)
     elif result == "lose":
@@ -581,14 +666,26 @@ async def fight_finish(user_id: int, state: dict, now: Optional[float] = None, r
         character["qi"] -= loss
         parts["qi_lost"] = loss
         await save(character)
+    if result in ("win", "lose", "draw"):
+        await wear_parts(user_id, parts)
     return {"result": result, "parts": parts}
 
 
-async def craft(user_id: int, slot: str, grade: int) -> dict:
+async def give_gear(user_id: int, key: str, rng=None) -> str:
+    rng = rng or random
+    if LEGACY_WEAPON.match(key):
+        weapon_id = await create_weapon(user_id, int(key[-1]), gear.roll_quality(rng, "drop"))
+        return f"w:{weapon_id}"
+    await add_item(user_id, key)
+    return key
+
+
+async def craft(user_id: int, slot: str, grade: int, rng=None) -> dict:
+    rng = rng or random
     character = await get(user_id)
     if character is None or not character["path"]:
         return {"ok": False, "reason": "none"}
-    if (slot not in gear.SLOTS and slot not in gear.WEAPONS) or not 0 <= grade < len(gear.GRADES) or grade > character["realm"]:
+    if slot not in gear.SLOTS or not 0 <= grade < len(gear.GRADES) or grade > character["realm"]:
         return {"ok": False, "reason": "grade"}
     info = gear.GRADES[grade]
     cursor = await db.raw_execute("UPDATE cult_items SET qty=qty-? WHERE user_id=? AND item=? AND qty>=?", (gear.CRAFT_MATERIALS, user_id, info["material"], gear.CRAFT_MATERIALS))
@@ -597,27 +694,127 @@ async def craft(user_id: int, slot: str, grade: int) -> dict:
     if not await coins.spend(user_id, info["coins"]):
         await add_item(user_id, info["material"], gear.CRAFT_MATERIALS)
         return {"ok": False, "reason": "coins", "cost": info["coins"]}
-    item = gear.key(slot, grade)
-    await add_item(user_id, item)
+    if slot == "weapon":
+        item = f"w:{await create_weapon(user_id, grade, gear.roll_quality(rng, 'craft'))}"
+    else:
+        item = gear.key(slot, grade)
+        await add_item(user_id, item)
     await quest.bump(user_id, "craft")
     return {"ok": True, "item": item, "cost": info["coins"]}
+
+
+async def forge(user_id: int, kind: str, grade: int, rng=None) -> dict:
+    rng = rng or random
+    character = await get(user_id)
+    if character is None or not character["path"]:
+        return {"ok": False, "reason": "none"}
+    if kind not in gear.WEAPONS or not 0 <= grade < len(gear.GRADES) or grade > character["realm"]:
+        return {"ok": False, "reason": "grade"}
+    cost = gear.forge_cost(grade)
+    cursor = await db.raw_execute("UPDATE cult_items SET qty=qty-? WHERE user_id=? AND item=? AND qty>=?", (cost["materials"], user_id, cost["material"], cost["materials"]))
+    if getattr(cursor, "rowcount", 0) <= 0:
+        return {"ok": False, "reason": "materials", **cost}
+    cursor = await db.raw_execute("UPDATE cult_items SET qty=qty-? WHERE user_id=? AND item='rift_shard' AND qty>=?", (cost["shards"], user_id, cost["shards"]))
+    if getattr(cursor, "rowcount", 0) <= 0:
+        await add_item(user_id, cost["material"], cost["materials"])
+        return {"ok": False, "reason": "shards", **cost}
+    if not await coins.spend(user_id, cost["coins"]):
+        await add_item(user_id, cost["material"], cost["materials"])
+        await add_item(user_id, "rift_shard", cost["shards"])
+        return {"ok": False, "reason": "coins", **cost}
+    success = rng.randint(1, 100) <= cost["chance"]
+    item = gear.key(kind, grade)
+    refund = 0
+    if success:
+        await add_item(user_id, item)
+        await quest.bump(user_id, "craft")
+    else:
+        refund = cost["coins"] * gear.FORGE_REFUND // 100
+        await coins.add(user_id, refund)
+    return {"ok": True, "success": success, "item": item, "refund": refund, **cost}
+
+
+async def repair(user_id: int) -> dict:
+    character = await get(user_id)
+    if character is None or not character["path"]:
+        return {"ok": False, "reason": "none"}
+    held = character.get("_weapon")
+    if held is None:
+        return {"ok": False, "reason": "nothing"}
+    if held["durability"] >= held["max_durability"]:
+        return {"ok": False, "reason": "full"}
+    cost = gear.repair_cost(held)
+    cursor = await db.raw_execute("UPDATE cult_items SET qty=qty-? WHERE user_id=? AND item=? AND qty>=?", (cost["materials"], user_id, cost["material"], cost["materials"]))
+    if getattr(cursor, "rowcount", 0) <= 0:
+        return {"ok": False, "reason": "materials", **cost}
+    if not await coins.spend(user_id, cost["coins"]):
+        await add_item(user_id, cost["material"], cost["materials"])
+        return {"ok": False, "reason": "coins", **cost}
+    await db.raw_execute("UPDATE cult_weapons SET durability=?, max_durability=? WHERE weapon_id=? AND owner_id=?", (cost["max"], cost["max"], held["weapon_id"], user_id))
+    return {"ok": True, "durability": cost["max"], **cost}
+
+
+async def wear(user_id: int, amount: int = 1) -> Optional[dict]:
+    row = await db.raw_fetchone("SELECT weapon FROM cult_characters WHERE user_id=?", (user_id,))
+    worn = (row["weapon"] if row else "") or ""
+    if not worn.startswith("w:") or not worn[2:].isdigit():
+        return None
+    info = await db.raw_fetchone("SELECT * FROM cult_weapons WHERE weapon_id=? AND owner_id=? AND equipped=1", (int(worn[2:]), user_id))
+    if info is None:
+        return None
+    info = dict(info)
+    left = max(0, info["durability"] - amount)
+    if left <= 0:
+        await db.raw_execute("DELETE FROM cult_weapons WHERE weapon_id=?", (info["weapon_id"],))
+        await db.raw_execute("UPDATE cult_characters SET weapon='', weapon_r=0, weapon_e='' WHERE user_id=? AND weapon=?", (user_id, worn))
+        return {"broke": True, "label": gear.weapon_label(info), "low": True}
+    await db.raw_execute("UPDATE cult_weapons SET durability=? WHERE weapon_id=?", (left, info["weapon_id"]))
+    return {"broke": False, "durability": left, "max": info["max_durability"], "low": left <= max(1, info["max_durability"] // 5), "label": gear.weapon_label(info)}
+
+
+async def wear_parts(user_id: int, parts: dict) -> None:
+    note = await wear(user_id)
+    if note and note["low"]:
+        parts["weapon"] = note
 
 
 async def equip(user_id: int, item: str) -> dict:
     character = await get(user_id)
     if character is None or not character["path"]:
         return {"ok": False, "reason": "none"}
-    parsed = gear.parse(item)
-    if parsed is None:
-        return {"ok": False, "reason": "unknown"}
-    slot, grade = parsed
-    if grade > character["realm"]:
-        return {"ok": False, "reason": "realm", "need": grade}
-    if not await take_item(user_id, item):
-        return {"ok": False, "reason": "missing"}
+    if LEGACY_WEAPON.match(item):
+        await convert_legacy(user_id)
+        grade = int(item[-1])
+        found = next((row for row in await weapons(user_id) if row["grade"] == grade and not row["listed"]), None)
+        if found is None:
+            return {"ok": False, "reason": "missing"}
+        item = f"w:{found['weapon_id']}"
+    if item.startswith("w:"):
+        slot = "weapon"
+        info = await weapon_row(int(item[2:])) if item[2:].isdigit() else None
+        if info is None or info["owner_id"] != user_id or info["equipped"] or info["listed"]:
+            return {"ok": False, "reason": "missing"}
+        if info["grade"] > character["realm"]:
+            return {"ok": False, "reason": "realm", "need": info["grade"]}
+        cursor = await db.raw_execute("UPDATE cult_weapons SET equipped=1 WHERE weapon_id=? AND owner_id=? AND equipped=0 AND listed=0", (info["weapon_id"], user_id))
+        if getattr(cursor, "rowcount", 0) <= 0:
+            return {"ok": False, "reason": "missing"}
+        gear.remember(item, info)
+    else:
+        parsed = gear.parse(item)
+        if parsed is None:
+            return {"ok": False, "reason": "unknown"}
+        slot, grade = parsed
+        if grade > character["realm"]:
+            return {"ok": False, "reason": "realm", "need": grade}
+        if not await take_item(user_id, item):
+            return {"ok": False, "reason": "missing"}
     previous = character[slot]
     if previous:
-        await add_item(user_id, previous)
+        if previous.startswith("w:") and previous[2:].isdigit():
+            await db.raw_execute("UPDATE cult_weapons SET equipped=0 WHERE weapon_id=? AND owner_id=?", (int(previous[2:]), user_id))
+        else:
+            await add_item(user_id, previous)
     await db.raw_execute(f"UPDATE cult_characters SET {slot}=?, {slot}_r=0, {slot}_e='' WHERE user_id=?", (item, user_id))
     return {"ok": True, "item": item, "previous": previous, "lost_plus": int(character.get(f"{slot}_r") or 0) if previous else 0, "lost_enchant": character.get(f"{slot}_e") or "" if previous else ""}
 
@@ -627,7 +824,8 @@ async def refine(user_id: int, slot: str, rng=None) -> dict:
     character = await get(user_id)
     if character is None or not character["path"]:
         return {"ok": False, "reason": "none"}
-    parsed = gear.parse(character.get(slot) or "") if slot in gear.SLOTS else None
+    held = character.get("_weapon") if slot == "weapon" else None
+    parsed = (slot, held["grade"]) if held else (gear.parse(character.get(slot) or "") if slot in gear.SLOTS else None)
     if parsed is None:
         return {"ok": False, "reason": "empty"}
     plus = int(character.get(f"{slot}_r") or 0)
@@ -657,6 +855,9 @@ BOUNTY_POOL = (
     ("cult_wild", "Fight {n} wild abyssal beasts", (2, 3)),
     ("cult_spar", "Spar with a traveler {n} time(s)", (1, 2)),
     ("cult_rift", "Enter a rift", (1, 1)),
+    ("cult_gather", "Gather herbs or ore {n} times", (2, 3)),
+    ("cult_realm_clear", "Clear a secret realm", (1, 1)),
+    ("cult_calamity", "Defeat {n} calamity boss(es)", (1, 2)),
 )
 
 
@@ -712,7 +913,8 @@ async def claim_bounties(user_id: int, now: Optional[float] = None) -> dict:
     chest = all(item["claimed"] for item in board["items"]) and await claim_daily(user_id, "cult_bounty_chest", 1, now) is not None
     if chest:
         await coins.add(user_id, rewards["bonus_coins"])
-        await add_item(user_id, rewards["material"], rewards["material_qty"])
+        await pouch.stash(user_id, rewards["material"], rewards["material_qty"])
+        await pouch.stash(user_id, "realm_key", 1)
     return {"ok": True, "claimed": claimed, "coins": total_coins, "qi": gained, "chest": chest, "rewards": rewards, "board": board}
 
 
@@ -813,7 +1015,7 @@ async def pvp_start(attacker_id: int, target_id: int, name: str, now: Optional[f
 
 
 async def drop_item(source: int, receiver: Optional[int], rng) -> Optional[str]:
-    items = await inventory(source)
+    items = {key: qty for key, qty in (await inventory(source)).items() if not gear.soulbound(key)}
     if not items or rng.randint(1, 100) > settings.PVP_ITEM_DROP:
         return None
     key = rng.choice(list(items))
@@ -868,6 +1070,8 @@ async def pvp_finish(attacker_id: int, state: dict, now: Optional[float] = None,
         item = await drop_item(attacker_id, None, rng)
         if item:
             parts["item_lost"] = item
+    if result in ("win", "lose", "draw"):
+        await wear_parts(attacker_id, parts)
     money = parts.get("stolen", 0) if result == "win" else -parts.get("coins_lost", 0)
     await db.raw_execute("DELETE FROM cult_raid_log WHERE at<?", (now - 14 * 86400,))
     await db.raw_execute(
@@ -1030,12 +1234,11 @@ async def dungeon_finish(state: dict, now: Optional[float] = None, rng=None) -> 
             parts["qi"] = add_qi(character, int(hourly(character) * settings.FIGHT_QI_HOURS * 2))
             if rng.randint(1, 100) <= settings.DUNGEON_MATERIAL_CHANCE:
                 material = gear.GRADES[tier]["material"]
-                count = rng.randint(1, 3)
-                await add_item(uid, material, count)
-                parts["material"] = (material, count)
+                count = await pouch.stash(uid, material, rng.randint(1, 3), parts)
+                if count:
+                    parts["material"] = (material, count)
             if rng.randint(1, 100) <= settings.DUNGEON_GEAR_CHANCE:
-                drop = gear.drop(rng, tier)
-                await add_item(uid, drop)
+                drop = await give_gear(uid, gear.drop(rng, tier), rng)
                 parts["gear"] = drop
             await save(character)
         elif result == "lose":
@@ -1044,6 +1247,8 @@ async def dungeon_finish(state: dict, now: Optional[float] = None, rng=None) -> 
             character["qi"] -= loss
             parts["qi_lost"] = loss
             await save(character)
+        if result in ("win", "lose", "draw"):
+            await wear_parts(uid, parts)
         members[uid] = parts
     return {"result": result, "members": members}
 
@@ -1078,9 +1283,15 @@ async def brew(user_id: int, key: str) -> dict:
     cursor = await db.raw_execute("UPDATE cult_items SET qty=qty-? WHERE user_id=? AND item=? AND qty>=?", (settings.BREW_MATERIALS, user_id, info["material"], settings.BREW_MATERIALS))
     if getattr(cursor, "rowcount", 0) <= 0:
         return {"ok": False, "reason": "materials", "need": settings.BREW_MATERIALS, "material": info["material"]}
+    herb = gear.herb_for(key, character["realm"])
+    cursor = await db.raw_execute("UPDATE cult_items SET qty=qty-? WHERE user_id=? AND item=? AND qty>=?", (gear.BREW_HERBS, user_id, herb, gear.BREW_HERBS))
+    if getattr(cursor, "rowcount", 0) <= 0:
+        await add_item(user_id, info["material"], settings.BREW_MATERIALS)
+        return {"ok": False, "reason": "herbs", "need": gear.BREW_HERBS, "herb": herb}
     cost = int(settings.BREW_COINS * (1 + character["realm"]) * path_info(character).get("pill_price", 1.0))
     if not await coins.spend(user_id, cost):
         await add_item(user_id, info["material"], settings.BREW_MATERIALS)
+        await add_item(user_id, herb, gear.BREW_HERBS)
         return {"ok": False, "reason": "coins", "cost": cost}
     qty = 2 if character["path"] == "alchemy" else 1
     await add_item(user_id, key, qty)
@@ -1143,7 +1354,18 @@ async def title_facts(user_id: int, character: dict) -> dict:
     earned = await db.raw_fetchone("SELECT 1 AS n FROM cult_titles WHERE user_id=? AND title_key='riftwalker'", (user_id,))
     member = await clans.membership(user_id)
     story_row = await db.raw_fetchone("SELECT chapter FROM cult_story WHERE user_id=?", (user_id,))
+    held = await pouch.tiers(user_id)
+    rows = await db.raw_fetch("SELECT item FROM cult_items WHERE user_id=? AND qty>0", (user_id,))
+    bound = {row["item"] for row in rows if gear.soulbound(row["item"]) and gear.kind_of(row["item"])}
+    if gear.kind_of(character.get("weapon") or ""):
+        bound.add(character["weapon"])
+    best = await db.raw_fetchone("SELECT 1 AS n FROM cult_weapons WHERE owner_id=? AND quality>=?", (user_id, len(gear.WEAPON_QUALITIES) - 1))
     return {
+        "wealth": await coins.balance(user_id),
+        "pouch_top": max(held.values()),
+        "pouch_min": min(held.values()),
+        "soulbound": len({gear.kind_of(item) for item in bound}),
+        "flawless": bool(best),
         "chapters": int(story_row["chapter"]) if story_row else 0,
         "awakened": bool(character["path"]),
         "realm": character["realm"],
@@ -1155,6 +1377,10 @@ async def title_facts(user_id: int, character: dict) -> dict:
         "safe": int(character.get("safe") or 0),
         "rifts": 1 if rift or earned else 0,
         "partnered": bool(await family.partners(user_id)),
+        "transcend": int(character.get("transcend") or 0),
+        "realms": await feats.get(user_id, "realm_clear"),
+        "realm_elements": len(await feats.prefixed(user_id, "realm_el_")),
+        "calamities": await feats.get(user_id, "calamity_win"),
     }
 
 
